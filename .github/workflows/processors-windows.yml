@@ -1,0 +1,45 @@
+name: Build INVERSO DE-MUDDER and DE-ANNOYANCE
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Processors/**'
+      - '.github/workflows/processors-windows.yml'
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Checkout JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: JUCE
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+      - name: Build plugins, test DSP, package installer
+        shell: pwsh
+        run: |
+          .\Processors\BUILD_PROCESSORS.ps1 -JucePath "${{ github.workspace }}\JUCE"
+      - name: Publish Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_PROCESSORS_Setup_0.1.0_x64
+          path: Processors/dist/INVERSO_PROCESSORS_Setup_0.1.0_x64.exe
+          if-no-files-found: error
+      - name: Publish standalone VST3 bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_DE_MUDDER_AND_DE_ANNOYANCE_VST3
+          path: |
+            Processors/build/InversoDeMudder_artefacts/Release/VST3/INVERSO DE-MUDDER.vst3/**
+            Processors/build/InversoDeAnnoyance_artefacts/Release/VST3/INVERSO DE-ANNOYANCE.vst3/**
+          if-no-files-found: error
