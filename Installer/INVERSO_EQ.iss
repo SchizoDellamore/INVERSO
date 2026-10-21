@@ -1,6 +1,6 @@
-; INVERSO EQ 0.3.0 — Inno Setup 6.3+ x64 VST3 installer
+; INVERSO EQ 0.4.0 — Inno Setup 6.3+ x64 VST3 installer
 ; Only compile AFTER the VST3 bundle is built by CMake.
-#define AppVersion "0.3.0"
+#define AppVersion "0.4.0"
 #define BundleName "INVERSO EQ.vst3"
 #define BundleDir "..\build\InversoEQ_artefacts\Release\VST3\" + BundleName
 

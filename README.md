@@ -1,53 +1,38 @@
-# INVERSO EQ v0.3.0 — projeto VST3 + instalador Windows
+# INVERSO EQ v0.4.0 — Windows VST3
 
-## O que este pacote CONTÉM
-- Código C++17 do equalizador e do plugin JUCE (continuidade do protótipo 0.2).
-- Projeto CMake para gerar o plugin **VST3 x64**.
-- Interface JUCE: espectro Pre/Post, oito bandas, HPF/LPF e ajuste por roda do mouse (Shift extra fino; Alt para Q e Ctrl para Hz sobre pontos).
-- Proteção contra **pico de amostra** ativada por padrão; aviso no medidor; isso **não é** um limitador true peak.
-- Instalador Inno Setup em `Installer/INVERSO_EQ.iss`, com instalação global na pasta VST3 padrão e desinstalação.
-- `BUILD_AND_PACKAGE.ps1`: compila, testa e gera `dist/INVERSO_EQ_Setup_0.3.0_x64.exe` **num Windows com ferramentas instaladas**.
-- `.github/workflows/windows-installer.yml`: permite compilar o mesmo instalador em um runner Windows do GitHub Actions.
-- Testes DSP C++ independentes de JUCE, executáveis localmente e no Windows.
+Versão de aperfeiçoamento do equalizador testado no Cubase. Interface discreta com 8 bandas paramétricas, filtros High-Pass e Low-Pass sempre acessíveis, espectro Pre/Post e ajuste fino pela roda do mouse (Shift / Alt / Ctrl).
 
-## IMPORTANTE: o .exe não está incluído
-Este ZIP foi gerado em Linux, sem Visual Studio nem o SDK JUCE disponível. Portanto o **VST3 não foi compilado nem executado no Cubase, Studio One ou Ableton**, e o instalador `.exe` não foi gerado. O arquivo `.iss` é uma receita real de instalação, mas só produz o `.exe` após a compilação do VST3 no Windows. Não tente instalar a prévia HTML como VST3.
+## Alterações da 0.4
 
-## Windows 11 x64: compilação e instalador
-1. Instale [Visual Studio 2022 Community](https://visualstudio.microsoft.com/vs/community/) com **Desenvolvimento para desktop com C++**.
-2. Instale [CMake](https://cmake.org/download/), **Git** e [Inno Setup 6.3+](https://jrsoftware.org/isinfo.php).
-3. Extraia o pacote em um caminho local sem sincronização, por exemplo `C:\Projetos\INVERSO_EQ`.
-4. Abra o PowerShell nessa pasta e execute:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\BUILD_AND_PACKAGE.ps1
-   ```
-   Se já possuir JUCE 8 instalado, use:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\BUILD_AND_PACKAGE.ps1 -JucePath "C:\SDK\JUCE"
-   ```
-5. O script baixa JUCE 8.0.16-security apenas se não houver `JUCE` local, configura CMake, compila em Release, executa testes e produz:
-   `dist\INVERSO_EQ_Setup_0.3.0_x64.exe`.
-6. Feche o Cubase, execute o instalador como administrador, abra o Cubase e faça a varredura VST3. O local padrão é `C:\Program Files\Common Files\VST3\INVERSO EQ.vst3`.
+- Transição de 7 ms nos coeficientes IIR ao modificar frequência, ganho, Q ou inclinação. Reduz saltos instantâneos que poderiam gerar cliques durante a automação.
+- Fade curto ao ligar/desligar bandas, HPF e LPF; ganho de saída também suavizado.
+- FFT de 4096 pontos no analisador para melhor discriminação dos graves; interpolação entre bins e visualização mais discreta (20 fps).
+- Captura do espectro desativada quando a janela do plugin fecha ou o analisador é colocado em Off, reduzindo trabalho de processamento.
+- Valores mais curtos na interface (por exemplo, `39,0 Hz`, `1,50 kHz`, `0,1 dB`, `Q 1,00`). Parâmetros retêm a precisão interna.
+- Novo teste de automação rápida em 44,1/48/96 kHz.
 
-Se falhar qualquer etapa, o script encerra com erro e não anuncia sucesso. O instalador não tem assinatura digital, então o Windows pode emitir alerta SmartScreen.
+## Limites e transparência
 
-### Alternativa: compilar sem instalar Visual Studio localmente
-O pacote inclui `.github/workflows/windows-installer.yml`. Ao colocar estes arquivos em um repositório GitHub e rodar o workflow **Build Windows INVERSO EQ VST3 installer**, o executável resultante ficará como artefato do workflow se o build passar. Esta opção exige uma conta/repositório no GitHub e acesso à internet.
+**PROTECT continua sendo um teto para picos de amostra, não true peak.** A proteção estéreo instantânea não possui lookahead e pode introduzir distorção quando atenua transientes. Não garante ausência de picos interamostras ou clipping em etapas posteriores da DAW. Medição true peak, EQ dinâmico e medição formal de consumo de CPU continuam pendentes.
 
-## Estado técnico e precauções
-- 8 bandas bell, 12/24/48 dB/oct HP/LP, até 18 dB em cada banda, ganho de saída; spectrum FFT 2048 no plugin JUCE.
-- Automação e estado da sessão JUCE previstos no código.
-- Controle de picos por amostra antes/depois da proteção; não mede picos interamostras, e a proteção pode provocar distorção audível quando trabalha forte.
-- Mudanças rápidas em filtros podem produzir clicks: **ainda não há interpolação dos coeficientes**.
-- Não há EQ dinâmico, processamento de fase linear, oversampling true peak ou garantia de clipping zero em etapas posteriores da DAW.
-- **Não substituir o equalizador principal em projetos importantes sem testes de escuta e medição.**
-- JUCE usa licenciamento dual open source/comercial: verifique as condições adequadas à distribuição antes de publicar. O framework JUCE não é redistribuído neste ZIP.
+A versão 0.4 mantém os mesmos IDs dos parâmetros e o mesmo identificador VST3 da 0.3. Foi concebida para preservar sessões anteriores. Ainda são necessários testes de abertura de sessões antigas no Cubase.
 
-## Testes de DSP no Linux (sem JUCE)
+## Compilação automática no GitHub
+
+Abra **Actions → Build Windows INVERSO EQ VST3 installer**. Em execução concluída com sucesso, baixe o artifact `INVERSO_EQ_Setup_0.4.0_x64` e extraia o ZIP para encontrar o `.exe`. Feche o Cubase antes da instalação; reabra após instalar.
+
+Para compilar manualmente num Windows com VS2022, CMake, Inno Setup e JUCE:
+
+```powershell
+.\BUILD_AND_PACKAGE.ps1 -JucePath 'C:\SDK\JUCE'
+```
+
+Testes DSP independentes de JUCE:
+
 ```bash
 cmake -S . -B build-dsp -DINVERSO_DSP_TESTS_ONLY=ON
 cmake --build build-dsp
 ctest --test-dir build-dsp --output-on-failure
 ```
 
-**Versão 0.3 é um marco de empacotamento, não uma alegação de equivalência sonora com a FabFilter.**
+Distribuição: observar os termos de licenciamento JUCE. O instalador não possui assinatura digital.

@@ -40,7 +40,15 @@ void InversoFineSlider::mouseWheelMove(const juce::MouseEvent& event,
 
 InversoPlot::InversoPlot(InversoEQAudioProcessor& p) : processor(p) {
     preLevels.fill(-90.f); postLevels.fill(-90.f);
-    startTimerHz(24);
+    for (int i=0; i<4096; ++i)
+        hannWindow[static_cast<std::size_t>(i)] = 0.5f - 0.5f * std::cos(static_cast<float>(2.0*inverso::kPi*i/4095.0));
+    processor.setSpectrumCaptureEnabled(true);
+    startTimerHz(20);
+}
+
+InversoPlot::~InversoPlot() {
+    stopTimer();
+    processor.setSpectrumCaptureEnabled(false);
 }
 
 juce::Rectangle<float> InversoPlot::plotBounds() const noexcept {
@@ -65,24 +73,24 @@ double InversoPlot::yToGain(float y) const noexcept {
     return std::clamp(18.0 - 36.0 * (y-bounds.getY())/bounds.getHeight(), -18.0,18.0);
 }
 
-void InversoPlot::analyse(const std::array<float,2048>& signal, std::array<float,1025>& levels) {
+void InversoPlot::analyse(const std::array<float,4096>& signal, std::array<float,2049>& levels) {
     std::fill(fftBuffer.begin(), fftBuffer.end(), 0.f);
-    for (int i=0; i<2048; ++i) {
-        const float hann = 0.5f - 0.5f * std::cos(static_cast<float>(2.0*inverso::kPi*i/2047.0));
-        fftBuffer[static_cast<std::size_t>(i)] = signal[static_cast<std::size_t>(i)] * hann;
-    }
+    for (int i=0; i<4096; ++i)
+        fftBuffer[static_cast<std::size_t>(i)] = signal[static_cast<std::size_t>(i)] * hannWindow[static_cast<std::size_t>(i)];
     fft.performFrequencyOnlyForwardTransform(fftBuffer.data());
-    for (int k=1; k<=1024; ++k) {
-        // Hann window coherent-gain correction; narrow bins are not LUFS readings.
-        const auto amp = fftBuffer[static_cast<std::size_t>(k)] * (4.f/2048.f);
+    for (int k=1; k<=2048; ++k) {
+        // Decibels relative to full-scale sine, not LUFS.
+        const auto amp = fftBuffer[static_cast<std::size_t>(k)] * (4.f/4096.f);
         const auto db = juce::jlimit(-90.f, 6.f, levelDb(amp));
-        levels[static_cast<std::size_t>(k)] = 0.65f*levels[static_cast<std::size_t>(k)] + 0.35f*db;
+        // Fast attack, slower release; spectrum follows the music without flickering.
+        auto& previous = levels[static_cast<std::size_t>(k)];
+        previous += (db > previous ? 0.42f : 0.15f) * (db - previous);
     }
 }
 
 void InversoPlot::timerCallback() {
     if (spectrumMode != 0) {
-        std::array<float,2048> input {}, output {};
+        std::array<float,4096> input {}, output {};
         processor.spectrumSnapshot(input,output);
         if (spectrumMode == 1 || spectrumMode == 3) analyse(input,preLevels);
         if (spectrumMode == 2 || spectrumMode == 3) analyse(output,postLevels);
@@ -90,7 +98,7 @@ void InversoPlot::timerCallback() {
     repaint();
 }
 
-void InversoPlot::drawSpectrum(juce::Graphics& g, const std::array<float,1025>& data, juce::Colour colour) {
+void InversoPlot::drawSpectrum(juce::Graphics& g, const std::array<float,2049>& data, juce::Colour colour) {
     const auto bounds = plotBounds();
     const auto sampleRate = processor.getSampleRate();
     if (sampleRate <= 0) return;
@@ -98,13 +106,17 @@ void InversoPlot::drawSpectrum(juce::Graphics& g, const std::array<float,1025>& 
     bool started = false;
     for (int x=0; x<static_cast<int>(bounds.getWidth()); x+=2) {
         const double hz = xToHz(bounds.getX() + static_cast<float>(x));
-        const auto bin = static_cast<std::size_t>(juce::jlimit(1,1024,static_cast<int>(std::round(hz*2048./sampleRate))));
-        const float val = data[bin];
+        if (hz > sampleRate * 0.5) break;
+        // Interpolate adjacent FFT bins rather than snapping frequencies to a staircase.
+        const double bin = juce::jlimit(1.0, 2048.0, hz * 4096.0 / sampleRate);
+        const int left = juce::jlimit(1, 2048, static_cast<int>(bin));
+        const int right = juce::jmin(2048, left+1);
+        const float val = juce::jmap(static_cast<float>(bin-left), data[static_cast<std::size_t>(left)], data[static_cast<std::size_t>(right)]);
         const auto y = bounds.getBottom() - bounds.getHeight() * juce::jlimit(0.f,1.f,(val+90.f)/90.f);
         if (!started) {path.startNewSubPath(bounds.getX()+static_cast<float>(x),y); started=true;}
         else path.lineTo(bounds.getX()+static_cast<float>(x),y);
     }
-    g.setColour(colour.withAlpha(0.55f));
+    g.setColour(colour.withAlpha(0.46f));
     g.strokePath(path,juce::PathStrokeType(1.25f));
 }
 
@@ -249,6 +261,27 @@ InversoEQAudioProcessorEditor::InversoEQAudioProcessorEditor(InversoEQAudioProce
     bandDb.setTextValueSuffix(" dB");
     outputDb.setTextValueSuffix(" dB");
     ceilingDb.setTextValueSuffix(" dBFS");
+    // Custom text formatting affects display only; internal parameters retain full precision.
+    for (auto* slider : {&hpHz, &lpHz, &bandHz}) {
+        slider->textFromValueFunction = [](double v) {
+            return v >= 1000.0 ? juce::String(v/1000.0, 2) + " kHz"
+                               : juce::String(v, 1) + " Hz";
+        };
+        slider->valueFromTextFunction = [](const juce::String& value) {
+            auto text = value.trim().toLowerCase();
+            const bool kilo = text.containsChar('k');
+            const double v = text.getDoubleValue();
+            return v * (kilo ? 1000.0 : 1.0);
+        };
+    }
+    for (auto* slider : {&bandDb, &outputDb, &ceilingDb}) {
+        slider->textFromValueFunction = [this, slider](double v) {
+            return juce::String(v, 1) + (slider == &ceilingDb ? " dBFS" : " dB");
+        };
+        slider->valueFromTextFunction = [](const juce::String& s) {return s.getDoubleValue();};
+    }
+    bandQ.textFromValueFunction = [](double v) {return juce::String(v, 2);};
+    bandQ.valueFromTextFunction = [](const juce::String& s) {return s.getDoubleValue();};
 
     hpEnabled.setButtonText("ON"); lpEnabled.setButtonText("ON");
     bandEnabled.setButtonText("ON"); safetyEnabled.setButtonText("PROTECT");
@@ -395,8 +428,8 @@ void InversoEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(juce::Rectangle<float>(726.f,412.f,216.f,150.f),8.f,1.f);
     g.drawHorizontalLine(575,20.f,940.f);
     g.setColour(secondary.withAlpha(0.7f));
-    g.setFont(10.f);
-    g.drawText("Sample-peak protection / not true-peak",20,630,365,16,juce::Justification::left);
+    g.setFont(11.f);
+    g.drawText("SAMPLE PEAK ONLY / not true peak",20,630,365,16,juce::Justification::left);
     g.drawText("WHEEL: fine    SHIFT: extra fine    POINT + ALT: Q    POINT + CTRL: Hz",
                395,630,545,16,juce::Justification::right);
 }

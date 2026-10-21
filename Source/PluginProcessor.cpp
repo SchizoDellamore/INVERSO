@@ -98,26 +98,31 @@ void InversoEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     if (ch < 1 || count < 1) return;
 
     eq.setSettings(currentSettings());
-    const float* input = buffer.getReadPointer(0);
-    for (int n=0; n<count; ++n)
-        inputRing[static_cast<std::size_t>((sampleCount + static_cast<std::uint64_t>(n)) % ringSize)]
-            .store(input[n], std::memory_order_relaxed);
+    const bool capture = spectrumCaptureEnabled.load(std::memory_order_relaxed);
+    if (capture) {
+        const float* input = buffer.getReadPointer(0);
+        for (int n=0; n<count; ++n)
+            inputRing[static_cast<std::size_t>((sampleCount + static_cast<std::uint64_t>(n)) % ringSize)]
+                .store(input[n], std::memory_order_relaxed);
+    }
 
     const auto meters = eq.process(buffer.getArrayOfWritePointers(), ch, count);
-    const float* output = buffer.getReadPointer(0);
-    for (int n=0; n<count; ++n)
-        outputRing[static_cast<std::size_t>((sampleCount + static_cast<std::uint64_t>(n)) % ringSize)]
-            .store(output[n], std::memory_order_relaxed);
-    sampleCount += static_cast<std::uint64_t>(count);
-    publishedSampleCount.store(sampleCount, std::memory_order_release);
+    if (capture) {
+        const float* output = buffer.getReadPointer(0);
+        for (int n=0; n<count; ++n)
+            outputRing[static_cast<std::size_t>((sampleCount + static_cast<std::uint64_t>(n)) % ringSize)]
+                .store(output[n], std::memory_order_relaxed);
+        sampleCount += static_cast<std::uint64_t>(count);
+        publishedSampleCount.store(sampleCount, std::memory_order_release);
+    }
     lastInputPeak.store(meters.inputPeak, std::memory_order_relaxed);
     lastPreProtectionPeak.store(meters.preProtectionPeak, std::memory_order_relaxed);
     lastOutputPeak.store(meters.outputPeak, std::memory_order_relaxed);
     lastReductionDb.store(meters.maximumReductionDb, std::memory_order_relaxed);
 }
 
-void InversoEQAudioProcessor::spectrumSnapshot(std::array<float,2048>& before,
-                                                std::array<float,2048>& after) const noexcept {
+void InversoEQAudioProcessor::spectrumSnapshot(std::array<float,4096>& before,
+                                                std::array<float,4096>& after) const noexcept {
     const auto published = publishedSampleCount.load(std::memory_order_acquire);
     for (std::size_t i=0; i<before.size(); ++i) {
         const auto index = (published + ringSize - before.size() + i) % ringSize;

@@ -1,9 +1,1 @@
-INVERSO EQ 0.3.0 — release status
-
-SOURCE + BUILD TOOLING: packaged
-PORTABLE DSP: to be tested in this session
-WINDOWS VST3 BINARY: NOT BUILT (requires Windows/MSVC + JUCE)
-WINDOWS .EXE INSTALLER: NOT BUILT (requires VST3 bundle + Inno Setup)
-CUBASE / STUDIO ONE / ABLETON: NOT TESTED
-TRUE PEAK GUARANTEE: NOT IMPLEMENTED
-NOTE: Existing peak guard only covers discrete audio samples, not inter-sample peaks.
+INVERSO EQ 0.4: source and DSP tests prepared. GitHub Windows VST3 packaging is pending until workflow success. Sample peak guard is not true peak.

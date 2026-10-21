@@ -18,13 +18,14 @@ private:
 class InversoPlot : public juce::Component, private juce::Timer {
 public:
     explicit InversoPlot(InversoEQAudioProcessor&);
+    ~InversoPlot() override;
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
-    void setSpectrumMode(int mode) { spectrumMode = mode; repaint(); }
+    void setSpectrumMode(int mode) { spectrumMode = mode; processor.setSpectrumCaptureEnabled(mode != 0); repaint(); }
 
     std::function<void(int)> chooseBand;
     std::function<void(int, double, double)> moveBand;
@@ -35,17 +36,18 @@ public:
 
 private:
     void timerCallback() override;
-    void analyse(const std::array<float,2048>& samples, std::array<float,1025>& levels);
+    void analyse(const std::array<float,4096>& samples, std::array<float,2049>& levels);
     double xToHz(float x) const noexcept;
     float hzToX(double hz) const noexcept;
     float gainToY(double gain) const noexcept;
     double yToGain(float y) const noexcept;
     juce::Rectangle<float> plotBounds() const noexcept;
-    void drawSpectrum(juce::Graphics&, const std::array<float,1025>&, juce::Colour);
+    void drawSpectrum(juce::Graphics&, const std::array<float,2049>&, juce::Colour);
     InversoEQAudioProcessor& processor;
-    juce::dsp::FFT fft {11}; // 2048 points
-    std::array<float,4096> fftBuffer {};
-    std::array<float,1025> preLevels {}, postLevels {};
+    juce::dsp::FFT fft {12}; // 4096 points, better low-frequency discrimination
+    std::array<float,8192> fftBuffer {};
+    std::array<float,4096> hannWindow {};
+    std::array<float,2049> preLevels {}, postLevels {};
     int spectrumMode = 2; // 0:off 1:pre 2:post 3:both
     int dragging = -1;
 };
