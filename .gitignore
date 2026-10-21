@@ -1,0 +1,10 @@
+build/
+build-dsp/
+dist/
+JUCE/
+*.obj
+*.pdb
+*.exp
+*.ilk
+*.lib
+*.exe

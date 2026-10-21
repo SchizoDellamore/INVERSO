@@ -1,0 +1,41 @@
+name: Build Windows INVERSO EQ VST3 installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout plugin source
+        uses: actions/checkout@v4
+      - name: Checkout JUCE 8.0.16 security patch
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: JUCE
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+      - name: Build VST3 and installer
+        shell: pwsh
+        run: |
+          .\BUILD_AND_PACKAGE.ps1 -JucePath "${{ github.workspace }}\JUCE"
+      - name: Publish downloadable Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_EQ_Setup_0.3.0_x64
+          path: dist/INVERSO_EQ_Setup_0.3.0_x64.exe
+          if-no-files-found: error
+      - name: Publish standalone VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_EQ_VST3_x64
+          path: build/InversoEQ_artefacts/Release/VST3/INVERSO EQ.vst3/**
+          if-no-files-found: error
