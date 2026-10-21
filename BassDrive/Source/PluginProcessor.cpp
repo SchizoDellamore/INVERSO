@@ -3,12 +3,13 @@
 #include <algorithm>
 #include <cmath>
 
-juce::AudioProcessorValueTreeState::ParameterLayout InversoBassDriveProcessor::makeParameters(){
+juce::AudioProcessorValueTreeState::ParameterLayout InversoBassDriveProcessor::makeParameters() {
  using namespace juce;
  std::vector<std::unique_ptr<RangedAudioParameter>> p;
  auto knob=[&](const char* id,const char* name,float low,float high,float interval,float initial){
   p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{id,1},name,NormalisableRange<float>(low,high,interval),initial));
  };
+ // IDs and parameter ranges are unchanged for session compatibility with 0.1.
  knob("DRIVE","Drive",0.f,100.f,.01f,25.f);
  knob("FUZZ","Fuzz",0.f,100.f,.01f,0.f);
  p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{"CROSSOVER",1},"Crossover",NormalisableRange<float>(60.f,500.f,1.f,.5f),155.f));
@@ -17,6 +18,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout InversoBassDriveProcessor::m
  knob("OUTPUT","Output",-24.f,12.f,.01f,0.f);
  p.push_back(std::make_unique<AudioParameterChoice>(ParameterID{"FUZZ_MODE",1},"Fuzz type",StringArray{"Off","Vintage","Silicon","Gated"},0));
  p.push_back(std::make_unique<AudioParameterBool>(ParameterID{"LOW_SAFE",1},"Preserve sub-bass",true));
+ p.push_back(std::make_unique<AudioParameterBool>(ParameterID{"BYPASS",1},"Bypass",false));
  return {p.begin(),p.end()};
 }
 InversoBassDriveProcessor::InversoBassDriveProcessor():
@@ -25,36 +27,33 @@ InversoBassDriveProcessor::InversoBassDriveProcessor():
   .withOutput("Output",juce::AudioChannelSet::stereo(),true)),
  apvts(*this,nullptr,"PARAMETERS",makeParameters()){}
 
-bool InversoBassDriveProcessor::isBusesLayoutSupported(const BusesLayout& l)const{
+bool InversoBassDriveProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
  const auto in=l.getMainInputChannelSet();
  return (in==juce::AudioChannelSet::mono() || in==juce::AudioChannelSet::stereo()) &&
         in==l.getMainOutputChannelSet();
 }
-void InversoBassDriveProcessor::prepareToPlay(double sampleRate,int blockSize){
- const int channels=std::clamp(getTotalNumInputChannels(),1,2);
- preparedChannels=channels;
- // Four-fold JUCE oversampling: 2 stages of half-band polyphase IIR filters.
- // The latency is padded to an integer host sample and reported to Cubase.
- oversampling=std::make_unique<juce::dsp::Oversampling<float>>(
-   static_cast<size_t>(channels),2,
-   juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR,true,true);
- oversampling->initProcessing(static_cast<size_t>(std::max(blockSize,32)));
- oversampling->reset();
- core.prepare(sampleRate*4.0,channels);
- setLatencySamples(juce::roundToInt(oversampling->getLatencyInSamples()));
+void InversoBassDriveProcessor::prepareToPlay(double sampleRate,int /*blockSize*/) {
+ const double validRate = (std::isfinite(sampleRate) && sampleRate>=8000.0) ? sampleRate : 48000.0;
+ // Stabilisation release: host-rate DSP without JUCE oversampling or host latency.
+ // This removes host-size-dependent oversampling buffers from the realtime path.
+ // Reintroduce oversampling only after separate host validation.
+ core.prepare(validRate,2);
+ prepared=true;
+ bypassWet=1.f;
+ bypassStep=1.f-std::exp(-1.f/static_cast<float>(validRate*.012));
+ setLatencySamples(0);
  inputPeak.store(0.f);outputPeak.store(0.f);oversampledPeak.store(0.f);
 }
 void InversoBassDriveProcessor::releaseResources(){
- oversampling.reset();preparedChannels=0;
- setLatencySamples(0);
+ prepared=false;
 }
-void InversoBassDriveProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
+void InversoBassDriveProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
  juce::ignoreUnused(midi);
  juce::ScopedNoDenormals noDenormals;
- const int channels=audio.getNumChannels();
- const int samples=audio.getNumSamples();
- if(samples<=0 || !oversampling || channels!=preparedChannels)return;
- auto param=[this](const char* id)noexcept{return apvts.getRawParameterValue(id)->load(std::memory_order_relaxed);};
+ const int channels=audio.getNumChannels(),samples=audio.getNumSamples();
+ // Fail-open: preserve input audio when not prepared or when host layout changes.
+ if (!prepared || samples<=0 || channels<1 || channels>2) return;
+ auto param=[this](const char* id) noexcept {return apvts.getRawParameterValue(id)->load(std::memory_order_relaxed);};
  inverso_bass::Parameters p;
  p.drive=param("DRIVE")*.01f;
  p.fuzz=param("FUZZ")*.01f;
@@ -65,40 +64,39 @@ void InversoBassDriveProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
  p.preserveLow=param("LOW_SAFE")>=.5f;
  p.mode=static_cast<inverso_bass::FuzzMode>(std::clamp(static_cast<int>(std::round(param("FUZZ_MODE"))),0,3));
  core.setParameters(p);
-
- float hostInputPeak=0.f;
- for(int c=0;c<channels;++c){
-  const float* channel=audio.getReadPointer(c);
-  for(int i=0;i<samples;++i)hostInputPeak=std::max(hostInputPeak,std::abs(channel[i]));
- }
- juce::dsp::AudioBlock<float> block(audio);
- auto expanded=oversampling->processSamplesUp(block);
- const int expandedSamples=static_cast<int>(expanded.getNumSamples());
- float osPeak=0.f;
- for(int i=0;i<expandedSamples;++i){
-  for(int c=0;c<channels;++c){
-   auto* data=expanded.getChannelPointer(static_cast<size_t>(c));
-   const float output=core.processChannel(c,data[i]);
-   data[i]=output;
-   osPeak=std::max(osPeak,std::abs(output));
-  }
+ const bool bypass=param("BYPASS")>=.5f;
+ float inPeak=0.f,outPeak=0.f;
+ // No allocation, no locks, no dynamically sized internal buffers in callback.
+ auto* left=audio.getWritePointer(0);
+ auto* right=channels==2?audio.getWritePointer(1):nullptr;
+ for (int i=0;i<samples;++i) {
+  const float dryL=left[i],dryR=right?right[i]:0.f;
+  const float wetL=core.processChannel(0,std::isfinite(dryL)?dryL:0.f);
+  const float wetR=right?core.processChannel(1,std::isfinite(dryR)?dryR:0.f):0.f;
   core.tickFrame();
+  bypassWet+=bypassStep*((bypass?0.f:1.f)-bypassWet);
+  const float outL=dryL+bypassWet*(wetL-dryL);
+  const float outR=dryR+bypassWet*(wetR-dryR);
+  // Never propagate invalid DSP results into the host or silently mute the buffer.
+  left[i]=std::isfinite(outL)?outL:(std::isfinite(dryL)?dryL:0.f);
+  if(right)right[i]=std::isfinite(outR)?outR:(std::isfinite(dryR)?dryR:0.f);
+  inPeak=std::max(inPeak,std::abs(std::isfinite(dryL)?dryL:0.f));
+  outPeak=std::max(outPeak,std::abs(left[i]));
+  if(right){
+   inPeak=std::max(inPeak,std::abs(std::isfinite(dryR)?dryR:0.f));
+   outPeak=std::max(outPeak,std::abs(right[i]));
+  }
  }
- oversampling->processSamplesDown(block);
- float hostOutputPeak=0.f;
- for(int c=0;c<channels;++c){
-  const float* channel=audio.getReadPointer(c);
-  for(int i=0;i<samples;++i)hostOutputPeak=std::max(hostOutputPeak,std::abs(channel[i]));
- }
- inputPeak.store(hostInputPeak,std::memory_order_relaxed);
- outputPeak.store(hostOutputPeak,std::memory_order_relaxed);
- oversampledPeak.store(osPeak,std::memory_order_relaxed);
+ inputPeak.store(inPeak,std::memory_order_relaxed);
+ outputPeak.store(outPeak,std::memory_order_relaxed);
+ // Kept for compatibility with the UI meter. No oversampled value in 0.2.
+ oversampledPeak.store(outPeak,std::memory_order_relaxed);
 }
-void InversoBassDriveProcessor::getStateInformation(juce::MemoryBlock& dest){
+void InversoBassDriveProcessor::getStateInformation(juce::MemoryBlock& dest) {
  auto xml=apvts.copyState().createXml();
  if(xml)copyXmlToBinary(*xml,dest);
 }
-void InversoBassDriveProcessor::setStateInformation(const void* data,int size){
+void InversoBassDriveProcessor::setStateInformation(const void* data,int size) {
  auto xml=getXmlFromBinary(data,size);
  if(xml && xml->hasTagName(apvts.state.getType()))
   apvts.replaceState(juce::ValueTree::fromXml(*xml));

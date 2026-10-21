@@ -2,7 +2,6 @@
 #include <JuceHeader.h>
 #include "DSP/BassDriveCore.h"
 #include <atomic>
-#include <memory>
 
 class InversoBassDriveProcessor final : public juce::AudioProcessor {
 public:
@@ -34,7 +33,7 @@ public:
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
 private:
  inverso_bass::Core core;
- std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
- int preparedChannels=0;
+ bool prepared=false;
+ float bypassWet=1.f, bypassStep=.001f;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoBassDriveProcessor)
 };

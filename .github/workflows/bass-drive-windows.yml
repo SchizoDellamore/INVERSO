@@ -35,11 +35,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'BassDrive'
           $bundle = Join-Path $root 'build\InversoBassDrive_artefacts\Release\VST3\INVERSO BASS DRIVE.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_BASS_DRIVE_PORTABLE_VST3_0.1.0'
+          $portable = Join-Path $root 'dist\INVERSO_BASS_DRIVE_PORTABLE_VST3_0.2.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           $instructions = @'
-          INVERSO BASS DRIVE v0.1.0  |  Windows x64  |  Cubase VST3
+          INVERSO BASS DRIVE v0.2.0  |  Windows x64  |  Cubase VST3
           PORTABLE INSTALL (no EXE required)
           1. Close Cubase.
           2. Extract this GitHub artifact ZIP.
@@ -62,14 +62,14 @@ jobs:
       - name: Publish installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_BASS_DRIVE_Setup_0.1.0_x64
-          path: BassDrive/dist/INVERSO_BASS_DRIVE_Setup_0.1.0_x64.exe
+          name: INVERSO_BASS_DRIVE_Setup_0.2.0_x64
+          path: BassDrive/dist/INVERSO_BASS_DRIVE_Setup_0.2.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_BASS_DRIVE_PORTABLE_VST3_0.1.0_NO_EXE
-          path: BassDrive/dist/INVERSO_BASS_DRIVE_PORTABLE_VST3_0.1.0/
+          name: INVERSO_BASS_DRIVE_PORTABLE_VST3_0.2.0_NO_EXE
+          path: BassDrive/dist/INVERSO_BASS_DRIVE_PORTABLE_VST3_0.2.0/
           if-no-files-found: error
       - name: Publish raw VST3 bundle
         uses: actions/upload-artifact@v4

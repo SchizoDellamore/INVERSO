@@ -8,7 +8,7 @@ if(-not $JucePath){$JucePath=Join-Path (Split-Path $root -Parent) 'JUCE'}
 if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not found: $JucePath"}
 & cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF
 Assert-Status 'CMake configure'
-& cmake --build (Join-Path $root 'build') --config Release --target InversoBassDrive_VST3 bassdrive_functional bassdrive_stress --parallel 4
+& cmake --build (Join-Path $root 'build') --config Release --target InversoBassDrive_VST3 bassdrive_functional bassdrive_stress bassdrive_passthrough InversoBassDriveHostSmoke --parallel 4
 Assert-Status 'Build VST3'
 & ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure
 Assert-Status 'DSP tests'
@@ -21,5 +21,5 @@ if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyCont
 if(-not $iscc){throw 'Inno Setup 6 ISCC.exe not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_BASS_DRIVE.iss')
 Assert-Status 'Inno Setup'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_BASS_DRIVE_Setup_0.1.0_x64.exe'))){throw 'Installer missing'}
+if(-not (Test-Path (Join-Path $root 'dist\INVERSO_BASS_DRIVE_Setup_0.2.0_x64.exe'))){throw 'Installer missing'}
 Write-Host 'SUCCESS: INVERSO BASS DRIVE installer compiled.'

@@ -42,3 +42,7 @@ Default amount is 45%, sensitivity 50%, focus 50%. **Zero-latency** causal filte
 - A contrasting indicator in the bar panel makes the active audition mode visible, without adding a new large control.
 - Added test `processor_delta` verifying the null/difference signal and bypass coexistence; now three DSP tests in the Windows pipeline.
 - **Note**: Cubase's *host-level* bypass or parallel dry/wet routing can still pass unaffected audio around the plugin; this is outside the plugin's control. Listening to the removed signal does not necessarily make the source unrecognizable, because the removed frequencies can contain harmonics from the same instrument.
+
+
+## Standalone installers (distribution revision)
+The project also builds independent Windows installers `INVERSO_DE_MUDDER_Setup_0.1.1_x64.exe` and `INVERSO_DE_ANNOYANCE_Setup_0.1.1_x64.exe`, in addition to the combined installer and the portable VST3 package. Installers are unsigned and could still trigger browser reputation warnings; the portable VST3 is an alternative. If migrating from the combined installer, uninstall it first with Cubase closed, then install individual versions to avoid shared file ownership conflicts.

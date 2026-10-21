@@ -27,6 +27,8 @@ private:
  std::unique_ptr<CA> modeAttachment;
  juce::Label modeLabel;
  juce::ToggleButton lowProtect{"PRESERVE LOW"};
+ juce::ToggleButton bypass{"BYPASS"};
+ std::unique_ptr<BA> bypassAttachment;
  std::unique_ptr<BA> lowProtectAttachment;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoBassDriveEditor)
 };

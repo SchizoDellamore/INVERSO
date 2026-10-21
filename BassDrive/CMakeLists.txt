@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoBassDrive VERSION 0.1.0 LANGUAGES C CXX)
+project(InversoBassDrive VERSION 0.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
 enable_testing()
 add_executable(bassdrive_functional Tests/test_bassdrive.cpp)
 add_executable(bassdrive_stress Tests/test_stress.cpp)
-foreach(t IN ITEMS bassdrive_functional bassdrive_stress)
+add_executable(bassdrive_passthrough Tests/test_passthrough.cpp)
+foreach(t IN ITEMS bassdrive_functional bassdrive_stress bassdrive_passthrough)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -16,6 +17,7 @@ foreach(t IN ITEMS bassdrive_functional bassdrive_stress)
 endforeach()
 add_test(NAME bassdrive_functional COMMAND bassdrive_functional)
 add_test(NAME bassdrive_stress COMMAND bassdrive_stress)
+add_test(NAME bassdrive_passthrough COMMAND bassdrive_passthrough)
 if(INVERSO_DSP_TESTS_ONLY)
  return()
 endif()
@@ -50,3 +52,16 @@ target_link_libraries(InversoBassDrive PRIVATE
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
  juce::juce_recommended_lto_flags)
+
+# Exercise the JUCE processor in a DAW-like callback (mono/stereo, varying
+# host block sizes, automation, state restore). Builds on the Windows runner.
+juce_add_console_app(InversoBassDriveHostSmoke PRODUCT_NAME "INVERSO Bass Drive Host Smoke")
+juce_generate_juce_header(InversoBassDriveHostSmoke)
+target_sources(InversoBassDriveHostSmoke PRIVATE
+ Tests/test_host.cpp Source/PluginProcessor.cpp Source/PluginProcessor.h
+ Source/PluginEditor.cpp Source/PluginEditor.h Source/DSP/BassDriveCore.h)
+target_compile_definitions(InversoBassDriveHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoBassDriveHostSmoke PRIVATE
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+add_test(NAME bassdrive_host_smoke COMMAND InversoBassDriveHostSmoke)

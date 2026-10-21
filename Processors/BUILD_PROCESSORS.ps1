@@ -26,7 +26,12 @@ if($SkipInstaller){exit 0}
 $iscc=Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)) 'Inno Setup 6\ISCC.exe'
 if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source}
 if(-not $iscc){throw 'Inno Setup 6 ISCC.exe not found'}
-& $iscc (Join-Path $root 'Installer\INVERSO_PROCESSORS.iss')
-Assert-Status 'Installer compilation'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_PROCESSORS_Setup_0.1.1_x64.exe'))) {throw 'Missing installer'}
-Write-Host 'SUCCESS: INVERSO PROCESSORS installer compiled.'
+foreach($setupScript in @('INVERSO_PROCESSORS.iss','INVERSO_DE_MUDDER.iss','INVERSO_DE_ANNOYANCE.iss')) {
+  & $iscc (Join-Path $root ('Installer\' + $setupScript))
+  Assert-Status "Installer compilation $setupScript"
+}
+foreach($setupExe in @('INVERSO_PROCESSORS_Setup_0.1.1_x64.exe','INVERSO_DE_MUDDER_Setup_0.1.1_x64.exe','INVERSO_DE_ANNOYANCE_Setup_0.1.1_x64.exe')) {
+  if(-not (Test-Path (Join-Path $root ('dist\' + $setupExe)))) {throw "Missing installer $setupExe"}
+}
+
+Write-Host 'SUCCESS: three independent/combined INVERSO PROCESSORS installers compiled.'
