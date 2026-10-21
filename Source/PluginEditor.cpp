@@ -260,7 +260,7 @@ InversoEQAudioProcessorEditor::InversoEQAudioProcessorEditor(InversoEQAudioProce
     for (auto* slider : {&hpHz,&lpHz,&bandHz}) slider->setTextValueSuffix(" Hz");
     bandDb.setTextValueSuffix(" dB");
     outputDb.setTextValueSuffix(" dB");
-    ceilingDb.setTextValueSuffix(" dBFS");
+    ceilingDb.setTextValueSuffix(" dBTP");
     // Custom text formatting affects display only; internal parameters retain full precision.
     for (auto* slider : {&hpHz, &lpHz, &bandHz}) {
         slider->textFromValueFunction = [](double v) {
@@ -276,7 +276,7 @@ InversoEQAudioProcessorEditor::InversoEQAudioProcessorEditor(InversoEQAudioProce
     }
     for (auto* slider : {&bandDb, &outputDb, &ceilingDb}) {
         slider->textFromValueFunction = [this, slider](double v) {
-            return juce::String(v, 1) + (slider == &ceilingDb ? " dBFS" : " dB");
+            return juce::String(v, 1) + (slider == &ceilingDb ? " dBTP" : " dB");
         };
         slider->valueFromTextFunction = [](const juce::String& s) {return s.getDoubleValue();};
     }
@@ -401,9 +401,9 @@ void InversoEQAudioProcessorEditor::adjustBandWithWheel(int index, int target,
 }
 
 void InversoEQAudioProcessorEditor::timerCallback() {
-    const auto pre=processor.lastPreProtectionPeak.load(std::memory_order_relaxed);
+    const auto pre=processor.lastPreTruePeak.load(std::memory_order_relaxed);
     const auto in=processor.lastInputPeak.load(std::memory_order_relaxed);
-    const auto out=processor.lastOutputPeak.load(std::memory_order_relaxed);
+    const auto out=processor.lastOutputTruePeak.load(std::memory_order_relaxed);
     const auto red=processor.lastReductionDb.load(std::memory_order_relaxed);
     holdPre=std::max(pre,holdPre*0.80f);
     holdOut=std::max(out,holdOut*0.80f);
@@ -414,7 +414,7 @@ void InversoEQAudioProcessorEditor::timerCallback() {
     statusLabel.setColour(juce::Label::textColourId,
                           holdPre >= warnLevel ? amber : aqua);
     statusLabel.setText("IN " + juce::String(levelDb(in),1) + "   PRE " + juce::String(levelDb(holdPre),1)
-        + "   OUT " + juce::String(levelDb(holdOut),1) + " dBFS"
+        + "   OUT " + juce::String(levelDb(holdOut),1) + " dBTP~"
         + "    |    " + status + (s.protectionEnabled ? "    /    GR " + juce::String(holdReduction,1) + " dB" : "  /  PROTECT OFF"),
         juce::dontSendNotification);
 }
@@ -429,7 +429,7 @@ void InversoEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawHorizontalLine(575,20.f,940.f);
     g.setColour(secondary.withAlpha(0.7f));
     g.setFont(11.f);
-    g.drawText("SAMPLE PEAK ONLY / not true peak",20,630,365,16,juce::Justification::left);
+    g.drawText("4x TRUE-PEAK ESTIMATE / 3ms LOOKAHEAD",20,630,365,16,juce::Justification::left);
     g.drawText("WHEEL: fine    SHIFT: extra fine    POINT + ALT: Q    POINT + CTRL: Hz",
                395,630,545,16,juce::Justification::right);
 }

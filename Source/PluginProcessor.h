@@ -36,6 +36,7 @@ public:
 
     std::atomic<float> lastInputPeak {0.f}, lastPreProtectionPeak {0.f};
     std::atomic<float> lastOutputPeak {0.f}, lastReductionDb {0.f};
+    std::atomic<float> lastPreTruePeak {0.f}, lastOutputTruePeak {0.f};
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     void setSpectrumCaptureEnabled(bool enabled) noexcept { spectrumCaptureEnabled.store(enabled, std::memory_order_relaxed); }

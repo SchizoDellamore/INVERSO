@@ -1,38 +1,46 @@
-# INVERSO EQ v0.4.0 — Windows VST3
+# INVERSO EQ v0.5.0 — Windows VST3
 
-Versão de aperfeiçoamento do equalizador testado no Cubase. Interface discreta com 8 bandas paramétricas, filtros High-Pass e Low-Pass sempre acessíveis, espectro Pre/Post e ajuste fino pela roda do mouse (Shift / Alt / Ctrl).
+Equalizador paramétrico independente (8 bandas), High-Pass e Low-Pass permanentes, analisador de espectro Pre/Post/ambos e controle fino pela roda do mouse. Projeto desenvolvido com C++17 e JUCE.
 
-## Alterações da 0.4
+## Novidades v0.5
 
-- Transição de 7 ms nos coeficientes IIR ao modificar frequência, ganho, Q ou inclinação. Reduz saltos instantâneos que poderiam gerar cliques durante a automação.
-- Fade curto ao ligar/desligar bandas, HPF e LPF; ganho de saída também suavizado.
-- FFT de 4096 pontos no analisador para melhor discriminação dos graves; interpolação entre bins e visualização mais discreta (20 fps).
-- Captura do espectro desativada quando a janela do plugin fecha ou o analisador é colocado em Off, reduzindo trabalho de processamento.
-- Valores mais curtos na interface (por exemplo, `39,0 Hz`, `1,50 kHz`, `0,1 dB`, `Q 1,00`). Parâmetros retêm a precisão interna.
-- Novo teste de automação rápida em 44,1/48/96 kHz.
+- Estimativa de **true peak 4×** por interpolador FIR (16 amostras) em dois pontos: antes e depois da proteção. Detecta picos interamostras que um medidor comum de picos de amostra não detectaria.
+- Proteção estéreo vinculada com **~3 ms de lookahead** e liberação suave de 120 ms; proteção ligada por padrão com alvo de -1 dBTP **estimado**. Redução de ganho compartilhada entre canais. Margem interna de 0,2 dB.
+- Latência fixa, registrada na DAW, mesmo com proteção desligada, para preservar o alinhamento de canais e de caminhos paralelos.
+- Métricas no cabeçalho: entrada (picos de amostra), pré-proteção e saída (estimativas de true peak), aviso próximo ao teto e redução de ganho.
+- Quatro fases do interpolador computadas com uma única leitura do histórico, sem alocações no processamento de áudio. Analisador FFT continua sob demanda.
+- Testes automatizados do processamento, transientes, latência, automação e 16/32/64 instâncias.
 
-## Limites e transparência
+## Limitações importantes
 
-**PROTECT continua sendo um teto para picos de amostra, não true peak.** A proteção estéreo instantânea não possui lookahead e pode introduzir distorção quando atenua transientes. Não garante ausência de picos interamostras ou clipping em etapas posteriores da DAW. Medição true peak, EQ dinâmico e medição formal de consumo de CPU continuam pendentes.
+**A medição ainda NÃO possui validação de conformidade com a ITU-R BS.1770 e a proteção NÃO é um limitador brick-wall true peak certificado.** O interpolador é uma aproximação 4×, e a modulação de ganho pode criar pequenos picos interamostras. O alvo de saída deve ser entendido como operacional, não como garantia matemática/contratual. Para mastering e distribuição final, use medidor/limitador true peak de referência na saída principal.
 
-A versão 0.4 mantém os mesmos IDs dos parâmetros e o mesmo identificador VST3 da 0.3. Foi concebida para preservar sessões anteriores. Ainda são necessários testes de abertura de sessões antigas no Cubase.
+A proteção aplica redução de ganho, especialmente quando há picos fortes; isso altera dinâmica/transientes. Usar 'PROTECT' não substitui monitorar toda a cadeia de sinal no Cubase. O atraso é aproximadamente 3 ms (amostras exatas dependem da frequência de amostragem), compensado pela DAW se houver suporte a delay compensation.
 
-## Compilação automática no GitHub
+A versão 0.5 preserva IDs de parâmetros e identificador VST3 anteriores. Ainda é necessário verificar a abertura de projetos antigos e automação no Cubase. **Teste primeiro em uma cópia do projeto**; não substitua a única cópia de produção.
 
-Abra **Actions → Build Windows INVERSO EQ VST3 installer**. Em execução concluída com sucesso, baixe o artifact `INVERSO_EQ_Setup_0.4.0_x64` e extraia o ZIP para encontrar o `.exe`. Feche o Cubase antes da instalação; reabra após instalar.
+## Como instalar
 
-Para compilar manualmente num Windows com VS2022, CMake, Inno Setup e JUCE:
+No GitHub, abra **Actions > Build Windows INVERSO EQ VST3 installer** e selecione a execução verde mais recente. Em **Artifacts**, baixe `INVERSO_EQ_Setup_0.5.0_x64`. Extraia o ZIP e execute o `.exe` com o Cubase fechado. O instalador substitui a versão anterior na pasta VST3 padrão.
+
+## Compilação e testes
+
+Compilação Windows automatizada: GitHub Actions utiliza Windows Server 2022, JUCE 8.0.16-security, Visual Studio 2022, CMake e Inno Setup. O instalador não é assinado digitalmente.
+
+Testes DSP portáteis:
+
+```bash
+cmake -S . -B build-dsp -DINVERSO_DSP_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-dsp
+ctest --test-dir build-dsp --output-on-failure
+```
+
+O benchmark em `test_instances.cpp` processa 16/32/64 instâncias de forma sequencial, em um único thread. Mede o custo da execução DSP naquela máquina, **não** o consumo de CPU de uma sessão real de Cubase.
+
+Para compilar manualmente no Windows (VS2022, CMake, Inno Setup e JUCE instalados):
 
 ```powershell
 .\BUILD_AND_PACKAGE.ps1 -JucePath 'C:\SDK\JUCE'
 ```
 
-Testes DSP independentes de JUCE:
-
-```bash
-cmake -S . -B build-dsp -DINVERSO_DSP_TESTS_ONLY=ON
-cmake --build build-dsp
-ctest --test-dir build-dsp --output-on-failure
-```
-
-Distribuição: observar os termos de licenciamento JUCE. O instalador não possui assinatura digital.
+Distribuição depende dos termos de licenciamento JUCE e dos componentes utilizados.

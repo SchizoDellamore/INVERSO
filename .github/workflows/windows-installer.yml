@@ -30,8 +30,8 @@ jobs:
       - name: Publish downloadable Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_EQ_Setup_0.4.0_x64
-          path: dist/INVERSO_EQ_Setup_0.4.0_x64.exe
+          name: INVERSO_EQ_Setup_0.5.0_x64
+          path: dist/INVERSO_EQ_Setup_0.5.0_x64.exe
           if-no-files-found: error
       - name: Publish standalone VST3 bundle
         uses: actions/upload-artifact@v4

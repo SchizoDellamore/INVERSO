@@ -1,1 +1,1 @@
-INVERSO EQ 0.4: source and DSP tests prepared. GitHub Windows VST3 packaging is pending until workflow success. Sample peak guard is not true peak.
+INVERSO EQ v0.5.0: estimated 4x true-peak meters with 3 ms latency-compensated lookahead gain guard. NOT a certified true-peak brick-wall limiter. Windows VST3 and installer must be confirmed in CI before distribution.

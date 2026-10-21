@@ -52,7 +52,7 @@ $build = Join-Path $root 'build'
 # Configure the C++ plugin and portable DSP test targets.
 & cmake -S $root -B $build -G $Generator -A x64 "-DJUCE_ROOT=$JucePath" "-DINVERSO_DSP_TESTS_ONLY=OFF"
 Assert-ExitCode 'CMake configuration'
-& cmake --build $build --config Release --target InversoEQ_VST3 inverso_eq_test inverso_eq_stress inverso_eq_automation --parallel 4
+& cmake --build $build --config Release --target InversoEQ_VST3 inverso_eq_test inverso_eq_stress inverso_eq_automation inverso_eq_truepeak inverso_eq_instances --parallel 4
 Assert-ExitCode 'Windows VST3 compilation'
 & ctest --test-dir $build -C Release --output-on-failure
 Assert-ExitCode 'DSP functional/stress tests'
@@ -73,7 +73,7 @@ if (-not $iscc) {
 }
 & $iscc (Join-Path $root 'Installer\INVERSO_EQ.iss')
 Assert-ExitCode 'Inno Setup installer compilation'
-$installer = Join-Path $root 'dist\INVERSO_EQ_Setup_0.4.0_x64.exe'
+$installer = Join-Path $root 'dist\INVERSO_EQ_Setup_0.5.0_x64.exe'
 if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Installer output missing: $installer" }
 Write-Host "SUCCESS: $installer"
 Write-Host 'Unsigned installer: Windows SmartScreen may warn. Close DAWs before installing.'

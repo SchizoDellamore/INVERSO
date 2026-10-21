@@ -1,12 +1,16 @@
 #pragma once
 
 // INVERSO EQ: portable DSP engine; C++17, no dependencies.
-// Sample peak protection is NOT a true-peak limiter.
+// Four-times oversampled true-peak estimate with feed-forward lookahead protection.
+// Measurement is NOT independently certified to ITU-R BS.1770; do not treat
+// this as a brick-wall true-peak limiter for final mastering. Signal can exceed
+// the target by small amounts from intersample reconstruction and modulation.
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace inverso {
@@ -35,7 +39,7 @@ struct Settings {
     std::array<BandSettings, kBands> bands {};
     double outputGainDb = 0.0;
     bool protectionEnabled = true;
-    double protectionCeilingDb = -1.0; // sample-peak dBFS
+    double protectionCeilingDb = -1.0; // approximate true-peak ceiling dBTP
 };
 
 struct BlockMeter {
@@ -43,6 +47,8 @@ struct BlockMeter {
     float preProtectionPeak = 0.0f;
     float outputPeak = 0.0f;
     float maximumReductionDb = 0.0f;
+    float preProtectionTruePeak = 0.0f; // 4x oversampled estimate
+    float outputTruePeak = 0.0f;        // 4x oversampled estimate
 };
 
 struct Coefficients {
@@ -168,12 +174,92 @@ private:
     int remaining = 0;
 };
 
+// Causal, windowed-sinc four-times interpolator. All coefficients are
+// generated at prepare time. Each phase is normalised for unity DC gain.
+// A 16-sample FIR is a practical estimate, not a BS.1770 compliance claim.
+class FourXPeakEstimator {
+public:
+    static constexpr int taps = 16;
+    static constexpr int phases = 4;
+    void prepare() noexcept {
+        for (int p = 0; p < phases; ++p) {
+            double total = 0.0;
+            for (int t = 0; t < taps; ++t) {
+                const double distance = (taps - 1) * 0.5 + 0.25 * p - t;
+                const double sinc = std::abs(distance) < 1e-12 ? 1.0 : std::sin(kPi * distance) / (kPi * distance);
+                const double w = 0.42 - 0.5 * std::cos(2.0 * kPi * t / (taps - 1))
+                                 + 0.08 * std::cos(4.0 * kPi * t / (taps - 1));
+                weights[p][t] = sinc * w;
+                total += weights[p][t];
+            }
+            for (double& c : weights[p]) c /= total;
+        }
+        reset();
+    }
+    void reset() noexcept { history.fill(0.0f); head = 0; }
+    float process(float sample) noexcept {
+        history[head] = sample;
+        // Fuse the four FIR phases: traverse history once per incoming sample.
+        double v0 = 0.0, v1 = 0.0, v2 = 0.0, v3 = 0.0;
+        int at = head;
+        for (int t = 0; t < taps; ++t) {
+            const double x = history[at];
+            v0 += weights[0][t] * x;
+            v1 += weights[1][t] * x;
+            v2 += weights[2][t] * x;
+            v3 += weights[3][t] * x;
+            if (--at < 0) at = taps - 1;
+        }
+        const double largest = std::max({std::abs(v0), std::abs(v1), std::abs(v2), std::abs(v3)});
+        if (++head == taps) head = 0;
+        return static_cast<float>(largest);
+    }
+private:
+    std::array<std::array<double,taps>,phases> weights {};
+    std::array<float,taps> history {};
+    int head=0;
+};
+
+// Monotonic queue: maximum in a rolling window, amortised O(1) per sample.
+// No heap activity and no scanning of the entire lookahead window.
+class PeakWindow {
+public:
+    static constexpr int capacity = 4096;
+    void reset() noexcept {first=last=0; iteration=0;}
+    float push(float level, int window) noexcept {
+        const std::uint64_t idx=iteration++;
+        while (first != last) {
+            const int tailIndex=(last + capacity - 1) % capacity;
+            if (values[tailIndex] > level) break;
+            last=tailIndex;
+        }
+        values[last]=level; positions[last]=idx;
+        last=(last+1)%capacity;
+        while (first != last && positions[first] + static_cast<std::uint64_t>(window) <= idx)
+            first=(first+1)%capacity;
+        return first == last ? level : values[first];
+    }
+private:
+    std::array<float,capacity> values {};
+    std::array<std::uint64_t,capacity> positions {};
+    int first=0,last=0;
+    std::uint64_t iteration=0;
+};
+
 class EQCore {
 public:
     void prepare(double newSampleRate, int newChannels) {
         sampleRate = std::max(8000.0, newSampleRate);
         rampSamples = std::max(32, static_cast<int>(std::round(sampleRate * 0.007)));
+        // About 3 ms of fixed lookahead. Always report this latency, even if
+        // protection is switched off, so the host never loses sync.
+        lookahead = std::clamp(static_cast<int>(std::ceil(sampleRate * 0.003)), 32, 2048);
         channels.resize(static_cast<std::size_t>(std::max(1, newChannels)));
+        for (auto& ch : channels) {
+            ch.delay.assign(static_cast<std::size_t>(lookahead+1), 0.0f);
+            ch.preEstimator.prepare();
+            ch.postEstimator.prepare();
+        }
         reset();
         updateCoefficients();
     }
@@ -183,7 +269,11 @@ public:
             for (auto& f : c.hp) f.reset();
             for (auto& f : c.bands) f.reset();
             for (auto& f : c.lp) f.reset();
+            std::fill(c.delay.begin(), c.delay.end(), 0.0f);
+            c.preEstimator.reset(); c.postEstimator.reset();
         }
+        delayPos = 0;
+        peakWindow.reset();
         protectionGain = 1.0;
         currentOutputGain = targetOutputGain = dbToLinear(settings.outputGainDb);
         outputGainSamplesLeft = 0;
@@ -215,13 +305,14 @@ public:
     }
 
     const Settings& getSettings() const noexcept { return settings; }
+    int latencySamples() const noexcept {return lookahead;}
 
     BlockMeter process(float* const* buffer, int numberOfChannels, int numberOfSamples) noexcept {
         BlockMeter meter;
         if (!buffer || numberOfSamples <= 0 || numberOfChannels <= 0 || channels.empty()) return meter;
         const int count = std::min(numberOfChannels, static_cast<int>(channels.size()));
-        const double ceiling = dbToLinear(settings.protectionCeilingDb);
         const double release = std::exp(-1.0 / (sampleRate * 0.120));
+        const int ringLength=lookahead+1;
         const int hpSections = sectionCount(settings.highPassSlope);
         const int lpSections = sectionCount(settings.lowPassSlope);
         for (int n = 0; n < numberOfSamples; ++n) {
@@ -230,6 +321,7 @@ public:
                 if (--outputGainSamplesLeft == 0) currentOutputGain = targetOutputGain;
             }
             float prePeak = 0.0f;
+            float preTruePeak = 0.0f;
             for (int ch = 0; ch < count; ++ch) {
                 float x = buffer[ch][n];
                 meter.inputPeak = std::max(meter.inputPeak, std::abs(x));
@@ -255,25 +347,40 @@ public:
                         filtered = state.lp[static_cast<std::size_t>(s)].process(filtered);
                     x = static_cast<float>(x + lpWet * (filtered - x));
                 }
-                buffer[ch][n] = static_cast<float>(x * currentOutputGain);
-                prePeak = std::max(prePeak, std::abs(buffer[ch][n]));
+                const float pre = static_cast<float>(x * currentOutputGain);
+                prePeak = std::max(prePeak, std::abs(pre));
+                // The estimator has its own fixed FIR delay. The audio delay
+                // gives it time to observe transients before playback.
+                preTruePeak = std::max(preTruePeak, state.preEstimator.process(pre));
+                state.delay[static_cast<std::size_t>(delayPos)] = pre;
+                // Read the value that entered the ring 'lookahead' samples ago.
+                buffer[ch][n] = state.delay[static_cast<std::size_t>((delayPos+1) % ringLength)];
             }
             meter.preProtectionPeak = std::max(meter.preProtectionPeak, prePeak);
+            meter.preProtectionTruePeak = std::max(meter.preProtectionTruePeak, preTruePeak);
+            const float nearbyPeak = peakWindow.push(preTruePeak, lookahead);
             if (settings.protectionEnabled) {
-                // Instantaneous stereo-linked sample ceiling; not true-peak, not lookahead.
-                // The guard can audibly affect transients when reducing several dB.
+                // Linked lookahead attenuation with a 120 ms release.
+                // A small margin accommodates interpolation errors and gain
+                // modulation. This is NOT a guaranteed dBTP brick-wall.
+                constexpr double safeMargin = 0.20;
+                const double target = dbToLinear(settings.protectionCeilingDb - safeMargin)
+                                     / std::max(1e-12, static_cast<double>(nearbyPeak));
                 protectionGain = std::min(1.0, protectionGain * release + (1.0 - release));
-                if (prePeak > 0.0f)
-                    protectionGain = std::min(protectionGain, ceiling / static_cast<double>(prePeak));
+                protectionGain = std::min(protectionGain, std::min(1.0, target));
             } else {
-                protectionGain = 1.0;
+                // Smoothly recover unity when disabling protection: no gain jump.
+                protectionGain = std::min(1.0, protectionGain * release + (1.0 - release));
             }
             meter.maximumReductionDb = std::max(meter.maximumReductionDb,
                                                  static_cast<float>(-linearToDb(protectionGain)));
             for (int ch = 0; ch < count; ++ch) {
                 buffer[ch][n] = static_cast<float>(buffer[ch][n] * protectionGain);
                 meter.outputPeak = std::max(meter.outputPeak, std::abs(buffer[ch][n]));
+                meter.outputTruePeak = std::max(meter.outputTruePeak,
+                    channels[static_cast<std::size_t>(ch)].postEstimator.process(buffer[ch][n]));
             }
+            if (++delayPos == ringLength) delayPos = 0;
         }
         return meter;
     }
@@ -285,6 +392,8 @@ private:
         std::array<Biquad, kMaxSections> lp {};
         SmoothEnable hpMix {}, lpMix {};
         std::array<SmoothEnable, kBands> bandMix {};
+        FourXPeakEstimator preEstimator {}, postEstimator {};
+        std::vector<float> delay;
     };
 
     void updateCoefficients() noexcept {
@@ -304,6 +413,8 @@ private:
     }
 
     double sampleRate = 48000.;
+    int lookahead = 144, delayPos = 0;
+    PeakWindow peakWindow {};
     int rampSamples = 336;
     double protectionGain = 1.0;
     double currentOutputGain = 1.0, targetOutputGain = 1.0, outputGainStep = 0.0;

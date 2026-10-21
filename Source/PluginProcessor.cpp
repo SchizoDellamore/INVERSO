@@ -39,8 +39,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout InversoEQAudioProcessor::cre
         p.push_back(continuous("b" + n + "_q", "Band " + n + " Q", 0.2f, 18.f, 1.f, 0.32f));
     }
     p.push_back(continuous("out_db", "Output gain", -24.f, 12.f, 0.f));
-    p.push_back(boolean("safe_on", "Sample-peak protection", true));
-    p.push_back(continuous("ceiling_db", "Sample-peak ceiling", -12.f, 0.f, -1.f));
+    p.push_back(boolean("safe_on", "Oversampled output protection", true));
+    p.push_back(continuous("ceiling_db", "Approximate true-peak ceiling", -12.f, 0.f, -1.f));
     return {p.begin(), p.end()};
 }
 
@@ -52,6 +52,7 @@ InversoEQAudioProcessor::InversoEQAudioProcessor()
 
 void InversoEQAudioProcessor::prepareToPlay(double rate, int) {
     eq.prepare(rate, getTotalNumInputChannels());
+    setLatencySamples(eq.latencySamples());
     sampleCount = 0;
     publishedSampleCount.store(0, std::memory_order_release);
     for (auto& a: inputRing) a.store(0.f, std::memory_order_relaxed);
@@ -119,6 +120,8 @@ void InversoEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     lastPreProtectionPeak.store(meters.preProtectionPeak, std::memory_order_relaxed);
     lastOutputPeak.store(meters.outputPeak, std::memory_order_relaxed);
     lastReductionDb.store(meters.maximumReductionDb, std::memory_order_relaxed);
+    lastPreTruePeak.store(meters.preProtectionTruePeak, std::memory_order_relaxed);
+    lastOutputTruePeak.store(meters.outputTruePeak, std::memory_order_relaxed);
 }
 
 void InversoEQAudioProcessor::spectrumSnapshot(std::array<float,4096>& before,
