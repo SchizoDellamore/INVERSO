@@ -23,16 +23,68 @@ jobs:
       - name: Locate or install Inno Setup
         shell: pwsh
         run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $iscc = "${env:ProgramFiles(x86)}\\Inno Setup 6\\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
       - name: Build plugins, test DSP, package installer
         shell: pwsh
         run: |
-          .\Processors\BUILD_PROCESSORS.ps1 -JucePath "${{ github.workspace }}\JUCE"
-      - name: Publish Windows installer
+          .\\Processors\\BUILD_PROCESSORS.ps1 -JucePath "${{ github.workspace }}\\JUCE"
+      - name: Create portable package and checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'Processors'
+          $portable = Join-Path $root 'dist\\INVERSO_PROCESSORS_PORTABLE_VST3_0.1.1'
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          $plugins = @(
+            @{target='InversoDeMudder'; name='INVERSO DE-MUDDER.vst3'},
+            @{target='InversoDeAnnoyance'; name='INVERSO DE-ANNOYANCE.vst3'}
+          )
+          foreach ($p in $plugins) {
+            $source = Join-Path $root ("build\\" + $p.target + "_artefacts\\Release\\VST3\\" + $p.name)
+            if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Missing plugin bundle: $source" }
+            Copy-Item -LiteralPath $source -Destination $portable -Recurse -Force
+          }
+          $readme = @'
+          INVERSO PROCESSORS 0.1.1 - portable VST3 for Windows 64-bit
+
+          This package installs without running an EXE.
+          1. Close Cubase.
+          2. Extract this download ZIP.
+          3. Copy BOTH folders, including their .vst3 extension:
+             INVERSO DE-MUDDER.vst3
+             INVERSO DE-ANNOYANCE.vst3
+             into C:\Program Files\Common Files\VST3
+          4. Restart Cubase and rescan plugins if necessary.
+
+          Do not rename the plugin folders, or copy only the DLL inside.
+          For updates, replace the two existing folders.
+
+          SHA256SUMS.txt contains the hashes of the built plugin files.
+          Hashes verify file integrity; they are NOT malware clearance.
+          Do not bypass any genuine antivirus detection.
+          '@
+          [System.IO.File]::WriteAllText((Join-Path $portable 'INSTALL.txt'), $readme, [System.Text.Encoding]::UTF8)
+          $lines = Get-ChildItem -LiteralPath $portable -File -Recurse |
+            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $relative = $_.FullName.Substring($portable.Length + 1).Replace('\\', '/')
+              "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant())  $relative"
+            }
+          $lines | Set-Content -LiteralPath (Join-Path $portable 'SHA256SUMS.txt') -Encoding ascii
+          if ((Get-ChildItem -LiteralPath $portable -Recurse -File | Where-Object Extension -eq '.vst3').Count -lt 2) { throw 'Plugin binaries were not packaged correctly' }
+      - name: Publish portable plugins (no installer EXE)
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_PROCESSORS_Setup_0.1.1_x64
+          name: INVERSO_PROCESSORS_PORTABLE_VST3_0.1.1_NO_EXE
+          path: Processors/dist/INVERSO_PROCESSORS_PORTABLE_VST3_0.1.1/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish optional unsigned Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_PROCESSORS_UNSIGNED_Setup_0.1.1_x64
           path: Processors/dist/INVERSO_PROCESSORS_Setup_0.1.1_x64.exe
           if-no-files-found: error
       - name: Publish standalone VST3 bundles
