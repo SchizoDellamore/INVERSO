@@ -87,6 +87,18 @@ jobs:
           name: INVERSO_PROCESSORS_UNSIGNED_Setup_0.1.1_x64
           path: Processors/dist/INVERSO_PROCESSORS_Setup_0.1.1_x64.exe
           if-no-files-found: error
+      - name: Publish De-Mudder individual installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_DE_MUDDER_Setup_0.1.1_x64
+          path: Processors/dist/INVERSO_DE_MUDDER_Setup_0.1.1_x64.exe
+          if-no-files-found: error
+      - name: Publish De-Annoyance individual installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_DE_ANNOYANCE_Setup_0.1.1_x64
+          path: Processors/dist/INVERSO_DE_ANNOYANCE_Setup_0.1.1_x64.exe
+          if-no-files-found: error
       - name: Publish standalone VST3 bundles
         uses: actions/upload-artifact@v4
         with:
