@@ -1,4 +1,4 @@
-# INVERSO DE-MUDDER + DE-ANNOYANCE (v0.1)
+# INVERSO DE-MUDDER + DE-ANNOYANCE (v0.1.1)
 
 Two **independent VST3 audio processors**, installed together. **INVERSO EQ remains installed and unchanged.**
 
@@ -34,3 +34,11 @@ Default amount is 45%, sensitivity 50%, focus 50%. **Zero-latency** causal filte
 - Uninstaller only removes the two processors; it does not remove INVERSO EQ.
 
 **Limitations:** tests do not establish professional mastering transparency or optimized CPU use across a loaded DAW project. Subjective effectiveness requires listening comparisons and measurement in the Cubase host. We will not claim these are equivalent to FabFilter/Soothe or automated resonant detection. No third-party binaries or JUCE source are included; license obligations for JUCE must be reviewed before distribution.
+
+## 0.1.1: LISTEN REMOVED correction
+
+- Corrected an internal control-precedence bug: enabling BYPASS and LISTEN REMOVED at the same time no longer sends the complete dry instrument; LISTEN REMOVED takes priority.
+- The audition signal is calculated as `input - processed`; no loudness compensation is applied.
+- A contrasting indicator in the bar panel makes the active audition mode visible, without adding a new large control.
+- Added test `processor_delta` verifying the null/difference signal and bypass coexistence; now three DSP tests in the Windows pipeline.
+- **Note**: Cubase's *host-level* bypass or parallel dry/wet routing can still pass unaffected audio around the plugin; this is outside the plugin's control. Listening to the removed signal does not necessarily make the source unrecognizable, because the removed frequencies can contain harmonics from the same instrument.

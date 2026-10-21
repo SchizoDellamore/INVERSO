@@ -32,8 +32,8 @@ jobs:
       - name: Publish Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_PROCESSORS_Setup_0.1.0_x64
-          path: Processors/dist/INVERSO_PROCESSORS_Setup_0.1.0_x64.exe
+          name: INVERSO_PROCESSORS_Setup_0.1.1_x64
+          path: Processors/dist/INVERSO_PROCESSORS_Setup_0.1.1_x64.exe
           if-no-files-found: error
       - name: Publish standalone VST3 bundles
         uses: actions/upload-artifact@v4

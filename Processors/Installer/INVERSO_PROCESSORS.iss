@@ -1,5 +1,5 @@
-; INVERSO PROCESSORS 0.1.0 - bundles two independent VST3 processors.
-#define Ver "0.1.0"
+; INVERSO PROCESSORS 0.1.1 - bundles two independent VST3 processors.
+#define Ver "0.1.1"
 #define Mud "INVERSO DE-MUDDER.vst3"
 #define Ann "INVERSO DE-ANNOYANCE.vst3"
 #define MudSource "..\build\InversoDeMudder_artefacts\Release\VST3\" + Mud

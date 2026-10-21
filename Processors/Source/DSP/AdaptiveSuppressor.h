@@ -1,5 +1,5 @@
 #pragma once
-// INVERSO PROCESSORS 0.1 - Portable, allocation-free stereo DSP.
+// INVERSO PROCESSORS 0.1.1 - Portable, allocation-free stereo DSP.
 // Dynamic band suppression, NOT a resonance-tracking spectral processor.
 // Per-band RMS vs broadband RMS; envelopes and gain are smoothly updated.
 // Neither a de-esser nor a brick-wall limiter.
@@ -107,8 +107,12 @@ public:
     float removed=0;
     for(int b=0;b<bandCount();++b)removed+=depth[b]*filtered[ch][b];
     const float wet=in[ch]-removed;
-    const float mixed=(1.f-deltaMix)*wet+deltaMix*removed;
-    const float output=byMix*in[ch]+(1.f-byMix)*mixed;
+    // LISTEN REMOVED is the actual dry minus wet difference.
+    // Give audition priority over the plugin's internal BYPASS: previously
+    // BYPASS after DELTA reintroduced the complete original instrument.
+    // Crossfade the audition state to avoid clicks when toggling it.
+    const float normal=byMix*in[ch]+(1.f-byMix)*wet;
+    const float output=(1.f-deltaMix)*normal+deltaMix*removed;
     if(ch==0)outL[i]=output;else outR[i]=output;
     block.inputPeak=std::max(block.inputPeak,std::abs(in[ch]));
     block.outputPeak=std::max(block.outputPeak,std::abs(output));

@@ -41,7 +41,9 @@ void InversoMeterPanel::paint(juce::Graphics& g){
   g.setColour(muted);g.drawFittedText(text,juce::Rectangle<int>(static_cast<int>(x-8),29,static_cast<int>(width+16),18),juce::Justification::centred,1);
   g.setColour(ink);g.drawFittedText("-"+juce::String(reduction,1),juce::Rectangle<int>(static_cast<int>(x-8),138,static_cast<int>(width+16),20),juce::Justification::centred,1);
  }
- g.setColour(muted);g.drawText("DYNAMIC REDUCTION  ·  dB",juce::Rectangle<int>(18,4,340,20),juce::Justification::centredLeft);
+ const bool audition=processor.apvts.getRawParameterValue("DELTA")->load()>0.5f;
+ g.setColour(audition?mint:muted);
+ g.drawText(audition?"LISTEN REMOVED  ·  ONLY THE SUBTRACTED SIGNAL":"DYNAMIC REDUCTION  ·  dB",juce::Rectangle<int>(18,4,410,20),juce::Justification::centredLeft);
  g.setColour(ink);
  g.drawText("MAX  -"+juce::String(processor.reductionDb.load(),1)+" dB",juce::Rectangle<int>(static_cast<int>(r.getWidth())-190,4,165,20),juce::Justification::centredRight);
 }
@@ -65,7 +67,7 @@ InversoProcessorEditor::InversoProcessorEditor(InversoProcessor& p):AudioProcess
  bypassAttach=std::make_unique<BA>(p.apvts,"BYPASS",bypass);
  deltaAttach=std::make_unique<BA>(p.apvts,"DELTA",delta);
  bypass.setColour(juce::ToggleButton::textColourId,muted);
- delta.setColour(juce::ToggleButton::textColourId,muted);
+ delta.setColour(juce::ToggleButton::textColourId,mint);
 }
 void InversoProcessorEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
@@ -82,5 +84,5 @@ void InversoProcessorEditor::resized(){
   labels[static_cast<std::size_t>(i)].setBounds(x,264,210,16);
   sliders[static_cast<std::size_t>(i)].setBounds(x,280,205,36);
  }
- bypass.setBounds(465,332,105,22);delta.setBounds(565,332,140,22);
+ bypass.setBounds(420,332,100,22);delta.setBounds(525,332,167,22);
 }
