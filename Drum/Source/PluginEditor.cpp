@@ -83,8 +83,9 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  stepVelocity.setNumDecimalPlacesToDisplay(0);
  stepVelocity.onValueChange=[this]{
   if(refreshing)return;
-  processor.engine.set(processor.engine.selectedPattern.load(),selectedPad,selectedStep,
-                       static_cast<int>(stepVelocity.getValue()));
+  inverso_drum::setStepVelocityAt(processor.engine,
+                processor.engine.selectedPattern.load(),selectedPad,selectedStep,
+                static_cast<int>(stepVelocity.getValue()));
   refreshStepVelocity();
   grid.repaint();
  };
@@ -195,7 +196,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 void InversoDrumEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
  g.setColour(text);g.setFont(juce::Font(juce::FontOptions(25.f,juce::Font::bold)));
- g.drawText("INVERSO / DRUM  v0.6.1",22,12,620,39,juce::Justification::centredLeft);
+ g.drawText("INVERSO / DRUM  v0.6.2",22,12,620,39,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(12.f)));
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
@@ -381,13 +382,17 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
   const int len=engine.laneLength[lane].load();
   const double dur=inverso_drum::divisionPPQ(engine.division[lane].load(),engine.feel[lane].load());
   const int first=std::max(0,static_cast<int>(std::floor(from/dur)));
-  const int last=std::min(20000,static_cast<int>(std::ceil((from+lengthPPQ)/dur)));
+  const int last=std::min(inverso_drum::steps,static_cast<int>(std::ceil((from+lengthPPQ)/dur)));
   const float width=std::max(1.5f,static_cast<float>(dur/lengthPPQ*w));
   for(int index=first;index<last;++index){
    const double at=index*dur;
    if(at<from-1e-8 || at>=from+lengthPPQ-1e-8)continue;
-   const int step=index%len;
-   const int vel=engine.get(pat,lane,step);
+   // Each visible cell is the one distinct absolute step, never index % len.
+   // Short lanes loop in the audio engine, but their future timeline is NOT
+   // drawn or edited as mirrored copies of steps 1..len.
+   const int step=index;
+   const bool outsideLoop=step>=len;
+   const int vel=outsideLoop?0:engine.get(pat,lane,step);
    const float x=static_cast<float>((at-from)/lengthPPQ*w);
    if(vel>0){
     g.setColour(orange.withAlpha(.35f+.65f*vel/127.f));
@@ -417,14 +422,15 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
        static_cast<int>(h-4.f),juce::Justification::centred);
     }
    } else if(width>6.f){
-    g.setColour(juce::Colour::fromRGB(45,47,51));
+    g.setColour(outsideLoop ? juce::Colour::fromRGB(34,37,41)
+                            : juce::Colour::fromRGB(45,47,51));
     g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
    }
    if(lane==editor.selectedPad && step==editor.selectedStep && width>5.f){
     g.setColour(juce::Colours::white);
     g.drawRoundedRectangle(x+.6f,y-.2f,std::max(2.f,width-1.2f),h-2.f,2.5f,1.8f);
    }
-   if(engine.currentLaneStep[lane].load()==step&&playingPat&&width>5.f){
+   if(engine.currentLaneTimelineStep[lane].load()==step&&playingPat&&width>5.f){
     g.setColour(juce::Colours::white.withAlpha(.7f));
     g.drawRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f,1.f);
    }
@@ -442,15 +448,13 @@ bool InversoDrumEditor::StepGrid::locate(const juce::Point<float>& pos,int& lane
  if(lane<0||lane>=16)return false;
  const auto& e=editor.processor.engine;
  const double duration=inverso_drum::divisionPPQ(e.division[lane].load(),e.feel[lane].load());
- const double ppq=editor.viewStartPPQ()+4.0*editor.displayedBars*pos.x/getWidth();
- const int length=std::clamp(e.laneLength[lane].load(),4,128);
- const int absolute=std::max(0,static_cast<int>(std::floor(ppq/duration+1e-9)));
- step=absolute%length;
- return true;
+ step=inverso_drum::absoluteStepForPosition(editor.viewStartPPQ(),
+                        editor.displayedBars,pos.x,static_cast<double>(getWidth()),duration);
+ return step>=0;
 }
 void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){
  previousCell=-1;
- // The click itself paints: no dragging is required to add or remove a note.
+ // The click itself paints an absolute, independent step.
  mouseDrag(ev);
 }
 void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
@@ -476,7 +480,8 @@ void InversoDrumEditor::StepGrid::mouseWheelMove(const juce::MouseEvent& ev,
  const int pat=editor.processor.engine.selectedPattern.load();
  const int old=editor.processor.engine.get(pat,lane,step);
  const int delta=(wheel.deltaY>0.f?1:-1)*(ev.mods.isShiftDown()?1:5);
- editor.processor.engine.set(pat,lane,step,std::clamp(old+delta,0,127));
+ inverso_drum::setStepVelocityAt(editor.processor.engine,pat,lane,step,
+                                 std::clamp(old+delta,0,127));
  editor.selectStep(lane,step);
  repaint();
 }
