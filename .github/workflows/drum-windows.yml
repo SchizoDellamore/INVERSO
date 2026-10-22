@@ -1,0 +1,64 @@
+name: Build INVERSO DRUM sequencer Windows VST3
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Drum/**'
+      - '.github/workflows/drum-windows.yml'
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Checkout JUCE 8
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: JUCE
+      - name: Install Inno Setup if necessary
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+      - name: Compile VST3 and installer and run sequencer tests
+        shell: pwsh
+        run: |
+          .\Drum\BUILD_DRUM.ps1 -JucePath "${{ github.workspace }}\JUCE"
+      - name: Package portable VST3
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'Drum'
+          $bundle = Join-Path $root 'build\InversoDrum_artefacts\Release\VST3\INVERSO DRUM.vst3'
+          $portable = Join-Path $root 'dist\INVERSO_DRUM_PORTABLE_VST3_0.1.0'
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
+          @'
+          INVERSO DRUM v0.1 | PORTABLE INSTALL
+          Close Cubase, extract this ZIP, then copy the complete folder
+          INVERSO DRUM.vst3 into C:\Program Files\Common Files\VST3
+          Reopen Cubase and load it as a VST3 Instrument. No cloud account needed.
+          '@ | Set-Content -LiteralPath (Join-Path $portable 'INSTALL.txt') -Encoding UTF8
+          $files = Get-ChildItem -LiteralPath $portable -Recurse -File | Sort-Object FullName
+          $hashes = foreach($f in $files){
+            $relative = $f.FullName.Substring($portable.Length + 1).Replace('\','/')
+            "$( (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash.ToLowerInvariant() )  $relative"
+          }
+          $hashes | Set-Content -LiteralPath (Join-Path $portable 'SHA256SUMS.txt') -Encoding ascii
+      - name: Publish Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_DRUM_Setup_0.1.0_x64
+          path: Drum/dist/INVERSO_DRUM_Setup_0.1.0_x64.exe
+          if-no-files-found: error
+      - name: Publish portable VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_DRUM_PORTABLE_VST3_0.1.0_NO_EXE
+          path: Drum/dist/INVERSO_DRUM_PORTABLE_VST3_0.1.0/
+          if-no-files-found: error
