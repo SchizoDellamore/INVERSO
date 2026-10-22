@@ -538,14 +538,21 @@ void InversoDrumEditor::filesDropped(const juce::StringArray& files,int x,int y)
  if(inserted>0){selectPad(target);updateUi();}
 }
 void InversoDrumEditor::loadSelected(){
- chooser=std::make_unique<juce::FileChooser>("Load drum sample",juce::File{},"*.wav;*.aif;*.aiff");
+ chooser=std::make_unique<juce::FileChooser>("Import WAV/AIFF sample",
+   juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),"*.wav;*.wave;*.aif;*.aiff",false);
  const int pad=selectedPad;
  juce::Component::SafePointer<InversoDrumEditor> safe(this);
  chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
  [safe,pad](const juce::FileChooser& fc){
   if(safe==nullptr)return;
   const auto file=fc.getResult();
-  if(file.existsAsFile()&&safe->processor.loadPadFile(pad,file))safe->selectPad(pad);
+  if(!file.existsAsFile())return;
+  if(safe->processor.loadPadFile(pad,file)){
+   safe->selectPad(pad);
+   safe->processor.auditionPad(pad);
+  }else juce::AlertWindow::showMessageBoxAsync(
+     juce::MessageBoxIconType::WarningIcon,"INVERSO DRUM",
+     "The selected file could not be imported: "+file.getFullPathName());
  });
 }
 void InversoDrumEditor::exportMidi(){
