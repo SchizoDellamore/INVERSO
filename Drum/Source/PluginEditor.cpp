@@ -28,7 +28,7 @@ void InversoDrumEditor::createSlider(juce::Slider& slider,juce::Label& label,con
 }
 InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 :AudioProcessorEditor(&p),processor(p),grid(*this),waveform(*this){
- setSize(1250,865);
+ setSize(1250,925);
  addAndMakeVisible(grid);
  viewBars.addItem("1 bar",1);viewBars.addItem("2 bars",2);
  viewBars.addItem("4 bars",3);viewBars.addItem("8 bars",4);
@@ -63,6 +63,19 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  chain.onClick=[this]{processor.engine.chain.store(chain.getToggleState());updateUi();};
  addAndMakeVisible(chain);
  createSlider(swing,swingLabel,"SWING",0,100,0);
+ createSlider(stepVelocity,stepVelocityLabel,"STEP VELOCITY (0=OFF)",0,127,105);
+ stepVelocity.setNumDecimalPlacesToDisplay(0);
+ stepVelocity.onValueChange=[this]{
+  if(refreshing)return;
+  processor.engine.set(processor.engine.selectedPattern.load(),selectedPad,selectedStep,
+                       static_cast<int>(stepVelocity.getValue()));
+  refreshStepVelocity();
+  grid.repaint();
+ };
+ stepInfo.setColour(juce::Label::textColourId,text);
+ addAndMakeVisible(stepInfo);
+ clearStep.onClick=[this]{stepVelocity.setValue(0,juce::sendNotificationSync);};
+ addAndMakeVisible(clearStep);
  swing.onValueChange=[this]{if(!refreshing)processor.engine.swing.store(static_cast<float>(swing.getValue()*.01));};
  createSlider(laneLength,lengthLabel,"STEPS (x4)",4,128,16);
  laneLength.setRange(4,128,4);
@@ -148,7 +161,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 void InversoDrumEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
  g.setColour(text);g.setFont(juce::Font(juce::FontOptions(25.f,juce::Font::bold)));
- g.drawText("INVERSO / DRUM",22,12,520,39,juce::Justification::centredLeft);
+ g.drawText("INVERSO / DRUM  v0.4",22,12,520,39,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(12.f)));
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
@@ -156,9 +169,9 @@ void InversoDrumEditor::paint(juce::Graphics& g){
  g.setColour(muted);g.drawText("JUMP TO STEP",188,132,174,21,juce::Justification::centredLeft);
  g.drawText("LANES",24,166,150,19,juce::Justification::centredLeft);
  g.setColour(panel);g.fillRoundedRectangle(18.f,548.f,1214.f,68.f,7.f);
- g.fillRoundedRectangle(18.f,658.f,1214.f,178.f,7.f);
+ g.fillRoundedRectangle(18.f,718.f,1214.f,178.f,7.f);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(11.f)));
- g.drawText("DROP WAV/AIFF ON A TRACK  |  DRAG MIDI TO CUBASE  |  RIGHT CLICK: VELOCITY  |  16-BAR VIEW",20,838,1170,17,juce::Justification::centredLeft);
+ g.drawText("DROP WAV/AIFF ON TRACK  |  DRAG MIDI TO CUBASE  |  RIGHT DRAG / WHEEL: VELOCITY  |  SHIFT + WHEEL: FINE",20,898,1195,17,juce::Justification::centredLeft);
  if(dragOver){
   g.setColour(orange.withAlpha(.85f));
   g.drawRoundedRectangle(8.f,178.f,1228.f,368.f,6.f,2.f);
@@ -184,24 +197,28 @@ void InversoDrumEditor::resized(){
  levelLabel.setBounds(588,551,100,18);level.setBounds(583,575,202,30);
  panLabel.setBounds(834,551,105,18);pan.setBounds(828,575,194,30);
  exportButton.setBounds(1046,577,175,29);
- sampleTab.setBounds(19,625,164,30);fxTab.setBounds(190,625,155,30);
- selectedSample.setBounds(365,625,840,27);
- waveform.setBounds(24,668,450,76);
- reverse.setBounds(498,671,130,27);
- loadButton.setBounds(1063,702,149,30);
+ stepVelocityLabel.setBounds(26,622,205,20);
+ stepVelocity.setBounds(225,626,490,30);
+ stepInfo.setBounds(740,624,333,29);
+ clearStep.setBounds(1091,623,130,31);
+ sampleTab.setBounds(19,685,164,30);fxTab.setBounds(190,685,155,30);
+ selectedSample.setBounds(365,685,840,27);
+ waveform.setBounds(24,728,450,76);
+ reverse.setBounds(498,731,130,27);
+ loadButton.setBounds(1063,762,149,30);
  for(int i=0;i<5;++i){
   const int x=26+i*239;
-  sampleLabels[i].setBounds(x,759,223,18);
-  sampleSliders[i].setBounds(x,783,214,28);
+  sampleLabels[i].setBounds(x,819,223,18);
+  sampleSliders[i].setBounds(x,843,214,28);
  }
  for(int i=0;i<7;++i){
   const int x=25+(i%4)*299;
-  const int y=665+(i/4)*72;
+  const int y=725+(i/4)*72;
   fxLabels[i].setBounds(x,y,275,18);
   fxSliders[i].setBounds(x,y+22,268,30);
  }
- delayRateLabel.setBounds(925,745,136,18);delayRate.setBounds(924,767,134,28);
- delayFeelLabel.setBounds(1068,745,145,18);delayFeel.setBounds(1068,767,140,28);
+ delayRateLabel.setBounds(925,805,136,18);delayRate.setBounds(924,827,134,28);
+ delayFeelLabel.setBounds(1068,805,145,18);delayFeel.setBounds(1068,827,140,28);
 }
 void InversoDrumEditor::selectPad(int pad){
  selectedPad=juce::jlimit(0,15,pad);
@@ -225,6 +242,20 @@ void InversoDrumEditor::selectPad(int pad){
  selectedSample.setText("PAD "+juce::String(selectedPad+1)+"  /  "+processor.sampleName(selectedPad),juce::dontSendNotification);
  waveform.repaint();updateUi();
 }
+void InversoDrumEditor::selectStep(int pad,int step){
+ selectedStep=juce::jlimit(0,inverso_drum::steps-1,step);
+ selectPad(pad);
+}
+void InversoDrumEditor::refreshStepVelocity(){
+ const int pat=juce::jlimit(0,7,processor.engine.selectedPattern.load());
+ const int velocity=processor.engine.get(pat,selectedPad,selectedStep);
+ refreshing=true;
+ stepVelocity.setValue(velocity,juce::dontSendNotification);
+ refreshing=false;
+ stepInfo.setText("PAT "+juce::String::charToString(static_cast<juce::juce_wchar>('A'+pat))
+  +"  /  "+padNames[selectedPad]+"  /  STEP "+juce::String(selectedStep+1)
+  +"  /  "+juce::String(velocity)+"/127",juce::dontSendNotification);
+}
 void InversoDrumEditor::updateUi(){
  const int active=processor.engine.selectedPattern.load();
  for(int i=0;i<8;++i){
@@ -237,6 +268,7 @@ void InversoDrumEditor::updateUi(){
   padButtons[i].setColour(juce::TextButton::buttonColourId,i==selectedPad?orange:panel);
   padButtons[i].setColour(juce::TextButton::textColourOffId,i==selectedPad?juce::Colours::black:text);
  }
+ refreshStepVelocity();
  grid.repaint();
 }
 void InversoDrumEditor::updateTabs(){
@@ -294,9 +326,23 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
    if(vel>0){
     g.setColour(orange.withAlpha(.35f+.65f*vel/127.f));
     g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
+    if(width>8.f){
+     g.setColour(orange.brighter(.8f));
+     g.fillRect(x+2.f,y+h-5.f,std::max(1.f,(width-5.f)*vel/127.f),2.f);
+    }
+    if(width>=38.f){
+     g.setColour(juce::Colours::black.withAlpha(.9f));
+     g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+     g.drawText(juce::String(vel),static_cast<int>(x+2.f),static_cast<int>(y),static_cast<int>(width-4.f),
+       static_cast<int>(h-4.f),juce::Justification::centred);
+    }
    } else if(width>6.f){
     g.setColour(juce::Colour::fromRGB(45,47,51));
     g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
+   }
+   if(lane==editor.selectedPad && step==editor.selectedStep && width>5.f){
+    g.setColour(juce::Colours::white);
+    g.drawRoundedRectangle(x+.6f,y-.2f,std::max(2.f,width-1.2f),h-2.f,2.5f,1.8f);
    }
    if(engine.currentLaneStep[lane].load()==step&&playingPat&&width>5.f){
     g.setColour(juce::Colours::white.withAlpha(.7f));
@@ -309,24 +355,61 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
   }
  }
 }
-void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){previousCell=-1;mouseDrag(ev);}
-void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
- const int lane=static_cast<int>(ev.position.y/(getHeight()/16.f));
- if(lane<0||lane>=16||ev.position.x<0||ev.position.x>=getWidth())return;
+bool InversoDrumEditor::StepGrid::locate(const juce::Point<float>& pos,int& lane,int& step) const noexcept {
+ if(pos.x<0.f||pos.x>=static_cast<float>(getWidth())||pos.y<0.f||pos.y>=static_cast<float>(getHeight()))
+  return false;
+ lane=static_cast<int>(pos.y/(getHeight()/16.f));
+ if(lane<0||lane>=16)return false;
  const auto& e=editor.processor.engine;
  const double duration=inverso_drum::divisionPPQ(e.division[lane].load(),e.feel[lane].load());
- const double ppq=editor.viewStartPPQ()+4.0*editor.displayedBars*ev.position.x/getWidth();
+ const double ppq=editor.viewStartPPQ()+4.0*editor.displayedBars*pos.x/getWidth();
  const int length=std::clamp(e.laneLength[lane].load(),4,128);
  const int absolute=std::max(0,static_cast<int>(std::floor(ppq/duration+1e-9)));
- const int step=absolute%length;
+ step=absolute%length;
+ return true;
+}
+void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){
+ previousCell=-1;
+ int lane=0,step=0;
+ if(!locate(ev.position,lane,step))return;
+ editor.selectStep(lane,step);
+ if(ev.mods.isRightButtonDown()){
+  dragStartVelocity=editor.processor.engine.get(editor.processor.engine.selectedPattern.load(),lane,step);
+  dragStartY=ev.position.y;
+ }else mouseDrag(ev);
+}
+void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
+ const int pat=editor.processor.engine.selectedPattern.load();
+ if(ev.mods.isRightButtonDown()){
+  const float sensitivity=ev.mods.isShiftDown()?.25f:1.5f;
+  const int velocity=std::clamp(dragStartVelocity+
+   static_cast<int>(std::round((dragStartY-ev.position.y)*sensitivity)),0,127);
+  editor.processor.engine.set(pat,editor.selectedPad,editor.selectedStep,velocity);
+  editor.refreshStepVelocity();
+  repaint();
+  return;
+ }
+ int lane=0,step=0;
+ if(!locate(ev.position,lane,step))return;
  const int cell=lane*128+step;
  if(cell==previousCell)return;
  previousCell=cell;
- const int pat=e.selectedPattern.load();
- const int previous=e.get(pat,lane,step);
- const int next=ev.mods.isRightButtonDown()?(previous==0?55:previous<80?90:previous<115?127:0):(previous?0:105);
- editor.processor.engine.set(pat,lane,step,next);
- editor.selectPad(lane);repaint();
+ const int previous=editor.processor.engine.get(pat,lane,step);
+ editor.processor.engine.set(pat,lane,step,previous?0:105);
+ editor.selectStep(lane,step);
+ repaint();
+}
+void InversoDrumEditor::StepGrid::mouseWheelMove(const juce::MouseEvent& ev,
+                                                  const juce::MouseWheelDetails& wheel){
+ if(wheel.deltaY==0.f)return;
+ int lane=0,step=0;
+ if(!locate(ev.position,lane,step))return;
+ const int pat=editor.processor.engine.selectedPattern.load();
+ const int old=editor.processor.engine.get(pat,lane,step);
+ const int delta=(wheel.deltaY>0.f?1:-1)*(ev.mods.isShiftDown()?1:5);
+ editor.processor.engine.set(pat,lane,step,std::clamp(old+delta,0,127));
+ editor.selectStep(lane,step);
+ repaint();
 }
 void InversoDrumEditor::Waveform::paint(juce::Graphics& g){
  const auto bounds=getLocalBounds().toFloat();
