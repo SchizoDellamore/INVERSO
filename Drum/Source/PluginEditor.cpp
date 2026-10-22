@@ -295,8 +295,13 @@ double InversoDrumEditor::viewStartPPQ() const noexcept {
  const auto duration=inverso_drum::divisionPPQ(e.division[selectedPad].load(),e.feel[selectedPad].load());
  const double desired=currentPage*16.0*duration;
  const double viewLength=4.0*displayedBars;
- // Keep selected page in view, with a stable 0..64 PPQ overview.
- return std::clamp(std::floor(desired/4.0)*4.0,0.0,std::max(0.0,64.0-viewLength));
+ // A quarter-note lane with 128 steps spans 32 bars; triplet and dotted
+ // lanes have other durations. Never clip the viewport at 16 bars or the
+ // final steps become impossible to select and edit.
+ const double selectedLaneMaxPPQ=128.0*duration;
+ const double navigablePPQ=std::max(64.0,selectedLaneMaxPPQ);
+ return std::clamp(std::floor(desired/4.0)*4.0,0.0,
+                   std::max(0.0,navigablePPQ-viewLength));
 }
 void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
  const auto& engine=editor.processor.engine;
