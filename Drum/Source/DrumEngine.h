@@ -1,17 +1,24 @@
 #pragma once
-// INVERSO DRUM 0.1: portable fixed-voice sampler and host-synced sequencer core.
+// INVERSO DRUM 0.2: 16 independent lanes, 128 steps each, 8 patterns.
+// Scheduling uses musical PPQ positions supplied by the VST host.
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
 namespace inverso_drum {
-constexpr int pads=16, patterns=8, steps=16, voices=64;
+constexpr int pads=16, patterns=8, steps=128, voices=64, pages=8;
 constexpr double pi=3.1415926535897932384626433832795;
-inline float clip(float v,float lo,float hi) noexcept{return std::max(lo,std::min(hi,v));}
+inline float clip(float v,float lo,float hi) noexcept {return std::max(lo,std::min(hi,v));}
+inline double divisionPPQ(int division,int feel) noexcept {
+ constexpr double bases[4]={1.0,.5,.25,.125}; // quarter, eighth, sixteenth, thirty-second
+ constexpr double mods[3]={1.0,1.5,2.0/3.0}; // straight, dotted, triplet
+ return bases[std::clamp(division,0,3)]*mods[std::clamp(feel,0,2)];
+}
 struct Sample {
  std::vector<float> left,right;
  double sampleRate=48000.0;
@@ -51,107 +58,193 @@ class Engine {
 public:
  Engine(){
   for(auto& pat:grid)for(auto& lane:pat)for(auto& cell:lane)cell.store(0);
-  for(auto& g:gain)g.store(0.8f);
+  for(auto& g:gain)g.store(.8f);
   for(auto& p:pan)p.store(0.f);
+  for(auto& a:laneLength)a.store(16);
+  for(auto& a:division)a.store(2); // 1/16
+  for(auto& a:feel)a.store(0);
+  for(auto& a:sampleStart)a.store(0.f);
+  for(auto& a:sampleEnd)a.store(1.f);
+  for(auto& a:samplePitch)a.store(0.f);
+  for(auto& a:sampleReverse)a.store(false);
+  for(auto& a:sampleAttack)a.store(0.f);
+  for(auto& a:sampleDecay)a.store(1.f);
+  for(auto& a:drive)a.store(0.f);
+  for(auto& a:sendVerb)a.store(.15f);
+  for(auto& a:sendDelay)a.store(.0f);
+  for(auto& a:currentLaneStep)a.store(-1);
   for(int s=0;s<16;s+=4)grid[0][0][s].store(116);
   grid[0][1][4].store(110);grid[0][1][12].store(110);
   for(int s=0;s<16;s+=2)grid[0][2][s].store(s%4==0?75:57);
-  for(int p=1;p<8;++p)for(int lane=0;lane<16;++lane)for(int step=0;step<16;++step)
-   grid[p][lane][step].store(grid[0][lane][step].load());
+  for(int p=1;p<patterns;++p)for(int lane=0;lane<pads;++lane)
+   for(int st=0;st<16;++st)grid[p][lane][st].store(grid[0][lane][st].load());
  }
  void prepare(double hostRate){
   rate=(std::isfinite(hostRate) && hostRate>=8000)?hostRate:48000;
   for(auto& v:active)v=Voice{};
-  lastStep=-1;
-  for(int i=0;i<16;++i){
-   // Factory samples are generated at prepare time; imported samples survive rate changes.
+  stopTransport();
+  for(int i=0;i<pads;++i)
    if(!userLoaded[static_cast<size_t>(i)].load())setSample(i,factorySample(i,rate));
-  }
  }
  void setSample(int pad,std::shared_ptr<const Sample> sample){
-  if(pad>=0&&pad<16 && sample && sample->left.size()>1)
+  if(pad>=0&&pad<pads&&sample&&sample->left.size()>1)
    std::atomic_store_explicit(&samples[static_cast<size_t>(pad)],std::move(sample),std::memory_order_release);
  }
- std::shared_ptr<const Sample> getSample(int pad) const {
-  if(pad<0||pad>=16)return {};
+ std::shared_ptr<const Sample> getSample(int pad)const{
+  if(pad<0||pad>=pads)return {};
   return std::atomic_load_explicit(&samples[static_cast<size_t>(pad)],std::memory_order_acquire);
  }
- void setUserLoaded(int pad,bool b){if(pad>=0&&pad<16)userLoaded[static_cast<size_t>(pad)].store(b);}
- bool isUserLoaded(int pad) const {return pad>=0&&pad<16&&userLoaded[static_cast<size_t>(pad)].load();}
+ void setUserLoaded(int pad,bool b){if(pad>=0&&pad<pads)userLoaded[static_cast<size_t>(pad)].store(b);}
+ bool isUserLoaded(int pad)const{return pad>=0&&pad<pads&&userLoaded[static_cast<size_t>(pad)].load();}
  uint8_t get(int pat,int pad,int step)const noexcept{
-  if(pat<0||pat>=8||pad<0||pad>=16||step<0||step>=16)return 0;
+  if(pat<0||pat>=patterns||pad<0||pad>=pads||step<0||step>=steps)return 0;
   return grid[pat][pad][step].load(std::memory_order_relaxed);
  }
  void set(int pat,int pad,int step,int velocity)noexcept{
-  if(pat>=0&&pat<8&&pad>=0&&pad<16&&step>=0&&step<16)
+  if(pat>=0&&pat<patterns&&pad>=0&&pad<pads&&step>=0&&step<steps)
    grid[pat][pad][step].store(static_cast<uint8_t>(std::clamp(velocity,0,127)),std::memory_order_relaxed);
  }
- void trigger(int pad,float velocity) noexcept {
-  if(pad<0||pad>=16)return;
-  auto sample=getSample(pad);
-  if(!sample)return;
-  // Fixed polyphony; replace the oldest voice when all voices are occupied.
-  Voice* target=nullptr;uint64_t oldest=UINT64_MAX;
-  for(auto& v:active){if(!v.sample){target=&v;break;}if(v.serial<oldest){oldest=v.serial;target=&v;}}
-  if(!target)return;
-  target->sample=std::move(sample);target->pos=0.;target->pad=pad;
-  target->velocity=clip(velocity,0.f,1.f);target->serial=++voiceSerial;
-  target->step=target->sample->sampleRate/rate;
+ void setLaneLength(int pad,int length)noexcept{
+  if(pad<0||pad>=pads)return;
+  laneLength[static_cast<size_t>(pad)].store(std::clamp(length,1,steps),std::memory_order_relaxed);
+  refreshSpan();
  }
- void stopTransport() noexcept {lastStep=-1;currentStep.store(-1,std::memory_order_relaxed);}
- // Caller supplies host PPQ for this *sample*. Stable for arbitrary host buffer sizes.
- void transportSample(double ppq,bool playing) noexcept {
-  if(!playing || !std::isfinite(ppq)){stopTransport();return;}
-  const double swingAmount=static_cast<double>(clip(swing.load(std::memory_order_relaxed),0,1))*.115;
-  long long stepIndex=static_cast<long long>(std::floor(ppq*4.0+1e-8));
-  if((stepIndex&1LL) && ppq<stepIndex*.25+swingAmount) --stepIndex;
-  if(stepIndex!=lastStep){
-   // If playback begins between step boundaries, do not issue an unexpected trigger.
-   const bool first=lastStep==-1;
-   lastStep=stepIndex;
-   const int local=static_cast<int>((stepIndex%16+16)%16);
-   currentStep.store(local,std::memory_order_relaxed);
-   const int pat=chain.load(std::memory_order_relaxed)?static_cast<int>(((stepIndex/16)%8+8)%8):selectedPattern.load(std::memory_order_relaxed);
-   currentPattern.store(pat,std::memory_order_relaxed);
-   if(!first || std::abs(ppq-stepIndex*.25)<.001){
-    for(int lane=0;lane<16;++lane){const int vel=get(pat,lane,local);if(vel>0)trigger(lane,vel/127.f);}
+ void setDivision(int pad,int rateIndex,int feelIndex)noexcept{
+  if(pad<0||pad>=pads)return;
+  division[static_cast<size_t>(pad)].store(std::clamp(rateIndex,0,3),std::memory_order_relaxed);
+  feel[static_cast<size_t>(pad)].store(std::clamp(feelIndex,0,2),std::memory_order_relaxed);
+  refreshSpan();
+ }
+ double patternSpanPPQ()const noexcept{return spanPPQ.load(std::memory_order_relaxed);}
+ void refreshSpan()noexcept{
+  double largest=4.;
+  for(int i=0;i<pads;++i){
+   const double duration=divisionPPQ(division[i].load(),feel[i].load());
+   largest=std::max(largest,laneLength[i].load()*duration);
+  }
+  spanPPQ.store(std::ceil(largest/4.-1e-9)*4.,std::memory_order_relaxed);
+ }
+ void trigger(int pad,float velocity)noexcept{
+  if(pad<0||pad>=pads)return;
+  auto sample=getSample(pad);if(!sample)return;
+  Voice* dest=nullptr;uint64_t oldest=UINT64_MAX;
+  for(auto& v:active){
+   if(!v.sample){dest=&v;break;}
+   if(v.serial<oldest){oldest=v.serial;dest=&v;}
+  }
+  if(!dest)return;
+  const int total=static_cast<int>(sample->left.size());
+  if(total<3)return;
+  const float start=clip(sampleStart[pad].load(),0.f,.995f);
+  const float end=clip(sampleEnd[pad].load(),start+.004f,1.f);
+  const int first=std::clamp(static_cast<int>(start*(total-1)),0,total-3);
+  const int last=std::clamp(static_cast<int>(end*(total-1)),first+2,total-1);
+  dest->sample=std::move(sample);
+  dest->first=first;dest->last=last;
+  dest->reverse=sampleReverse[pad].load();
+  dest->pos=dest->reverse?static_cast<double>(last-1):static_cast<double>(first);
+  dest->pad=pad;dest->age=0;
+  dest->velocity=clip(velocity,0.f,1.f);dest->serial=++voiceSerial;
+  const float pitch=clip(samplePitch[pad].load(),-24,24);
+  dest->step=std::pow(2.,pitch/12.)*dest->sample->sampleRate/rate;
+  dest->attackFrames=rate*.1*clip(sampleAttack[pad].load(),0,1);
+  const float dec=clip(sampleDecay[pad].load(),0,1);
+  dest->decaySeconds=.035+12.*dec*dec;
+ }
+ void stopTransport()noexcept{
+  for(auto& x:lastLaneIndex)x=std::numeric_limits<long long>::min();
+  currentStep.store(-1);for(auto& s:currentLaneStep)s.store(-1);
+ }
+ // PPQ is supplied for this single sample, not calculated by a local unsynchronised clock.
+ void transportSample(double ppq,bool playing)noexcept{
+  if(!playing||!std::isfinite(ppq)||std::abs(ppq)>1e8){stopTransport();return;}
+  const double span=std::max(4.,patternSpanPPQ());
+  const double pos=std::max(0.,ppq);
+  const bool chained=chain.load(std::memory_order_relaxed);
+  const auto barIndex=static_cast<long long>(std::floor(pos/span));
+  const int pat=chained?static_cast<int>(barIndex%patterns):std::clamp(selectedPattern.load(),0,patterns-1);
+  currentPattern.store(pat,std::memory_order_relaxed);
+  const double localPPQ=chained?pos-static_cast<double>(barIndex)*span:pos;
+  const double swingAmt=clip(swing.load(),0,1)*.46;
+  for(int lane=0;lane<pads;++lane){
+   const double duration=divisionPPQ(division[lane].load(),feel[lane].load());
+   const int length=std::clamp(laneLength[lane].load(),1,steps);
+   long long absolute=static_cast<long long>(std::floor(localPPQ/duration+1e-9));
+   if((absolute&1LL) && localPPQ<static_cast<double>(absolute)*duration+swingAmt*duration) --absolute;
+   const int cell=static_cast<int>((absolute%length+length)%length);
+   const long long key=absolute+static_cast<long long>(pat)*1000000000LL;
+   currentLaneStep[lane].store(cell,std::memory_order_relaxed);
+   if(lastLaneIndex[lane]!=key){
+    const bool first=lastLaneIndex[lane]==std::numeric_limits<long long>::min();
+    lastLaneIndex[lane]=key;
+    const double boundary=static_cast<double>(absolute)*duration+((absolute&1LL)?swingAmt*duration:0.);
+    // Avoid triggering mid-step when host starts at an arbitrary PPQ position.
+    if(!first||std::abs(localPPQ-boundary)<.002){
+     const int vel=get(pat,lane,cell);if(vel)trigger(lane,vel/127.f);
+    }
    }
   }
+  currentStep.store(currentLaneStep[0].load(),std::memory_order_relaxed);
  }
- void renderFrame(float& left,float& right) noexcept {
-  double l=0,r=0;
+ // Dry output plus independent FX sends; effects are processed outside the engine.
+ void renderFrame(float& left,float& right,float& verbL,float& verbR,float& delL,float& delR)noexcept{
+  double l=0,r=0,vl=0,vr=0,dl=0,dr=0;
   for(auto& v:active){
    if(!v.sample)continue;
    const auto& s=*v.sample;
-   const size_t i=static_cast<size_t>(v.pos);
-   if(i+1>=s.left.size()){v.sample.reset();continue;}
+   const int i=static_cast<int>(v.pos);
+   if(i<v.first||i+1>v.last){v.sample.reset();continue;}
    const double f=v.pos-static_cast<double>(i);
-   const float lo=static_cast<float>(s.left[i]*(1-f)+s.left[i+1]*f);
-   const float ro=static_cast<float>(s.right.size()>i+1?(s.right[i]*(1-f)+s.right[i+1]*f):lo);
-   const float g=gain[static_cast<size_t>(v.pad)].load(std::memory_order_relaxed)*v.velocity;
-   const float panValue=clip(pan[static_cast<size_t>(v.pad)].load(std::memory_order_relaxed),-1,1);
-   l+=lo*g*(panValue>0?1-panValue:1);
-   r+=ro*g*(panValue<0?1+panValue:1);
-   v.pos+=v.step;
-   if(v.pos>=s.left.size()-1)v.sample.reset();
+   const float lo=static_cast<float>(s.left[static_cast<size_t>(i)]*(1-f)+s.left[static_cast<size_t>(i+1)]*f);
+   const float ro=static_cast<float>(s.right.size()>static_cast<size_t>(i+1)?
+      (s.right[static_cast<size_t>(i)]*(1-f)+s.right[static_cast<size_t>(i+1)]*f):lo);
+   const float a=v.attackFrames>1?clip(static_cast<float>(v.age/v.attackFrames),0,1):1.f;
+   const float envelope=a*static_cast<float>(std::exp(-v.age/(rate*v.decaySeconds)));
+   const float g=gain[v.pad].load()*v.velocity*envelope;
+   const float p=clip(pan[v.pad].load(),-1,1);
+   float yl=lo*g*(p>0?1-p:1),yr=ro*g*(p<0?1+p:1);
+   const float d=clip(drive[v.pad].load(),0,1);
+   if(d>.00001f){
+    const float inputGain=1.f+22.f*d*d;
+    const float mix=.85f*d;
+    const auto saturate=[inputGain,mix](float x){
+     const float color=.68f*std::tanh(inputGain*x);
+     return x+mix*(color-x);
+    };
+    yl=saturate(yl);yr=saturate(yr);
+   }
+   l+=yl;r+=yr;
+   const float verb=clip(sendVerb[v.pad].load(),0,1),del=clip(sendDelay[v.pad].load(),0,1);
+   vl+=yl*verb;vr+=yr*verb;dl+=yl*del;dr+=yr*del;
+   v.pos+=v.reverse?-v.step:v.step;v.age++;
+   if(v.pos<v.first||v.pos+1>v.last)v.sample.reset();
   }
   left=static_cast<float>(l);right=static_cast<float>(r);
+  verbL=static_cast<float>(vl);verbR=static_cast<float>(vr);
+  delL=static_cast<float>(dl);delR=static_cast<float>(dr);
  }
- std::array<std::array<std::array<std::atomic<uint8_t>,16>,16>,8> grid{};
- std::array<std::atomic<float>,16> gain{},pan{};
+ void renderFrame(float& left,float& right)noexcept{
+  float vl=0,vr=0,dl=0,dr=0;renderFrame(left,right,vl,vr,dl,dr);
+ }
+ std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> grid{};
+ std::array<std::atomic<float>,pads> gain{},pan{},sampleStart{},sampleEnd{},samplePitch{},sampleAttack{},sampleDecay{},drive{},sendVerb{},sendDelay{};
+ std::array<std::atomic<bool>,pads> sampleReverse{};
+ std::array<std::atomic<int>,pads> laneLength{},division{},feel{},currentLaneStep{};
  std::atomic<int> selectedPattern{0},currentPattern{0},currentStep{-1};
  std::atomic<bool> chain{false};
- std::atomic<float> swing{0.f};
+ std::atomic<float> swing{0};
 private:
- struct Voice{
+ struct Voice {
   std::shared_ptr<const Sample> sample;
-  double pos=0,step=1;float velocity=1;uint64_t serial=0;int pad=0;
+  double pos=0,step=1,age=0,attackFrames=0,decaySeconds=12;
+  float velocity=1;uint64_t serial=0;int pad=0,first=0,last=0;bool reverse=false;
  };
  std::array<Voice,voices> active{};
- std::array<std::shared_ptr<const Sample>,16> samples{};
- std::array<std::atomic<bool>,16> userLoaded{};
- double rate=48000;
+ std::array<std::shared_ptr<const Sample>,pads> samples{};
+ std::array<std::atomic<bool>,pads> userLoaded{};
+ std::array<long long,pads> lastLaneIndex{};
+ std::atomic<double> spanPPQ{4.};
+ double rate=48000.;
  uint64_t voiceSerial=0;
- long long lastStep=-1;
 };
 }

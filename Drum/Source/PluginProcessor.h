@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "DrumEngine.h"
+#include "DrumFX.h"
 #include <array>
 #include <atomic>
 #include <memory>
@@ -32,6 +33,7 @@ public:
  void auditionPad(int pad) noexcept {pendingAudition.store(pad,std::memory_order_release);}
  bool exportMidi(const juce::File&)const;
  inverso_drum::Engine engine;
+ inverso_drum::Effects effects;
  std::atomic<float> outputPeak{0.f},hostBpm{120.f};
 private:
  juce::AudioFormatManager audioFormats;

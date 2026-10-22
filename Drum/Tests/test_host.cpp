@@ -21,6 +21,16 @@ int main(){
   juce::MemoryBlock mem;p.getStateInformation(mem);check(mem.getSize()>10,"save state");
   InversoDrumProcessor restored;restored.setStateInformation(mem.getData(),static_cast<int>(mem.getSize()));
   check(restored.engine.get(0,0,0)==p.engine.get(0,0,0),"pattern state restored");
+  p.engine.setLaneLength(0,128);p.engine.setDivision(0,2,2);p.engine.set(0,0,127,105);
+  p.engine.sampleStart[0].store(.2f);p.engine.samplePitch[0].store(7.f);
+  p.engine.drive[0].store(.5f);p.effects.delayFeel.store(1);
+  juce::MemoryBlock extended;p.getStateInformation(extended);
+  InversoDrumProcessor expanded;expanded.setStateInformation(extended.getData(),static_cast<int>(extended.getSize()));
+  check(expanded.engine.get(0,0,127)==105,"128th step state restored");
+  check(expanded.engine.laneLength[0].load()==128,"lane length state restored");
+  check(expanded.engine.feel[0].load()==2,"triplet state restored");
+  check(std::abs(expanded.engine.samplePitch[0].load()-7)<.01f,"sample pitch state restored");
+  check(expanded.effects.delayFeel.load()==1,"effect division state restored");
   p.releaseResources();
  }
  std::puts("Inverso Drum JUCE host smoke passed");

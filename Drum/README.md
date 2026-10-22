@@ -1,27 +1,33 @@
-# INVERSO DRUM 0.1 — sequencer + sample instrument
+# INVERSO DRUM 0.2 — independent step sequencer and drum sampler
 
-Independent **VST3 instrument** for Windows x64 / Cubase, with its own step sequencer. Inspired by the **workflow**, not the code or interface assets, of Loopcloud DRUM. Not affiliated with Loopcloud or Loopmasters.
+VST3 instrument for Windows 64-bit / Cubase. Independent from Loopcloud services; inspired by the **workflow**, not proprietary code or audio libraries. The original Loopcloud company is not affiliated with this product.
 
-## Included in 0.1
-- **16 pads and 16 independent sequencer lanes**, each with 16 steps; 8 patterns A–H, switchable or chainable.
-- **Host transport + BPM sync** via the host-provided PPQ and tempo. Sequencing starts when Cubase plays. MIDI notes C1 (36) through 51 also trigger pads; pad clicks preview the sounds while stopped.
-- Adjustable **swing**, **velocity per step** (right-click successive values), and per-pad **level/pan**.
-- Load/drag WAV/AIFF files to the selected pad, or start from 16 **procedurally synthesized factory sounds** (no third-party samples).
-- **Export MIDI** for selected pattern or complete eight-pattern chain.
-- State/pattern/knob/sample-path persistence in DAW project.
-- Zero latency, fixed voice count of 64, zero dynamic allocation for scheduling/playback inside `processBlock` (except shared_ptr reference counting and releasing completed voices). Sound-file import occurs outside the callback.
-- Dark UI with orange accents; grid designed to stay visible without decorative animations.
+## Sequencer
+- **16 independent tracks/pads**, **1–128 steps per track**, **eight patterns A–H**.
+- Grid shows 16 steps at a time, with **eight page buttons** covering steps 1–128. Darker cells are outside the individual lane length.
+- Every lane has its own step duration (**1/4, 1/8, 1/16, 1/32**) and rhythmic feel (**Straight, Dotted ×1.5, Triplet ×2/3**).
+- BPM/transport locked to Cubase PPQ. Swing affects alternating steps. Pattern A–H can be selected or chained. When CHAIN is enabled, pattern length expands to the longest lane cycle, rounded up to a four-quarter-note bar, allowing long sequences to complete before switching. In selected-pattern mode each lane repeats at its own length.
+- Click a step to toggle; right-click to cycle velocity. MIDI notes 36–51 trigger the 16 pads. EXPORT MIDI outputs the selected or chained pattern, including per-lane subdivisions, swing and velocities.
 
-## Limitations / planned follow-ups
-- Imported audio is referenced by original *file path*, not embedded in the Cubase session. Moving/deleting original WAV/AIFF will require reloading it. Up to 12 seconds of each sample are loaded, stereo or mono. No sample browser yet.
-- No individual output busses, transient shaping, pitch, probability, rolls, per-step microtiming or drag-and-drop audio export in 0.1. Those are planned, not claimed as implemented.
-- The factory sounds are basic synthesized placeholders, not a commercial acoustic drum library.
-- Pattern exports are MIDI files via the EXPORT MIDI button; drag-and-drop MIDI export is not implemented yet.
-- Start/stop and tempo follow the DAW. There is no free-running internal sequencer clock by design in this release.
-- True-peak limiting is not included; mind the DAW output meter.
-- Does not require Loopcloud subscription or cloud access.
+## Per-pad sample editing (nondestructive)
+- Load WAV/AIFF for each pad independently; built-in synthetic factory samples let the plugin play without third-party content.
+- SAMPLE EDIT tab: waveform overview, **Start / End** sample trim, **Pitch −24 to +24 semitones**, **Reverse**, **Attack**, **Decay**, level and pan. The original audio file is never overwritten.
+- Trim/start/end, pitch, and reverse settings apply when a voice is triggered. Adjusting the sample's settings does not retroactively change notes already playing.
 
-## Build and validation
-`cmake -S Drum -B Drum/build-portable -DINVERSO_DSP_TESTS_ONLY=ON && cmake --build Drum/build-portable && ctest --test-dir Drum/build-portable`
+## Effects
+- EFFECTS tab: per-pad **Drive, Reverb Send and Delay Send**.
+- Global **Reverb Mix / Reverb Tail**, **Delay Mix / Delay Feedback**, delay note division 1/4 through 1/32 and straight/dotted/triplet timing, synced to Cubase BPM.
+- Simple algorithmic stereo reverb and feedback delay use buffers allocated **only during prepareToPlay**, not on the audio thread. Drive is a basic nonlinear waveshaper per pad (not a Darkglass amp model).
+- No true-peak limiter: effects and layered samples can clip. Monitor the Cubase master and reduce pad gains/effect sends if required.
 
-Windows GitHub Actions uses JUCE 8, VS2022, CMake and Inno Setup 6 to produce a Windows installer and portable VST3. Successful tests do not replace actual Cubase testing.
+## Compatibility and honest limitations
+- **State version 2**, reads 0.1 patterns (16 steps) and sample paths, preserving compatible settings. The saved project stores file **paths**, not embedded WAV/AIFF data. Keep imported samples in a fixed folder.
+- Zero reported latency. Resampling is linear; pitch/reverse and high-frequency drive can alias. Time-stretch, per-step microtiming/probability, multiple DAW output buses, audio drag/export, and host-automation exposure of every per-pad control are not included in 0.2.
+- Chain length assumes a four-quarter-note musical bar for alignment; non-4/4 projects may need future time-signature-aware behavior.
+- Native/plugin JUCE tests and DSP tests check function and stability, not professional mix quality or behavior in a loaded Cubase project.
+- Installer is unsigned; ZIP portable VST3 remains an option if the `.exe` encounters browser reputation warnings.
+
+## Build
+`cmake -S Drum -B Drum/build-test -DINVERSO_DSP_TESTS_ONLY=ON && cmake --build Drum/build-test && ctest --test-dir Drum/build-test --output-on-failure`
+
+GitHub Actions builds the actual Windows VST3 and installer with JUCE 8 + Visual Studio 2022 + Inno Setup 6, and runs the JUCE host smoke test before publishing. Do not describe a build as verified until GitHub Actions has completed successfully.

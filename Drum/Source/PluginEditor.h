@@ -24,20 +24,39 @@ private:
   InversoDrumEditor& editor;
   int previousCell=-1;
  };
+ class Waveform final : public juce::Component {
+ public:
+  explicit Waveform(InversoDrumEditor& e):editor(e){}
+  void paint(juce::Graphics&) override;
+ private:
+  InversoDrumEditor& editor;
+ };
  void timerCallback() override;
  void selectPad(int);
  void updateUi();
+ void updateTabs();
  void loadSelected();
  void exportMidi();
+ void createSlider(juce::Slider&,juce::Label&,const char*,double,double,double);
  InversoDrumProcessor& processor;
  StepGrid grid;
- std::array<juce::TextButton,8> patternButtons;
+ Waveform waveform;
+ std::array<juce::TextButton,8> patternButtons,pageButtons;
  std::array<juce::TextButton,16> padButtons;
- juce::ToggleButton chain{"CHAIN 8"};
- juce::Slider swing,level,pan;
- juce::Label swingLabel,levelLabel,panLabel,selectedSample,tempoLabel;
- juce::TextButton loadButton{"LOAD WAV / AIFF"},exportButton{"EXPORT MIDI"};
+ juce::ToggleButton chain{"CHAIN A-H"};
+ juce::Slider swing,level,pan,laneLength;
+ juce::ComboBox laneRate,laneFeel,delayRate,delayFeel;
+ juce::Label swingLabel,levelLabel,panLabel,lengthLabel,rateLabel,feelLabel;
+ juce::Label selectedSample,tempoLabel,delayRateLabel,delayFeelLabel;
+ juce::TextButton loadButton{"LOAD SAMPLE"},exportButton{"EXPORT MIDI"};
+ juce::TextButton sampleTab{"SAMPLE EDIT"},fxTab{"EFFECTS"};
+ juce::ToggleButton reverse{"REVERSE"};
+ std::array<juce::Slider,5> sampleSliders;
+ std::array<juce::Label,5> sampleLabels;
+ std::array<juce::Slider,7> fxSliders;
+ std::array<juce::Label,7> fxLabels;
  std::unique_ptr<juce::FileChooser> chooser;
- int selectedPad=0;
+ int selectedPad=0,currentPage=0;
+ bool showFx=false,refreshing=false;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoDrumEditor)
 };
