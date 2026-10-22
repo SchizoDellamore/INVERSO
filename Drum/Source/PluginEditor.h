@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "SampleLibraries.h"
+#include "LaneActions.h"
 #include <array>
 #include <memory>
 #include <functional>
@@ -22,6 +23,27 @@ public:
  }
 private:
  bool dragStarted=false;
+};
+
+class InversoLaneButton final : public juce::TextButton {
+public:
+ using juce::TextButton::TextButton;
+ std::function<void(juce::Component*)> onContextMenu, onShiftSelect;
+ void mouseDown(const juce::MouseEvent& event) override {
+  if(event.mods.isRightButtonDown()){
+   if(onContextMenu)onContextMenu(this);
+   return;
+  }
+  if(event.mods.isLeftButtonDown() && event.mods.isShiftDown()){
+   if(onShiftSelect)onShiftSelect(this);
+   return;
+  }
+  juce::TextButton::mouseDown(event);
+ }
+ void mouseUp(const juce::MouseEvent& event) override {
+  if(event.mods.isRightButtonDown() || event.mods.isShiftDown())return;
+  juce::TextButton::mouseUp(event);
+ }
 };
 
 class InversoDrumEditor final : public juce::AudioProcessorEditor,
@@ -61,6 +83,13 @@ private:
  void selectStep(int pad,int step);
  void refreshStepVelocity();
  void refreshStepEffects();
+ void showLaneMenu(int pad,juce::Component* source);
+ void loadSampleOnPad(int pad);
+ void captureLaneUndo(int pad);
+ void undoLaneEdit(int pad);
+ void clearSelections();
+ void selectAllLaneSteps(int pad);
+ void syncLaneLength();
  void updateUi();
  void updateTabs();
  void loadSelected();
@@ -71,9 +100,10 @@ private:
  StepGrid grid;
  Waveform waveform;
  std::array<juce::TextButton,8> patternButtons,pageButtons;
- std::array<juce::TextButton,16> padButtons;
+ std::array<InversoLaneButton,16> padButtons;
  juce::ToggleButton chain{"CHAIN A-H"};
- juce::Slider swing,level,pan,laneLength,stepVelocity;
+ juce::Slider swing,level,pan,laneLength,padVelocity,stepVelocity;
+ juce::Label padVelocityLabel;
  juce::Label stepVelocityLabel,stepInfo;
  juce::TextButton clearStep{"CLEAR STEP"},resetStepFx{"RESET STEP FX"};
  std::array<juce::Slider,3> stepFxSliders;
@@ -91,6 +121,10 @@ private:
  std::array<juce::Slider,7> fxSliders;
  std::array<juce::Label,7> fxLabels;
  std::unique_ptr<juce::FileChooser> chooser;
+ inverso_drum::LaneUndoHistory laneUndo;
+ inverso_drum::StepSelection stepSelection;
+ int selectionPattern=0;
+ bool velocityDrag=false,padVelocityDrag=false,stepFxDrag=false;
  int selectedPad=0,selectedStep=0,currentPage=0,displayedBars=4;
  bool dragOver=false;int dragX=0,dragY=0;
  bool showFx=false,refreshing=false;
