@@ -62,6 +62,7 @@ public:
   for(auto& pattern:eventVerb)for(auto& lane:pattern)for(auto& val:lane)val.store(inheritFx);
   for(auto& pattern:eventDelay)for(auto& lane:pattern)for(auto& val:lane)val.store(inheritFx);
   for(auto& g:gain)g.store(.8f);
+  for(auto& v:padVelocity)v.store(1.f);
   for(auto& p:pan)p.store(0.f);
   for(auto& a:laneLength)a.store(16);
   for(auto& a:division)a.store(2); // 1/16
@@ -73,8 +74,8 @@ public:
   for(auto& a:sampleAttack)a.store(0.f);
   for(auto& a:sampleDecay)a.store(1.f);
   for(auto& a:drive)a.store(0.f);
-  for(auto& a:sendVerb)a.store(.36f);
-  for(auto& a:sendDelay)a.store(.24f);
+  for(auto& a:sendVerb)a.store(0.f);
+  for(auto& a:sendDelay)a.store(0.f);
   for(auto& a:currentLaneStep)a.store(-1);
   for(auto& a:currentLaneTimelineStep)a.store(-1);
   for(int s=0;s<16;s+=4)grid[0][0][s].store(116);
@@ -165,7 +166,7 @@ public:
   dest->reverse=sampleReverse[pad].load();
   dest->pos=dest->reverse?static_cast<double>(last-1):static_cast<double>(first);
   dest->pad=pad;dest->age=0;
-  dest->velocity=clip(velocity,0.f,1.f);dest->serial=++voiceSerial;
+  dest->velocity=clip(velocity,0.f,1.f)*clip(padVelocity[pad].load(),0.f,2.f);dest->serial=++voiceSerial;
   const auto effectValue=[this,pad,eventPattern,eventStep](int fx,float padDefault)noexcept{
    if(eventPattern<0||eventStep<0)return clip(padDefault,0.f,1.f);
    const int overrideValue=getEventFx(eventPattern,pad,eventStep,fx);
@@ -262,7 +263,7 @@ public:
  std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> grid{};
  // Per-event FX: values 0..100% or 255 (inherit the corresponding pad setting).
  std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> eventDrive{},eventVerb{},eventDelay{};
- std::array<std::atomic<float>,pads> gain{},pan{},sampleStart{},sampleEnd{},samplePitch{},sampleAttack{},sampleDecay{},drive{},sendVerb{},sendDelay{};
+ std::array<std::atomic<float>,pads> padVelocity{},gain{},pan{},sampleStart{},sampleEnd{},samplePitch{},sampleAttack{},sampleDecay{},drive{},sendVerb{},sendDelay{};
  std::array<std::atomic<bool>,pads> sampleReverse{};
  std::array<std::atomic<int>,pads> laneLength{},division{},feel{},currentLaneStep{},currentLaneTimelineStep{};
  std::atomic<int> selectedPattern{0},currentPattern{0},currentStep{-1};
