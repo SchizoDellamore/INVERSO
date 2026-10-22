@@ -6,6 +6,10 @@ on:
     paths:
       - 'Drum/**'
       - '.github/workflows/drum-windows.yml'
+# Keep only the latest revision's build when several code fixes are pushed.
+concurrency:
+  group: inverso-drum-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: windows-2022
