@@ -12,12 +12,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout InversoBassDriveProcessor::m
  // IDs and parameter ranges are unchanged for session compatibility with 0.1.
  knob("DRIVE","Drive",0.f,100.f,.01f,25.f);
  knob("BODY","Body",0.f,100.f,.01f,65.f);
+ knob("DRIVE_TONE","Drive tone",0.f,100.f,.01f,65.f);
  knob("FUZZ","Fuzz",0.f,100.f,.01f,0.f);
  p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{"CROSSOVER",1},"Crossover",NormalisableRange<float>(60.f,500.f,1.f,.5f),155.f));
  knob("TONE","Fuzz tone",0.f,100.f,.01f,65.f);
  knob("MIX","Mix",0.f,100.f,.01f,100.f);
  knob("OUTPUT","Output",-24.f,12.f,.01f,0.f);
  p.push_back(std::make_unique<AudioParameterChoice>(ParameterID{"FUZZ_MODE",1},"Fuzz type",StringArray{"Off","Vintage","Silicon","Gated"},0));
+ p.push_back(std::make_unique<AudioParameterChoice>(ParameterID{"GRUNT",1},"Grunt",StringArray{"Tight","Balanced","Thick"},1));
+ p.push_back(std::make_unique<AudioParameterBool>(ParameterID{"MID_BOOST",1},"Mid boost",false));
  p.push_back(std::make_unique<AudioParameterBool>(ParameterID{"LOW_SAFE",1},"Preserve sub-bass",true));
  p.push_back(std::make_unique<AudioParameterBool>(ParameterID{"BYPASS",1},"Bypass",false));
  return {p.begin(),p.end()};
@@ -58,6 +61,9 @@ void InversoBassDriveProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
  inverso_bass::Parameters p;
  p.drive=param("DRIVE")*.01f;
  p.body=param("BODY")*.01f;
+ p.driveTone=param("DRIVE_TONE")*.01f;
+ p.grunt=std::clamp(static_cast<int>(std::round(param("GRUNT"))),0,2);
+ p.midBoost=param("MID_BOOST")>=.5f;
  p.fuzz=param("FUZZ")*.01f;
  p.crossover=param("CROSSOVER");
  p.tone=param("TONE")*.01f;
