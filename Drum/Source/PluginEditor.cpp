@@ -39,6 +39,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  };
  addAndMakeVisible(libraryButton);
  sampleLibrary.setLoadHandler([this](int pad,const juce::File& file){
+  captureLaneUndo(pad);
   if(!processor.loadPadFile(pad,file))return false;
   selectPad(pad);
   processor.auditionPad(pad);
@@ -144,7 +145,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  laneLength.setRange(4,128,4);
  laneLength.setNumDecimalPlacesToDisplay(0);
  laneLength.onValueChange=[this]{if(!refreshing){
-  captureLaneUndo(selectedPad);
+  if(!auxSliderDrag)captureLaneUndo(selectedPad);
   processor.engine.setLaneLength(selectedPad,static_cast<int>(laneLength.getValue()));
   updateUi();
  }};
@@ -159,9 +160,15 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
    static_cast<float>(padVelocity.getValue()*.01));
  };
  createSlider(level,levelLabel,"LEVEL",0,200,80);
- level.onValueChange=[this]{if(!refreshing)processor.engine.gain[selectedPad].store(static_cast<float>(level.getValue()*.01));};
+ level.onValueChange=[this]{if(!refreshing){
+  if(!auxSliderDrag)captureLaneUndo(selectedPad);
+  processor.engine.gain[selectedPad].store(static_cast<float>(level.getValue()*.01));
+ }};
  createSlider(pan,panLabel,"PAN",-100,100,0);
- pan.onValueChange=[this]{if(!refreshing)processor.engine.pan[selectedPad].store(static_cast<float>(pan.getValue()*.01));};
+ pan.onValueChange=[this]{if(!refreshing){
+  if(!auxSliderDrag)captureLaneUndo(selectedPad);
+  processor.engine.pan[selectedPad].store(static_cast<float>(pan.getValue()*.01));
+ }};
  auto setupCombo=[this](juce::ComboBox& b,const char* entries[],int n){
   for(int i=0;i<n;++i)b.addItem(entries[i],i+1);
   b.setColour(juce::ComboBox::backgroundColourId,panel);
@@ -176,8 +183,16 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  feelLabel.setText("FEEL",juce::dontSendNotification);addAndMakeVisible(feelLabel);
  delayRateLabel.setText("DELAY NOTE",juce::dontSendNotification);addAndMakeVisible(delayRateLabel);
  delayFeelLabel.setText("DELAY FEEL",juce::dontSendNotification);addAndMakeVisible(delayFeelLabel);
- laneRate.onChange=[this]{if(!refreshing)processor.engine.setDivision(selectedPad,laneRate.getSelectedId()-1,laneFeel.getSelectedId()-1);};
- laneFeel.onChange=[this]{if(!refreshing)processor.engine.setDivision(selectedPad,laneRate.getSelectedId()-1,laneFeel.getSelectedId()-1);};
+ laneRate.onChange=[this]{if(!refreshing){
+  captureLaneUndo(selectedPad);
+  processor.engine.setDivision(selectedPad,laneRate.getSelectedId()-1,laneFeel.getSelectedId()-1);
+  updateUi();
+ }};
+ laneFeel.onChange=[this]{if(!refreshing){
+  captureLaneUndo(selectedPad);
+  processor.engine.setDivision(selectedPad,laneRate.getSelectedId()-1,laneFeel.getSelectedId()-1);
+  updateUi();
+ }};
  delayRate.onChange=[this]{processor.effects.delayDivision.store(std::max(0,delayRate.getSelectedId()-1));};
  delayFeel.onChange=[this]{processor.effects.delayFeel.store(std::max(0,delayFeel.getSelectedId()-1));};
  for(int i=0;i<5;++i){
@@ -185,6 +200,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
   createSlider(sampleSliders[i],sampleLabels[i],sampleControls[i],i==2?-24.:0.,i==2?24.:100.,init);
   sampleSliders[i].onValueChange=[this,i]{
    if(refreshing)return;
+   if(!auxSliderDrag)captureLaneUndo(selectedPad);
    const float value=static_cast<float>(sampleSliders[i].getValue());
    auto& e=processor.engine;
    switch(i){case 0:e.sampleStart[selectedPad].store(value*.01f);break;
@@ -200,6 +216,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
   createSlider(fxSliders[i],fxLabels[i],fxControls[i],0,100,defaults[i]);
   fxSliders[i].onValueChange=[this,i]{
    if(refreshing)return;
+   if(i<3&&!auxSliderDrag)captureLaneUndo(selectedPad);
    const float value=static_cast<float>(fxSliders[i].getValue()*.01);
    auto& engine=processor.engine;
    auto& effects=processor.effects;
@@ -212,8 +229,23 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
              case 6:effects.delayFeedback.store(value);break;}
   };
  }
- reverse.onClick=[this]{processor.engine.sampleReverse[selectedPad].store(reverse.getToggleState());waveform.repaint();};
+ reverse.onClick=[this]{
+  captureLaneUndo(selectedPad);
+  processor.engine.sampleReverse[selectedPad].store(reverse.getToggleState());
+  waveform.repaint();
+ };
  addAndMakeVisible(reverse);
+ // A continuous slider drag is a single undo action, not dozens of tiny edits.
+ auto bindUndoDrag=[this](juce::Slider& slider,bool perLane){
+  slider.onDragStart=[this,perLane]{
+   auxSliderDrag=true;
+   if(perLane)captureLaneUndo(selectedPad);
+  };
+  slider.onDragEnd=[this]{auxSliderDrag=false;};
+ };
+ bindUndoDrag(laneLength,true);bindUndoDrag(level,true);bindUndoDrag(pan,true);
+ for(auto& slider:sampleSliders)bindUndoDrag(slider,true);
+ for(int i=0;i<7;++i)bindUndoDrag(fxSliders[i],i<3);
  sampleTab.onClick=[this]{showFx=false;updateTabs();};addAndMakeVisible(sampleTab);
  fxTab.onClick=[this]{showFx=true;updateTabs();};addAndMakeVisible(fxTab);
  loadButton.onClick=[this]{loadSelected();};addAndMakeVisible(loadButton);
@@ -699,6 +731,7 @@ void InversoDrumEditor::filesDropped(const juce::StringArray& files,int x,int y)
   if(ext!=".wav" && ext!=".aif" && ext!=".aiff")continue;
   const int pad=target+inserted;
   if(pad>=16)break;
+  captureLaneUndo(pad);
   if(processor.loadPadFile(pad,f))++inserted;
  }
  if(inserted>0){selectPad(target);updateUi();}
