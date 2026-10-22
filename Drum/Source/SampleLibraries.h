@@ -163,7 +163,7 @@ private:
  }
  void writeRoots(){
   const auto file=rootsFile();
-  if(!file.getParentDirectory().createDirectory())return;
+  if(file.getParentDirectory().createDirectory().failed())return;
   juce::String text;
   for(const auto& r:roots)text+=r.group+"\t"+r.folder.getFullPathName()+"\n";
   file.replaceWithText(text);
