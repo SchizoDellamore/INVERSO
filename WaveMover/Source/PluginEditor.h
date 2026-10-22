@@ -59,7 +59,7 @@ private:
     wavemover::Audio clipboard;
     std::vector<wavemover::Op>operations;
     bool busy=false;std::uint64_t seenRevision=std::numeric_limits<std::uint64_t>::max();
-    void timerCallback()override;void updateControls();void configureEffect();void openFile(const juce::File&);
+    void timerCallback()override;void updateControls();void configureEffect();void openFile(const juce::File&);void chooseFile();
     void work(juce::String,std::function<std::function<void()>()>);
     void applyOperation(wavemover::Op,wavemover::Parameters,juce::String);
     void copyAudio();void pasteAudio();void contextMenu();void exportAudio(bool);

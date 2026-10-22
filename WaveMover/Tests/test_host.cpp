@@ -7,7 +7,7 @@ static void check(bool v,const char*m){++tests;if(!v){std::fprintf(stderr,"HOST 
 int main(int argc,char**argv){
  juce::ScopedJuceInitialiser_GUI gui;
  const auto directory=argc>2?juce::File(argv[2]):juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("WaveMover-tests");directory.createDirectory();
- WaveMoverProcessor p;
+ WaveMoverProcessor p;check(std::isinf(p.getTailLengthSeconds()),"editor reports an ongoing audition source to the host");
  for(int channels:{1,2})for(double rate:{44100.,48000.,96000.}){
   juce::AudioProcessor::BusesLayout layout;layout.inputBuses.add(channels==1?juce::AudioChannelSet::mono():juce::AudioChannelSet::stereo());layout.outputBuses.add(layout.inputBuses[0]);check(p.setBusesLayout(layout),"mono/stereo layout");p.prepareToPlay(rate,32);
   p.startCapture();std::size_t total=0;

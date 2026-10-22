@@ -61,7 +61,7 @@ jobs:
           O aplicativo independente INVERSO WaveMover.exe tambem acompanha o pacote.
           Consulte LEIA-ME.md para captura, selecao, efeitos e exportacao.
           '@ | Set-Content "$dist/INSTALAR.txt" -Encoding UTF8
-          Get-ChildItem $dist -Recurse -File | ForEach-Object { $h=Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content "$dist/SHA256SUMS.txt"
+          Get-ChildItem $dist -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object { $h=Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content "$dist/SHA256SUMS.txt"
       - name: Upload Windows plugin
         uses: actions/upload-artifact@v4
         with:

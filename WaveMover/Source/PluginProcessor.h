@@ -16,7 +16,8 @@ public:
     void processBlock(juce::AudioBuffer<float>&,juce::MidiBuffer&)override;
     juce::AudioProcessorEditor*createEditor()override;
     bool hasEditor()const override{return true;}
-    double getTailLengthSeconds()const override{return 0;}
+    // The editor can audition a sample while the track input is silent.
+    double getTailLengthSeconds()const override{return std::numeric_limits<double>::infinity();}
     bool acceptsMidi()const override{return false;}
     bool producesMidi()const override{return false;}
     bool isMidiEffect()const override{return false;}
