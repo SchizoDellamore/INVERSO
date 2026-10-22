@@ -131,12 +131,8 @@ int main(){
    check(p.sampleName(3).contains("INVERSO_EXTERNAL_SNARE"),
          "library import did not assign the correct pad");
    browser.addFolder("Cubase",testFolder);
-   bool indexed=false;
-   for(int retry=0;retry<50 && !indexed;++retry){
-    juce::MessageManager::getInstance()->runDispatchLoopUntil(40);
-    indexed=browser.getNumRows()>0;
-   }
-   check(indexed,"library folder scanning did not surface an external WAV");
+   browser.scanSynchronouslyForValidation();
+   check(browser.getNumRows()>0,"library folder indexing did not surface an external WAV");
   }
   check(testFolder.deleteRecursively(),"test sample library cleanup failed");
   // Step FX are stored individually and survive the full JUCE session-state route.
