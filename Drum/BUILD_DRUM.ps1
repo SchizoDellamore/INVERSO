@@ -8,7 +8,7 @@ if(-not $JucePath){$JucePath=Join-Path (Split-Path $root -Parent) 'JUCE'}
 if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not found at $JucePath"}
 & cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath"
 Assert-Step 'CMake configure'
-& cmake --build (Join-Path $root 'build') --config Release --target InversoDrum_VST3 inverso_drum_engine inverso_drum_extended inverso_drum_fx_audible inverso_drum_velocity inverso_drum_event_fx inverso_drum_step_input InversoDrumHostSmoke --parallel 4
+& cmake --build (Join-Path $root 'build') --config Release --target InversoDrum_VST3 inverso_drum_engine inverso_drum_extended inverso_drum_fx_audible inverso_drum_velocity inverso_drum_event_fx inverso_drum_step_input inverso_drum_timeline inverso_drum_lane_actions InversoDrumHostSmoke --parallel 4
 Assert-Step 'Plugin build'
 & ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure
 Assert-Step 'Tests'
@@ -21,5 +21,5 @@ if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyCont
 if(-not $iscc){throw 'Inno Setup 6 not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_DRUM.iss')
 Assert-Step 'Installer'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_DRUM_Setup_0.6.1_x64.exe'))){throw 'Installer missing'}
-Write-Host 'INVERSO DRUM 0.6.1 built and tested.'
+if(-not (Test-Path (Join-Path $root 'dist\INVERSO_DRUM_Setup_0.6.2_x64.exe'))){throw 'Installer missing'}
+Write-Host 'INVERSO DRUM 0.6.2 built and tested.'
