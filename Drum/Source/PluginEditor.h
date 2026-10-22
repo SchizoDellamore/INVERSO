@@ -61,6 +61,7 @@ private:
  void selectPad(int);
  void selectStep(int pad,int step);
  void refreshStepVelocity();
+ void refreshStepEffects();
  void updateUi();
  void updateTabs();
  void loadSelected();
@@ -75,7 +76,9 @@ private:
  juce::ToggleButton chain{"CHAIN A-H"};
  juce::Slider swing,level,pan,laneLength,stepVelocity;
  juce::Label stepVelocityLabel,stepInfo;
- juce::TextButton clearStep{"CLEAR STEP"};
+ juce::TextButton clearStep{"CLEAR STEP"},resetStepFx{"RESET STEP FX"};
+ std::array<juce::Slider,3> stepFxSliders;
+ std::array<juce::Label,3> stepFxLabels;
  juce::ComboBox laneRate,laneFeel,delayRate,delayFeel,viewBars;
  juce::Label swingLabel,levelLabel,panLabel,lengthLabel,rateLabel,feelLabel;
  juce::Label selectedSample,tempoLabel,delayRateLabel,delayFeelLabel,viewLabel;
