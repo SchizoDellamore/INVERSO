@@ -86,7 +86,7 @@ juce::String InversoDrumProcessor::sampleName(int pad)const{
 }
 void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
  juce::XmlElement root("INVERSO_DRUM_STATE");
- root.setAttribute("version",6);
+ root.setAttribute("version",7);
  root.setAttribute("pattern",engine.selectedPattern.load());
  root.setAttribute("chain",engine.chain.load()?1:0);
  root.setAttribute("swing",static_cast<double>(engine.swing.load()));
@@ -99,6 +99,7 @@ void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
  for(int pad=0;pad<16;++pad){
   auto suffix=juce::String(pad);
   root.setAttribute("gain"+suffix,static_cast<double>(engine.gain[pad].load()));
+  root.setAttribute("padVelocity"+suffix,static_cast<double>(engine.padVelocity[pad].load()));
   root.setAttribute("pan"+suffix,static_cast<double>(engine.pan[pad].load()));
   root.setAttribute("len"+suffix,engine.laneLength[pad].load());
   root.setAttribute("rate"+suffix,engine.division[pad].load());
@@ -165,6 +166,7 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
  for(int pad=0;pad<16;++pad){
   auto suffix=juce::String(pad);
   engine.gain[pad].store(juce::jlimit(0.f,2.f,static_cast<float>(xml->getDoubleAttribute("gain"+suffix,.8))));
+  engine.padVelocity[pad].store(juce::jlimit(0.f,2.f,static_cast<float>(xml->getDoubleAttribute("padVelocity"+suffix,1.))));
   engine.pan[pad].store(juce::jlimit(-1.f,1.f,static_cast<float>(xml->getDoubleAttribute("pan"+suffix,0))));
   engine.setLaneLength(pad,xml->getIntAttribute("len"+suffix,16));
   engine.setDivision(pad,xml->getIntAttribute("rate"+suffix,2),xml->getIntAttribute("feel"+suffix,0));
@@ -175,8 +177,8 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
   engine.sampleAttack[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("attack"+suffix,0))));
   engine.sampleDecay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("decay"+suffix,1))));
   engine.drive[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("drive"+suffix,0))));
-  engine.sendVerb[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("verbSend"+suffix,.36))));
-  engine.sendDelay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("delaySend"+suffix,.24))));
+  engine.sendVerb[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("verbSend"+suffix,0.))));
+  engine.sendDelay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("delaySend"+suffix,0.))));
  }
  for(auto* element:xml->getChildIterator()){
   if(!element->hasTagName("PATTERN"))continue;
