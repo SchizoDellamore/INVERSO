@@ -595,35 +595,65 @@ bool InversoDrumEditor::StepGrid::locate(const juce::Point<float>& pos,int& lane
 }
 void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){
  previousCell=-1;
- // The click itself paints an absolute, independent step.
+ int lane=0,step=0;
+ if(!locate(ev.position,lane,step))return;
+ const int pat=editor.processor.engine.selectedPattern.load();
+ if(ev.mods.isLeftButtonDown() && ev.mods.isShiftDown()){
+  // Shift+click selects a loaded note, Shift+drag selects further loaded notes.
+  if(editor.selectionPattern!=pat)editor.clearSelections();
+  editor.stepSelection.toggleLoaded(editor.processor.engine,pat,lane,step);
+  previousCell=lane*inverso_drum::steps+step;
+  editor.selectStep(lane,step);
+  repaint();
+  return;
+ }
+ if(ev.mods.isLeftButtonDown() || ev.mods.isRightButtonDown()){
+  editor.clearSelections();
+  editor.captureLaneUndo(lane); // exactly one undo unit per paint gesture
+ }
  mouseDrag(ev);
 }
 void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
- const bool add=ev.mods.isLeftButtonDown();
- const bool erase=ev.mods.isRightButtonDown() && !add;
- if(!add && !erase)return;
+ const bool left=ev.mods.isLeftButtonDown();
+ const bool erase=ev.mods.isRightButtonDown() && !left;
+ if(!left && !erase)return;
  int lane=0,step=0;
  if(!locate(ev.position,lane,step))return;
  const int cell=lane*inverso_drum::steps+step;
  if(cell==previousCell)return;
  previousCell=cell;
  const int pat=editor.processor.engine.selectedPattern.load();
- inverso_drum::applyStepPaint(editor.processor.engine,pat,lane,step,
-   erase?inverso_drum::StepPaintAction::erase:inverso_drum::StepPaintAction::add);
+ if(left && ev.mods.isShiftDown()){
+  editor.stepSelection.addLoaded(editor.processor.engine,pat,lane,step);
+ }else {
+  inverso_drum::applyStepPaint(editor.processor.engine,pat,lane,step,
+    erase?inverso_drum::StepPaintAction::erase:inverso_drum::StepPaintAction::add);
+ }
  editor.selectStep(lane,step);
+ editor.syncLaneLength();
  repaint();
 }
-void InversoDrumEditor::StepGrid::mouseWheelMove(const juce::MouseEvent& ev,
-                                                  const juce::MouseWheelDetails& wheel){
+void InversoDrumEditor::StepGrid::mouseWheelMove(
+  const juce::MouseEvent& ev,const juce::MouseWheelDetails& wheel){
  if(wheel.deltaY==0.f)return;
  int lane=0,step=0;
  if(!locate(ev.position,lane,step))return;
  const int pat=editor.processor.engine.selectedPattern.load();
- const int old=editor.processor.engine.get(pat,lane,step);
  const int delta=(wheel.deltaY>0.f?1:-1)*(ev.mods.isShiftDown()?1:5);
- inverso_drum::setStepVelocityAt(editor.processor.engine,pat,lane,step,
-                                 std::clamp(old+delta,0,127));
+ editor.captureLaneUndo(lane);
+ if(editor.stepSelection.has(lane,step) && editor.stepSelection.count(lane)>0){
+  editor.stepSelection.forEach(lane,[&](int chosenStep){
+   const int old=editor.processor.engine.get(pat,lane,chosenStep);
+   inverso_drum::setStepVelocityAt(editor.processor.engine,pat,lane,chosenStep,
+      std::clamp(old+delta,0,127));
+  });
+ }else{
+  const int old=editor.processor.engine.get(pat,lane,step);
+  inverso_drum::setStepVelocityAt(editor.processor.engine,pat,lane,step,
+                                  std::clamp(old+delta,0,127));
+ }
  editor.selectStep(lane,step);
+ editor.syncLaneLength();
  repaint();
 }
 void InversoDrumEditor::Waveform::paint(juce::Graphics& g){
