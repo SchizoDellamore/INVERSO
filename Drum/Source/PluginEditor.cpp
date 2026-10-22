@@ -534,8 +534,9 @@ double InversoDrumEditor::viewStartPPQ() const noexcept {
  // final steps become impossible to select and edit.
  const double selectedLaneMaxPPQ=128.0*duration;
  const double navigablePPQ=std::max(64.0,selectedLaneMaxPPQ);
- return std::clamp(std::floor(desired/4.0)*4.0,0.0,
-                   std::max(0.0,navigablePPQ-viewLength));
+ // Keep the exact step-based page origin. Rounding to 4/4 bar lines would
+ // make adjacent pages show the same steps at 1/32 or with triplet divisions.
+ return std::clamp(desired,0.0,std::max(0.0,navigablePPQ-viewLength));
 }
 void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
  const auto& engine=editor.processor.engine;
