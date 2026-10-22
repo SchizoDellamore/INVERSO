@@ -124,7 +124,7 @@ private:
  inverso_drum::LaneUndoHistory laneUndo;
  inverso_drum::StepSelection stepSelection;
  int selectionPattern=0;
- bool velocityDrag=false,padVelocityDrag=false,stepFxDrag=false;
+ bool velocityDrag=false,padVelocityDrag=false,stepFxDrag=false,auxSliderDrag=false;
  int selectedPad=0,selectedStep=0,currentPage=0,displayedBars=4;
  bool dragOver=false;int dragX=0,dragY=0;
  bool showFx=false,refreshing=false;
