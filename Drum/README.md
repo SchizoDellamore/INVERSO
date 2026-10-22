@@ -1,29 +1,29 @@
-# INVERSO DRUM v0.5 — shared DAW sample library browser
+# INVERSO DRUM v0.6 — externally loaded samples, user sample collections, per-hit FX
 
-A 16-pad Windows VST3 sampler and sequencer for Cubase, Studio One and Ableton hosts. The VST3 editor reports **v0.5** to distinguish it from cached installations.
+Windows x64 VST3 / JUCE 8. Independent drum sampler and step sequencer for DAWs. Cubase/Studio One/Ableton compatibility must be verified in the actual host; CI does not substitute for testing the host GUI.
 
-## What's new: LIBRARIES
+## External sample workflow
+- Open **DAW LIBRARIES**. Pick the pad and a collection category: **Kicks, Snares, Hats, Claps, Toms, Percussion, FX, Other**.
+- **ADD FOLDER** registers an existing directory of WAV/WAVE/AIFF samples, including subdirectories. **ADD SAMPLES** registers chosen individual audio files as items in this category.
+- **IMPORT PATH** accepts an accessible full Windows WAV/AIFF path (including quoted paths copied from Explorer). It decodes and assigns the file directly, auditioning the newly loaded pad.
+- Filter by category/DAW label, search names and folder paths, select a hit and press **LOAD TO PAD** or double-click. Scan on a background thread; no file scanning in the audio callback. Registrations persist in the user's local application data directory.
+- File/Explorer drag-and-drop is supported where the host forwards native file paths; direct Cubase MediaBay/Studio One/Ableton browser drag is **not guaranteed**. Content trapped inside proprietary .vstsound/.soundset containers or Live devices is not decoded; ordinary accessible WAV/AIFF can be indexed.
+- Source files remain in their original locations. Moving them after saving a session will break those references. No cloud account or network required.
 
-- **DAW LIBRARIES** opens an integrated browser of WAV, WAVE and AIFF files in *existing folders* that are also used by the host DAWs. The plugin does not need to duplicate the audio assets.
-- Choose a source label **Cubase / MediaBay folders**, **Studio One / Files**, **Ableton / User Library**, or **Shared / Other**, and select **ADD FOLDER** to point to the actual folder on the computer. Multiple roots can be registered. This is a folder index, not an undocumented MediaBay database reader.
-- Search filenames and relative paths by text; browse the results and double-click or select **LOAD TO PAD** to assign the selected file to the chosen pad. The assigned pad can be auditioned immediately.
-- Sample indexing runs on a low-priority background worker with a 50,000-file cap, and shows up to 6,000 matching results to keep the interface responsive. **RESCAN** updates the catalogue. **REMOVE** deletes a configured root from this plugin's index; it does not delete the audio folder.
-- The root folder configuration persists across projects and DAWs in the user's local application data under `INVERSO STUDIOS/DRUM/sample_libraries.txt`. No network transfer or user account is required.
-- Existing system file drag-and-drop (WAV/AIFF filesystem file paths) remains available. Whether **Cubase MediaBay** or another host's in-app drag operation passes a native file path to third-party plugin windows **depends on the host** and must be tested in Cubase 15, Studio One, and Ableton.
-- **Limit:** Proprietary library containers (`.vstsound`, `.soundset`, Live devices / presets) are **not** decoded and cannot be assumed to expose their internal samples to third-party VST3 plugins. Nor does this browser import the proprietary metadata/tags of MediaBay. Files inside protected packages are not supported.
+## Per-step FX (new)
+- 8 patterns × 16 instruments × up to 128 individual steps.
+- Select a step and use **STEP DRIVE**, **STEP REVERB**, **STEP DELAY** controls. Each control is independent for that precise hit. The label **(PAD DEFAULT)** indicates inheritance; interacting with it creates an explicit value for that event, including explicit 0% = dry.
+- **RESET STEP FX** switches the selected hit back to pad settings.
+- On playback, each voice captures its effective Drive, Reverb Send and Delay Send at trigger time. FX of one hit cannot change the sends of a later hit or the same instrument's other steps. The shared reverb/delay tail may naturally overlap subsequent dry hits.
+- Global reverb tone/decay and delay division/feedback remain common processor settings, **not independent delay-time or reverb algorithms per event**.
+- Velocity 0–127 remains stored for each individual event, independent of pad gain. Right-drag adjusts the selected step; wheel +/-5 or Shift+wheel +/-1; exact text value below the timeline. Those values are saved and exported as MIDI velocities.
 
-## Existing v0.4 features preserved
+## Automated validation
+Windows GitHub Actions runs 6 tests, including:
+- Real generated WAV file written to disk, decoded into pad 4 in place of a factory sample, played by a MIDI event through processBlock, and reloaded from the saved session path.
+- The same production importer via **IMPORT PATH**, plus folder discovery by the production indexing algorithm.
+- Per-step reverb-only, delay-only and dry samples from the **same** snare, with drive rendering difference.
+- Reverb and delay output/tail audibility, independent steps, pattern/MIDI save state and precise 0–127 velocity.
+- Clean-session reload clears old event effects; older project files remain readable.
 
-- 16 pads, 8 chainable patterns, up to 128 steps per independent lane, dotted/triplet/straight time, 1–16 bar zoom, independent velocity 0–127 per step and MIDI export / MIDI OS drag.
-- Per-pad sample start/end, pitch, reverse, attack, decay, volume/pan, Drive, Reverb Send and Delay Send, and global effects controls.
-- Drag-and-drop of WAV/AIFF from Windows Explorer onto individual pad buttons and track rows.
-
-## Important test plan
-
-1. Close Cubase before installing. Use a duplicate project first. Confirm the header says **INVERSO / DRUM v0.5**.
-2. Open **DAW LIBRARIES**. Select **Cubase / MediaBay folders**, ADD FOLDER, and choose one folder that contains ordinary WAV samples you have already indexed in MediaBay.
-3. Search, select pad 2, double-click a WAV and confirm pad 2 changes and auditions.
-4. Independently try dragging a WAV from Cubase MediaBay into the plugin's pad 3. This may fail because some Cubase builds don't pass an OS file path to third-party plug-ins; that does not indicate the internal library index is broken.
-5. Repeat with accessible user sample folders used by Studio One or Ableton. Their proprietary packs require vendor support and are out of scope for this version.
-
-JUCE and Windows tests do not replace real DAW integration testing. The installer is unsigned. Neither Steinberg, PreSonus nor Ableton is affiliated with INVERSO.
+Successful CI does not prove native Cubase MediaBay drag-and-drop, native file chooser focus, Windows antivirus heuristics, or the end-user experience in Cubase 15. The installer is unsigned; verify provenance and SHA-256 before use. Close Cubase before replacing the old plugin and test in a duplicate project.
