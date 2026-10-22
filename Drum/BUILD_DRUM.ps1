@@ -8,7 +8,7 @@ if(-not $JucePath){$JucePath=Join-Path (Split-Path $root -Parent) 'JUCE'}
 if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not found at $JucePath"}
 & cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath"
 Assert-Step 'CMake configure'
-& cmake --build (Join-Path $root 'build') --config Release --target InversoDrum_VST3 inverso_drum_engine inverso_drum_extended inverso_drum_fx_audible inverso_drum_velocity InversoDrumHostSmoke --parallel 4
+& cmake --build (Join-Path $root 'build') --config Release --target InversoDrum_VST3 inverso_drum_engine inverso_drum_extended inverso_drum_fx_audible inverso_drum_velocity inverso_drum_event_fx InversoDrumHostSmoke --parallel 4
 Assert-Step 'Plugin build'
 & ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure
 Assert-Step 'Tests'
