@@ -30,6 +30,8 @@ public:
  void setStateInformation(const void*,int) override;
  bool loadPadFile(int,const juce::File&);
  juce::String sampleName(int)const;
+ juce::String samplePath(int pad)const;
+ void restorePadReference(int pad,const std::string& path);
  void auditionPad(int pad) noexcept {pendingAudition.store(pad,std::memory_order_release);}
  bool exportMidi(const juce::File&)const;
  inverso_drum::Engine engine;
