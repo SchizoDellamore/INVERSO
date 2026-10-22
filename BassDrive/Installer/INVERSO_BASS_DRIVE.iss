@@ -1,4 +1,4 @@
-#define Ver "0.2.0"
+#define Ver "0.3.0"
 #define Plugin "INVERSO BASS DRIVE.vst3"
 #define SourcePlugin "..\build\InversoBassDrive_artefacts\Release\VST3\" + Plugin
 [Setup]

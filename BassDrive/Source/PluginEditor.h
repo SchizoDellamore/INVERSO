@@ -20,9 +20,9 @@ private:
  using CA=juce::AudioProcessorValueTreeState::ComboBoxAttachment;
  void timerCallback()override{repaint();}
  InversoBassDriveProcessor& processor;
- std::array<WheelSlider,6> sliders;
- std::array<juce::Label,6> labels;
- std::array<std::unique_ptr<SA>,6> attachments;
+ std::array<WheelSlider,7> sliders;
+ std::array<juce::Label,7> labels;
+ std::array<std::unique_ptr<SA>,7> attachments;
  juce::ComboBox modes;
  std::unique_ptr<CA> modeAttachment;
  juce::Label modeLabel;

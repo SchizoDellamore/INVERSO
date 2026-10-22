@@ -11,6 +11,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout InversoBassDriveProcessor::m
  };
  // IDs and parameter ranges are unchanged for session compatibility with 0.1.
  knob("DRIVE","Drive",0.f,100.f,.01f,25.f);
+ knob("BODY","Body",0.f,100.f,.01f,65.f);
  knob("FUZZ","Fuzz",0.f,100.f,.01f,0.f);
  p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{"CROSSOVER",1},"Crossover",NormalisableRange<float>(60.f,500.f,1.f,.5f),155.f));
  knob("TONE","Fuzz tone",0.f,100.f,.01f,65.f);
@@ -56,6 +57,7 @@ void InversoBassDriveProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
  auto param=[this](const char* id) noexcept {return apvts.getRawParameterValue(id)->load(std::memory_order_relaxed);};
  inverso_bass::Parameters p;
  p.drive=param("DRIVE")*.01f;
+ p.body=param("BODY")*.01f;
  p.fuzz=param("FUZZ")*.01f;
  p.crossover=param("CROSSOVER");
  p.tone=param("TONE")*.01f;

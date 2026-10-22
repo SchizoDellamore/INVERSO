@@ -1,36 +1,28 @@
 #include "../Source/DSP/BassDriveCore.h"
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-#include <cassert>
+#include <cstdlib>
 #include <cmath>
 #include <vector>
 #include <cstdio>
+using namespace inverso_bass;
 int main(){
- using namespace inverso_bass;
- for(int n: {16,32,64}){
-  std::vector<Core> processors(static_cast<size_t>(n));
-  for(auto& c:processors){ c.prepare(192000,2); }
-  for(int frame=0;frame<30000;++frame){
+ for(int sr:{44100,48000,96000})for(int n:{16,32,64}){
+  std::vector<Core> cores(static_cast<size_t>(n));
+  for(auto& c:cores)c.prepare(sr,2);
+  for(int i=0;i<16000;++i){
    Parameters p;
-   p.drive=static_cast<float>((frame/97)%100)/99.f;
-   p.fuzz=static_cast<float>((frame/61)%100)/99.f;
-   p.mode=static_cast<FuzzMode>((frame/1500)%4);
-   p.crossover=60+static_cast<float>((frame/41)%440);
-   p.tone=static_cast<float>((frame/83)%100)/99.f;
-   p.mix=static_cast<float>((frame/137)%100)/99.f;
-   p.outputDb=static_cast<float>((frame/101)%36)-24.f;
-   p.preserveLow=(frame/700)%2==0;
-   const float x=.8f*std::sin(.013f*frame);
-   for(auto& c:processors){
-    if(frame%32==0)c.setParameters(p);
-    const float a=c.processChannel(0,x);
-    const float b=c.processChannel(1,x*.8f);
+   p.drive=((i/41)%101)/100.f;p.fuzz=((i/37)%101)/100.f;
+   p.body=((i/59)%101)/100.f;p.crossover=60+((i/97)%441);
+   p.mode=static_cast<FuzzMode>((i/1200)%4);p.tone=((i/19)%101)/100.f;
+   p.mix=((i/23)%101)/100.f;p.outputDb=-12+((i/87)%24);
+   p.preserveLow=(i/1100)%2==0;
+   const float x=.4f*std::sin(2*pi*107*i/sr);
+   for(auto& c:cores){if(i%64==0)c.setParameters(p);
+    const auto a=c.processChannel(0,x),b=c.processChannel(1,x*.8f);
     c.tickFrame();
-    assert(std::isfinite(a)&&std::isfinite(b));
-    assert(std::abs(a)<100.f&&std::abs(b)<100.f);
+    if(!std::isfinite(a)||!std::isfinite(b))std::exit(2);
+    if(std::abs(a)>=10||std::abs(b)>=10)std::exit(3);
    }
   }
-  std::printf("%d simulated instances passed\n",n);
+  std::printf("%d Hz, %d instances: pass\n",sr,n);
  }
 }
