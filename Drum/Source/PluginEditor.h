@@ -42,9 +42,12 @@ private:
   void paint(juce::Graphics&) override;
   void mouseDown(const juce::MouseEvent&) override;
   void mouseDrag(const juce::MouseEvent&) override;
+  void mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails&) override;
  private:
+  bool locate(const juce::Point<float>&,int& lane,int& step) const noexcept;
   InversoDrumEditor& editor;
-  int previousCell=-1;
+  int previousCell=-1,dragStartVelocity=0;
+  float dragStartY=0.f;
  };
  class Waveform final : public juce::Component {
  public:
@@ -55,6 +58,8 @@ private:
  };
  void timerCallback() override;
  void selectPad(int);
+ void selectStep(int pad,int step);
+ void refreshStepVelocity();
  void updateUi();
  void updateTabs();
  void loadSelected();
@@ -67,7 +72,9 @@ private:
  std::array<juce::TextButton,8> patternButtons,pageButtons;
  std::array<juce::TextButton,16> padButtons;
  juce::ToggleButton chain{"CHAIN A-H"};
- juce::Slider swing,level,pan,laneLength;
+ juce::Slider swing,level,pan,laneLength,stepVelocity;
+ juce::Label stepVelocityLabel,stepInfo;
+ juce::TextButton clearStep{"CLEAR STEP"};
  juce::ComboBox laneRate,laneFeel,delayRate,delayFeel,viewBars;
  juce::Label swingLabel,levelLabel,panLabel,lengthLabel,rateLabel,feelLabel;
  juce::Label selectedSample,tempoLabel,delayRateLabel,delayFeelLabel,viewLabel;
@@ -80,7 +87,7 @@ private:
  std::array<juce::Slider,7> fxSliders;
  std::array<juce::Label,7> fxLabels;
  std::unique_ptr<juce::FileChooser> chooser;
- int selectedPad=0,currentPage=0,displayedBars=4;
+ int selectedPad=0,selectedStep=0,currentPage=0,displayedBars=4;
  bool dragOver=false;int dragX=0,dragY=0;
  bool showFx=false,refreshing=false;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoDrumEditor)
