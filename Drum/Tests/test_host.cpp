@@ -58,6 +58,79 @@ int main(){
   stream.reset();midiPath.deleteFile();
   std::unique_ptr<juce::AudioProcessorEditor> ui(p.createEditor());
   check(ui!=nullptr&&ui->getHeight()>=900,"v0.4 velocity editor did not open");
+  // End-to-end external sample check: actually create WAV on disk, decode,
+  // replace a factory pad, render MIDI audio, save, and restore external path.
+  auto testWav=juce::File::getSpecialLocation(juce::File::tempDirectory)
+     .getNonexistentChildFile("INVERSO_EXTERNAL_SNARE",".wav",false);
+  {
+   auto writer=testWav.createOutputStream();
+   check(writer!=nullptr&&writer->openedOk(),"cannot create external WAV");
+   constexpr int wavFrames=4800;
+   writer->write("RIFF",4);
+   writer->writeInt(36+wavFrames*2);
+   writer->write("WAVE",4);
+   writer->write("fmt ",4);
+   writer->writeInt(16); // PCM fmt chunk
+   writer->writeShort(1); // PCM
+   writer->writeShort(1); // mono
+   writer->writeInt(48000);
+   writer->writeInt(48000*2);
+   writer->writeShort(2);writer->writeShort(16);
+   writer->write("data",4);
+   writer->writeInt(wavFrames*2);
+   for(int n=0;n<wavFrames;++n){
+    const double y=.65*std::sin(2*juce::MathConstants<double>::pi*880*n/48000.);
+    writer->writeShort(static_cast<short>(std::round(y*32767.)));
+   }
+   check(writer->flush(),"cannot flush external WAV");
+  }
+  const auto factory=p.engine.getSample(3);
+  check(p.loadPadFile(3,testWav),"external WAV failed to load");
+  const auto actual=p.engine.getSample(3);
+  check(actual!=nullptr && actual!=factory && actual->left.size()==4800,
+       "factory sample was not replaced by decoded external WAV");
+  check(std::abs(actual->left[30])>.05f,"external WAV contains no decoded audio");
+  p.engine.sampleStart[3].store(0.f);
+  p.engine.sampleEnd[3].store(1.f);
+  p.engine.samplePitch[3].store(0.f);
+  p.engine.sampleAttack[3].store(0.f);
+  p.engine.sampleDecay[3].store(1.f);
+  {
+   juce::AudioBuffer<float> playback(2,2048);
+   juce::MidiBuffer notes;
+   notes.addEvent(juce::MidiMessage::noteOn(10,39,static_cast<juce::uint8>(127)),0);
+   p.processBlock(playback,notes);
+   double energy=0;
+   for(int n=0;n<playback.getNumSamples();++n)
+    energy+=std::pow(playback.getSample(0,n),2.0);
+   check(energy>1.,"imported WAV cannot be heard through the plugin processBlock");
+  }
+  juce::MemoryBlock externalState;
+  p.getStateInformation(externalState);
+  InversoDrumProcessor reopened;
+  reopened.prepareToPlay(48000,32);
+  reopened.setStateInformation(externalState.getData(),static_cast<int>(externalState.getSize()));
+  check(reopened.sampleName(3).contains("INVERSO_EXTERNAL_SNARE"),"sample path not restored");
+  check(reopened.engine.getSample(3)!=nullptr &&
+        reopened.engine.getSample(3)->left.size()==4800,
+        "external WAV not restored after session reload");
+  reopened.releaseResources();
+  testWav.deleteFile();
+  // Step FX are stored individually and survive the full JUCE session-state route.
+  p.engine.setEventFx(0,1,3,1,100); // only snare hit at step 4 gets reverb
+  p.engine.setEventFx(0,1,3,2,0);   // no delay on that hit
+  p.engine.setEventFx(0,1,11,2,83); // snare hit at step 12 gets delay
+  p.engine.setEventFx(0,1,11,1,0);
+  p.engine.setEventFx(0,1,3,0,57);
+  juce::MemoryBlock eventState;p.getStateInformation(eventState);
+  InversoDrumProcessor eventCopy;
+  eventCopy.setStateInformation(eventState.getData(),static_cast<int>(eventState.getSize()));
+  check(eventCopy.engine.getEventFx(0,1,3,1)==100,"reverb hit-specific state lost");
+  check(eventCopy.engine.getEventFx(0,1,3,2)==0,"dry delay hit-specific state lost");
+  check(eventCopy.engine.getEventFx(0,1,11,2)==83,"delay hit-specific state lost");
+  check(eventCopy.engine.getEventFx(0,1,11,1)==0,"dry reverb hit-specific state lost");
+  check(eventCopy.engine.getEventFx(0,1,3,0)==57,"drive hit-specific state lost");
+  check(eventCopy.engine.getEventFx(0,1,4,1)==255,"adjacent step inherited effect was corrupted");
   p.releaseResources();
  }
  std::puts("Inverso Drum JUCE host smoke passed");
