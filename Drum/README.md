@@ -1,26 +1,26 @@
-# INVERSO DRUM v0.3 — sequencing ergonomics and audible effects
+# INVERSO DRUM v0.4 — individual velocity per step
 
-Independent 16-pad drum sampler and sequencer (VST3, Windows x64, JUCE 8). Inspired by the general workflow of Loopcloud DRUM; no proprietary code or content is included.
+A 16-pad Windows VST3 sampler + host-synced sequencer. The new v0.4 editor explicitly displays its version to make stale Cubase instances recognizable.
 
-## What's new
-- **Steps in increments of four**: each lane length is now 4, 8, 12, …, 128. Old session lane lengths are rounded to the closest multiple of four when loaded. Step contents are preserved.
-- **Up to 16 bars in the timeline viewport**, with View 1 / 2 / 4 / 8 / 16 bars. 4/4 musical display uses host PPQ; each lane retains its own beat subdivision and dotted/triplet feel. The timeline repeats shorter patterns visually and does not magically add beyond 128 unique steps to a lane.
-- **Jump to step** buttons reposition the viewport; bar-length zoom allows precise editing and a song-length overview. At 1/8 straight, 128 steps cover 16 bars; at 1/16 straight, 128 steps cover 8 bars, so the 16-bar overview displays the phrase repeated.
-- **Sample file drag-and-drop**: drag WAV/AIFF from Windows Explorer onto the specific pad button or lane row, rather than only onto the selected pad. Multiple dragged files populate consecutive pads. File paths continue to be referenced in the session; do not move samples after saving.
-- **MIDI drag-out**: drag the 'EXPORT / DRAG MIDI' control to a Cubase MIDI track to try native OS file drop; clicking continues to export a `.mid` file normally. Host support for external file drag/drop can vary; the MIDI export path is always available.
-- **Reverb/delay audibility correction**: global FX wet gains and reverb diffusion gain have been raised from the previous extremely quiet values. New kits default to nonzero Delay Send and a more audible Reverb Send. Each pad still has its own independent Drive, Reverb Send, and Delay Send. Tempo-synced Delay Note and Feel controls are preserved.
-- Existing 0.1/0.2 project states continue to load. **Existing zero delay sends remain zero intentionally**; to hear delay on an older project, open Effects and raise BOTH Delay Send on the pad AND global Delay Mix (likewise Reverb Send / Reverb Mix).
+## New: velocity editing, per pattern / lane / step
 
-## Usage / verification
-1. Close Cubase, install v0.3 and reopen in a duplicate test project.
-2. Drag a WAV file onto the snare lane (track 2) and verify that only its sample changes. Alternatively import with Load Sample.
-3. Choose 24 or 128 Steps for that lane, select 16 Bars in View, and add hits across the timeline.
-4. Effects: select a snare pad, set Reverb Send to 70% + Reverb Mix 65%; on another trial use Delay Send 75% + Delay Mix 70%, 1/8 Straight at 120 BPM. Play one isolated snare to listen for audible tails.
-5. Test MIDI drag-out onto a Cubase MIDI track. If the host refuses the native file drop, click the same control to export a file, then import it into the arrangement.
+- **Each one of the 8 patterns × 16 lanes × 128 steps has its own velocity 0–127.** A velocity of 0 means that step is silent/disabled.
+- **Left click** in the timeline toggles a step between Off and velocity 105 (quick composition).
+- **Right click** selects a step without changing the value. **Right drag vertically** on that cell sets velocity continuously; SHIFT slows the adjustment.
+- **Mouse wheel** over a step changes velocity in increments of 5; **SHIFT + wheel** changes exactly 1.
+- **STEP VELOCITY** below the timeline is a numeric 0–127 slider with editable number, **CLEAR STEP**, and a label showing pattern, track, step number and velocity.
+- The selected step gets a distinct outline. Active cells also show a thin intensity bar and a numeric velocity when there is sufficient on-screen space (zoom in with 1-bar View for detail).
+- Each step's exact velocity is already used by the audio engine, survives project save/load and is retained as an exact MIDI note velocity when exporting/dragging patterns. No floating-point velocity rescaling or 4-level presets.
 
-## Constraints
-- 16 bars is a **viewport** in 4/4; per-lane pattern length remains limited to 128 unique events and repeats as needed. Non-4/4 bar ruler support is not yet available.
-- Reverb and delay are lightweight algorithmic effects, not sampled impulse-response processors. They may raise peaks; watch Cubase meters.
-- Audio drag-out and per-lane multiple outputs have not been implemented. MIDI file drag-out depends on host acceptance of native Windows file drops.
-- The original request regarding *note controls* was incomplete. This update retains left-click step on/off and right-click velocity cycling, rather than guessing another desired interaction.
-- Windows installer is unsigned. GitHub Actions builds Windows VST3 and runs DSP/host tests; the user must still audition effects and synchronization in Cubase.
+## Existing v0.3 functionality preserved
+
+16 sample pads; per-lane length in steps of four up to 128; View 1/2/4/8/16 bars; independent rate and straight/dotted/triplet feel; 8 chainable patterns; MIDI file drag-out; WAV/AIFF drop onto pads, multiple-file drop; sample start/end, pitch, reverse, attack and decay; per-pad drive, delay and reverb sends; global feedback, reverb and delay mix.
+
+## Important
+
+- Uninstall the old version / close Cubase before upgrading. If the top-left plugin title doesn't say **v0.4**, Cubase is still showing an older VST3.
+- Test with a duplicate session. The installer and binary are unsigned; don't bypass security checks to force installation.
+- Building and passing JUCE host tests verifies program flow, but does not replace a real Cubase test.
+- Samples refer to external WAV/AIFF paths, not embedded audio.
+- MIDI drag and drop depends on Cubase supporting OS external file-drop onto tracks.
+- The original Loopcloud DRUM is not affiliated with or used as source code for this software.
