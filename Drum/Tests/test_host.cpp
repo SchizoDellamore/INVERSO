@@ -1,4 +1,5 @@
 #include "../Source/PluginProcessor.h"
+#include "../Source/SampleLibraries.h"
 #include <JuceHeader.h>
 #include <cmath>
 #include <cstdio>
@@ -60,8 +61,10 @@ int main(){
   check(ui!=nullptr&&ui->getHeight()>=900,"v0.4 velocity editor did not open");
   // End-to-end external sample check: actually create WAV on disk, decode,
   // replace a factory pad, render MIDI audio, save, and restore external path.
-  auto testWav=juce::File::getSpecialLocation(juce::File::tempDirectory)
-     .getNonexistentChildFile("INVERSO_EXTERNAL_SNARE",".wav",false);
+  auto testFolder=juce::File::getSpecialLocation(juce::File::tempDirectory)
+    .getNonexistentChildFile("INVERSO_INTEGRATION_LIBRARY","",false);
+  check(testFolder.createDirectory().wasOk(),"cannot create test sample library");
+  auto testWav=testFolder.getChildFile("INVERSO_EXTERNAL_SNARE.wav");
   {
    auto writer=testWav.createOutputStream();
    check(writer!=nullptr&&writer->openedOk(),"cannot create external WAV");
@@ -115,7 +118,27 @@ int main(){
         reopened.engine.getSample(3)->left.size()==4800,
         "external WAV not restored after session reload");
   reopened.releaseResources();
-  testWav.deleteFile();
+  // Exercise the same import path used by the library's visible IMPORT PATH button.
+  // Then index an actual folder, not just a mock list or string.
+  {
+   InversoSampleLibraries browser;
+   browser.setPad(3);
+   browser.setLoadHandler([&p](int pad,const juce::File& sample){
+    return p.loadPadFile(pad,sample);
+   });
+   check(browser.importFilePath(testWav.getFullPathName()),
+         "visible IMPORT PATH action failed for a real external WAV");
+   check(p.sampleName(3).contains("INVERSO_EXTERNAL_SNARE"),
+         "library import did not assign the correct pad");
+   browser.addFolder("Cubase",testFolder);
+   bool indexed=false;
+   for(int retry=0;retry<50 && !indexed;++retry){
+    juce::MessageManager::getInstance()->runDispatchLoopUntil(40);
+    indexed=browser.getNumRows()>0;
+   }
+   check(indexed,"library folder scanning did not surface an external WAV");
+  }
+  check(testFolder.deleteRecursively(),"test sample library cleanup failed");
   // Step FX are stored individually and survive the full JUCE session-state route.
   p.engine.setEventFx(0,1,3,1,100); // only snare hit at step 4 gets reverb
   p.engine.setEventFx(0,1,3,2,0);   // no delay on that hit
