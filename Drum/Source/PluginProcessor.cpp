@@ -86,7 +86,7 @@ juce::String InversoDrumProcessor::sampleName(int pad)const{
 }
 void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
  juce::XmlElement root("INVERSO_DRUM_STATE");
- root.setAttribute("version",3);
+ root.setAttribute("version",6);
  root.setAttribute("pattern",engine.selectedPattern.load());
  root.setAttribute("chain",engine.chain.load()?1:0);
  root.setAttribute("swing",static_cast<double>(engine.swing.load()));
@@ -123,6 +123,17 @@ void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
    for(int step=0;step<inverso_drum::steps;++step)
     values.add(juce::String(static_cast<int>(engine.get(p,lane,step))));
    pattern->setAttribute("lane"+juce::String(lane),values.joinIntoString(","));
+   for(int fx=0;fx<3;++fx){
+    juce::StringArray overrides;
+    for(int step=0;step<inverso_drum::steps;++step){
+     const int val=engine.getEventFx(p,lane,step,fx);
+     if(val!=inverso_drum::Engine::inheritFx)
+      overrides.add(juce::String(step)+":"+juce::String(val));
+    }
+    if(!overrides.isEmpty())
+     pattern->setAttribute("fx"+juce::String(fx)+"_lane"+juce::String(lane),
+                           overrides.joinIntoString(","));
+   }
   }
  }
  copyXmlToBinary(root,dest);
@@ -168,6 +179,19 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
    const int expected=fileVersion>=2?inverso_drum::steps:16;
    if(parts.size()!=expected)continue;
    for(int step=0;step<expected;++step)engine.set(p,lane,step,parts[step].getIntValue());
+   for(int fx=0;fx<3;++fx){
+    // Prior v0.1..v0.5 projects have no event FX: inherit pad defaults.
+    const auto key="fx"+juce::String(fx)+"_lane"+juce::String(lane);
+    auto encoded=juce::StringArray::fromTokens(element->getStringAttribute(key),",","");
+    for(const auto& pair:encoded){
+     const int separator=pair.indexOfChar(':');
+     if(separator<1)continue;
+     const int step=pair.substring(0,separator).getIntValue();
+     const int level=pair.substring(separator+1).getIntValue();
+     if(step>=0 && step<inverso_drum::steps && level>=0 && level<=100)
+      engine.setEventFx(p,lane,step,fx,level);
+    }
+   }
   }
  }
  for(int pad=0;pad<16;++pad){
