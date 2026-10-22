@@ -194,7 +194,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 void InversoDrumEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
  g.setColour(text);g.setFont(juce::Font(juce::FontOptions(25.f,juce::Font::bold)));
- g.drawText("INVERSO / DRUM  INTEGRATION TEST",22,12,620,39,juce::Justification::centredLeft);
+ g.drawText("INVERSO / DRUM  v0.6",22,12,620,39,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(12.f)));
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
