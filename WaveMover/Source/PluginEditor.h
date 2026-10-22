@@ -52,7 +52,7 @@ private:
     juce::ToggleButton loop{"Loop"},exportSelection{"Exportar selecao"};
     juce::TextButton all{"Selecionar tudo"},split{"Split no cursor"},grid{"Split grade"},attacks{"Split ataques"},clear{"Limpar splits"},undo{"Desfazer"},redo{"Refazer"};
     juce::TextButton cut{"Apagar"},copy{"Copiar"},paste{"Colar"},duplicate{"Duplicar"},trim{"Manter selecao"},crossfade{"Crossfade no cursor"},restore{"Restaurar original"};
-    juce::ComboBox effects,gridDivision;juce::Slider a,b,bpm;juce::Label labelA,labelB,labelBpm,information,status,details;
+    juce::ComboBox effects,gridDivision;juce::Slider a,b,bpm,seamMs;juce::Label labelA,labelB,labelBpm,seamLabel,information,status,details;
     juce::TextEditor seed;
     juce::TextButton apply{"Aplicar a selecao"},save{"Exportar WAV"},fit{"Ver tudo"};ExportDragButton drag;
     std::unique_ptr<juce::FileChooser>chooser;
