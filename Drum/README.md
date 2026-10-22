@@ -1,26 +1,29 @@
-# INVERSO DRUM v0.4 — individual velocity per step
+# INVERSO DRUM v0.5 — shared DAW sample library browser
 
-A 16-pad Windows VST3 sampler + host-synced sequencer. The new v0.4 editor explicitly displays its version to make stale Cubase instances recognizable.
+A 16-pad Windows VST3 sampler and sequencer for Cubase, Studio One and Ableton hosts. The VST3 editor reports **v0.5** to distinguish it from cached installations.
 
-## New: velocity editing, per pattern / lane / step
+## What's new: LIBRARIES
 
-- **Each one of the 8 patterns × 16 lanes × 128 steps has its own velocity 0–127.** A velocity of 0 means that step is silent/disabled.
-- **Left click** in the timeline toggles a step between Off and velocity 105 (quick composition).
-- **Right click** selects a step without changing the value. **Right drag vertically** on that cell sets velocity continuously; SHIFT slows the adjustment.
-- **Mouse wheel** over a step changes velocity in increments of 5; **SHIFT + wheel** changes exactly 1.
-- **STEP VELOCITY** below the timeline is a numeric 0–127 slider with editable number, **CLEAR STEP**, and a label showing pattern, track, step number and velocity.
-- The selected step gets a distinct outline. Active cells also show a thin intensity bar and a numeric velocity when there is sufficient on-screen space (zoom in with 1-bar View for detail).
-- Each step's exact velocity is already used by the audio engine, survives project save/load and is retained as an exact MIDI note velocity when exporting/dragging patterns. No floating-point velocity rescaling or 4-level presets.
+- **DAW LIBRARIES** opens an integrated browser of WAV, WAVE and AIFF files in *existing folders* that are also used by the host DAWs. The plugin does not need to duplicate the audio assets.
+- Choose a source label **Cubase / MediaBay folders**, **Studio One / Files**, **Ableton / User Library**, or **Shared / Other**, and select **ADD FOLDER** to point to the actual folder on the computer. Multiple roots can be registered. This is a folder index, not an undocumented MediaBay database reader.
+- Search filenames and relative paths by text; browse the results and double-click or select **LOAD TO PAD** to assign the selected file to the chosen pad. The assigned pad can be auditioned immediately.
+- Sample indexing runs on a low-priority background worker with a 50,000-file cap, and shows up to 6,000 matching results to keep the interface responsive. **RESCAN** updates the catalogue. **REMOVE** deletes a configured root from this plugin's index; it does not delete the audio folder.
+- The root folder configuration persists across projects and DAWs in the user's local application data under `INVERSO STUDIOS/DRUM/sample_libraries.txt`. No network transfer or user account is required.
+- Existing system file drag-and-drop (WAV/AIFF filesystem file paths) remains available. Whether **Cubase MediaBay** or another host's in-app drag operation passes a native file path to third-party plugin windows **depends on the host** and must be tested in Cubase 15, Studio One, and Ableton.
+- **Limit:** Proprietary library containers (`.vstsound`, `.soundset`, Live devices / presets) are **not** decoded and cannot be assumed to expose their internal samples to third-party VST3 plugins. Nor does this browser import the proprietary metadata/tags of MediaBay. Files inside protected packages are not supported.
 
-## Existing v0.3 functionality preserved
+## Existing v0.4 features preserved
 
-16 sample pads; per-lane length in steps of four up to 128; View 1/2/4/8/16 bars; independent rate and straight/dotted/triplet feel; 8 chainable patterns; MIDI file drag-out; WAV/AIFF drop onto pads, multiple-file drop; sample start/end, pitch, reverse, attack and decay; per-pad drive, delay and reverb sends; global feedback, reverb and delay mix.
+- 16 pads, 8 chainable patterns, up to 128 steps per independent lane, dotted/triplet/straight time, 1–16 bar zoom, independent velocity 0–127 per step and MIDI export / MIDI OS drag.
+- Per-pad sample start/end, pitch, reverse, attack, decay, volume/pan, Drive, Reverb Send and Delay Send, and global effects controls.
+- Drag-and-drop of WAV/AIFF from Windows Explorer onto individual pad buttons and track rows.
 
-## Important
+## Important test plan
 
-- Uninstall the old version / close Cubase before upgrading. If the top-left plugin title doesn't say **v0.4**, Cubase is still showing an older VST3.
-- Test with a duplicate session. The installer and binary are unsigned; don't bypass security checks to force installation.
-- Building and passing JUCE host tests verifies program flow, but does not replace a real Cubase test.
-- Samples refer to external WAV/AIFF paths, not embedded audio.
-- MIDI drag and drop depends on Cubase supporting OS external file-drop onto tracks.
-- The original Loopcloud DRUM is not affiliated with or used as source code for this software.
+1. Close Cubase before installing. Use a duplicate project first. Confirm the header says **INVERSO / DRUM v0.5**.
+2. Open **DAW LIBRARIES**. Select **Cubase / MediaBay folders**, ADD FOLDER, and choose one folder that contains ordinary WAV samples you have already indexed in MediaBay.
+3. Search, select pad 2, double-click a WAV and confirm pad 2 changes and auditions.
+4. Independently try dragging a WAV from Cubase MediaBay into the plugin's pad 3. This may fail because some Cubase builds don't pass an OS file path to third-party plug-ins; that does not indicate the internal library index is broken.
+5. Repeat with accessible user sample folders used by Studio One or Ableton. Their proprietary packs require vendor support and are out of scope for this version.
+
+JUCE and Windows tests do not replace real DAW integration testing. The installer is unsigned. Neither Steinberg, PreSonus nor Ableton is affiliated with INVERSO.
