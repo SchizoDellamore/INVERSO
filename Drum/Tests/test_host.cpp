@@ -85,7 +85,8 @@ int main(){
     const double y=.65*std::sin(2*juce::MathConstants<double>::pi*880*n/48000.);
     writer->writeShort(static_cast<short>(std::round(y*32767.)));
    }
-   check(writer->flush(),"cannot flush external WAV");
+   writer->flush();
+   check(writer->getStatus().wasOk(),"cannot flush external WAV");
   }
   const auto factory=p.engine.getSample(3);
   check(p.loadPadFile(3,testWav),"external WAV failed to load");
