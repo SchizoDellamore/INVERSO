@@ -13,6 +13,8 @@ public:
  struct Entry {
   int pattern=0,pad=0,length=16,rate=2,feel=0;
   float velocityMultiplier=1.f,gain=.8f,pan=0.f,drive=0.f,reverbSend=0.f,delaySend=0.f;
+  float start=0.f,end=1.f,pitch=0.f,attack=0.f,decay=1.f;
+  bool reverse=false;
   std::array<uint8_t,steps> notes{};
   std::array<std::array<uint8_t,steps>,3> effects{};
   std::shared_ptr<const Sample> sample;
@@ -29,6 +31,9 @@ public:
   state.gain=e.gain[pad].load();state.pan=e.pan[pad].load();
   state.drive=e.drive[pad].load();state.reverbSend=e.sendVerb[pad].load();
   state.delaySend=e.sendDelay[pad].load();
+  state.start=e.sampleStart[pad].load();state.end=e.sampleEnd[pad].load();
+  state.pitch=e.samplePitch[pad].load();state.attack=e.sampleAttack[pad].load();
+  state.decay=e.sampleDecay[pad].load();state.reverse=e.sampleReverse[pad].load();
   state.sample=e.getSample(pad);state.userLoaded=e.isUserLoaded(pad);
   for(int i=0;i<steps;++i){
    state.notes[i]=e.get(pattern,pad,i);
@@ -38,6 +43,9 @@ public:
   auto& stack=stacks[pad];
   if(stack.size()>=64)stack.erase(stack.begin());
   stack.push_back(std::move(state));
+ }
+ int lastPattern(int pad)const noexcept{
+  return canUndo(pad)?stacks[pad].back().pattern:-1;
  }
  bool canUndo(int pad) const{
   return pad>=0&&pad<pads&&!stacks[pad].empty();
@@ -54,6 +62,9 @@ public:
   e.drive[pad].store(snapshot.drive);
   e.sendVerb[pad].store(snapshot.reverbSend);
   e.sendDelay[pad].store(snapshot.delaySend);
+  e.sampleStart[pad].store(snapshot.start);e.sampleEnd[pad].store(snapshot.end);
+  e.samplePitch[pad].store(snapshot.pitch);e.sampleAttack[pad].store(snapshot.attack);
+  e.sampleDecay[pad].store(snapshot.decay);e.sampleReverse[pad].store(snapshot.reverse);
   if(snapshot.sample)e.setSample(pad,std::move(snapshot.sample));
   e.setUserLoaded(pad,snapshot.userLoaded);
   for(int i=0;i<steps;++i){
