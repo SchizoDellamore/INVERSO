@@ -1,24 +1,21 @@
-# INVERSO BASS DRIVE v0.3 (sonic redesign)
+# INVERSO BASS DRIVE 0.4 (experimental B3K-inspired voicing)
 
-## Why the engine changed
+This independent VST3 is a **voicing experiment**, not an authentic Darkglass B3K circuit model, affiliated product, or measured replica. The goal is to keep note definition while producing more forceful harmonic drive on bass. The optional fuzz is separate.
 
-The previous build was stable but its 4th-order crossover starved the drive stage of low-mid signal. High drive values also lost weight owing to strong compression. v0.3 replaces the character engine while retaining the safe, block-size-independent, zero-latency JUCE wrapper of v0.2.
+## Drive signal path
+- Complementary low-band preservation: clean input remains in the output; nonlinear *difference* is mixed onto it.
+- DRIVE controls parallel asymmetric/odd saturation; **DRIVE TONE** controls the distorted branch's 3–8 kHz low-pass character (not a dry signal EQ).
+- **GRUNT: Tight / Balanced / Thick** controls how much low-frequency content enters the saturation. It does not simply boost output bass.
+- **MID BOOST** emphasizes approximately 300 Hz–1 kHz *before* the nonlinear stage.
+- BODY enhances approximately 65–310 Hz when the drive or optional fuzz is engaged.
+- CROSSOVER 60–500 Hz sets low-band split; PRESERVE LOW selects how much bass is isolated from drive.
+- FUZZ MODE Off / Vintage / Silicon / Gated; FUZZ AMOUNT and FUZZ TONE act independently of DRIVE.
+- MIX controls processed vs dry signal. OUTPUT (-24 to +12 dB) is not a limiter; reduce on peak warnings.
 
-**Core controls:** DRIVE (asymmetric harmonics with some direct signal preserved), BODY (adds controlled 65-310 Hz body when processing is active), CROSSOVER (60-500 Hz; 2nd-order high-pass into distortion), PRESERVE LOW (default ON), MIX, OUTPUT.
-
-**Optional Fuzz:** Mode Off/Vintage/Silicon/Gated, Fuzz Amount, Fuzz Tone. Fuzz is OFF by default, and **DRIVE works independently of fuzz**. Fuzz Amount works even with Drive at zero if the mode is selected. Vintage is asymmetric and rounded, Silicon is harder and harmonically aggressive, Gated intentionally truncates tails.
-
-The lower path is reconstructed as input minus high-pass, avoiding holes at the crossover frequency. The body control adds a band-limited 65-310 Hz signal, not a sub-bass boost; it is inactive when Drive and Fuzz are off. All parameter values except new BODY retain their VST3 IDs and ranges for session compatibility.
-
-**IMPORTANT LIMITATIONS:** Host-rate waveshaping is used for stability; this version does not use oversampling, so extreme distortion can alias, particularly at 44.1/48kHz. The output is **not limited**; adjust Output to prevent clipping. This is a custom musical design, not a circuit-accurate pedal emulation. Quantitative harmonic tests do not establish subjective quality. It must be heard in Cubase to confirm that the new sound fits the intended instrument.
-
-## Verification
-
-Portable C++ tests: harmonic generation from moderate inputs; drive as standalone processor; body at ~120 Hz; three distinctly aggressive fuzz sounds with Drive=0; no output silence; automation/stress tests (16,32,64 simulated instances at 44.1/48/96 kHz); normal bypass/dry throughput.
-
-Windows JUCE host smoke test: mono/stereo buffers, varying callback sizes, bypass, 44.1/48/96kHz, save/restore. Builds through CMake/JUCE 8 and Inno Setup 6. The installer and portable VST3 are published separately.
-
-### Trial settings
-- Warm bass: Drive 45%, Body 65%, Crossover 135 Hz, Fuzz Off, Mix 100%, Output adjusted down to avoid clipping.
-- Dense drive: Drive 70%, Body 50%, Crossover 100 Hz, Fuzz Off.
-- Fuzz: Drive 20%, Body 60%, Crossover 120 Hz, choose Vintage / Silicon / Gated, Fuzz Amount 55-80%; adjust Fuzz Tone to taste, lower Output.
+## Compatibility and risks
+- Same VST3 plugin identity and earlier parameter IDs; new parameters are appended for session compatibility.
+- Fixed-memory DSP at host sample rate with no dynamic allocation in the audio callback; zero reported latency.
+- No oversampling in this stabilisation line; high distortion can alias at some sample rates.
+- DSP and JUCE host smoke tests must pass on Windows before releasing a binary. A successful build is not proof of subjective sound quality or real-world Cubase stability.
+- Builds include unsigned installer and portable VST3 with SHA-256 checksums. Check third-party licensing before redistributing.
+- Reference: Darkglass Microtubes B3K v2 (manual); no original circuit data, impulse responses, copyrighted firmware or binary code has been used.
