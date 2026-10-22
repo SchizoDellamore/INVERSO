@@ -43,8 +43,8 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
   processor.auditionPad(pad);
   return true;
  });
- sampleLibrary.setVisible(false);
  addAndMakeVisible(sampleLibrary);
+ sampleLibrary.setVisible(false);
  viewBars.addItem("1 bar",1);viewBars.addItem("2 bars",2);
  viewBars.addItem("4 bars",3);viewBars.addItem("8 bars",4);
  viewBars.addItem("16 bars",5);
