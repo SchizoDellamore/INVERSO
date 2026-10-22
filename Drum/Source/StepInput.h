@@ -48,6 +48,16 @@ inline bool setStepVelocityAt(Engine& engine,int pattern,int pad,int step,
  const int next=std::clamp(velocity,0,127);
  if(next>0)ensureStepCanPlay(engine,pad,step);
  const int previous=engine.get(pattern,pad,step);
+ if(next==0){
+  bool changed=previous!=0;
+  engine.set(pattern,pad,step,0);
+  for(int fx=0;fx<3;++fx){
+   if(engine.getEventFx(pattern,pad,step,fx)!=Engine::inheritFx)
+    changed=true;
+   engine.setEventFx(pattern,pad,step,fx,Engine::inheritFx);
+  }
+  return changed;
+ }
  if(previous==next)return false;
  engine.set(pattern,pad,step,next);
  return true;
