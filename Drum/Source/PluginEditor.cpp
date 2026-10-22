@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "StepInput.h"
 #include <cmath>
 #include <algorithm>
 namespace {
@@ -194,7 +195,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 void InversoDrumEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
  g.setColour(text);g.setFont(juce::Font(juce::FontOptions(25.f,juce::Font::bold)));
- g.drawText("INVERSO / DRUM  v0.6",22,12,620,39,juce::Justification::centredLeft);
+ g.drawText("INVERSO / DRUM  v0.6.1",22,12,620,39,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(12.f)));
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
@@ -204,7 +205,7 @@ void InversoDrumEditor::paint(juce::Graphics& g){
  g.setColour(panel);g.fillRoundedRectangle(18.f,548.f,1214.f,68.f,7.f);
  g.fillRoundedRectangle(18.f,798.f,1214.f,178.f,7.f);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(11.f)));
- g.drawText("EXTERNAL WAV/AIFF  |  STEP VELOCITY AND FX ARE EVENT-SPECIFIC  |  EFFECT TAILS CONTINUE NATURALLY",20,978,1195,17,juce::Justification::centredLeft);
+ g.drawText("EXTERNAL WAV/AIFF  |  LMB ADDS / RMB ERASES  |  VELOCITY & FX PER EVENT  |  EFFECT TAILS CONTINUE NATURALLY",20,978,1195,17,juce::Justification::centredLeft);
  if(dragOver){
   g.setColour(orange.withAlpha(.85f));
   g.drawRoundedRectangle(8.f,178.f,1228.f,368.f,6.f,2.f);
@@ -449,32 +450,21 @@ bool InversoDrumEditor::StepGrid::locate(const juce::Point<float>& pos,int& lane
 }
 void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){
  previousCell=-1;
- int lane=0,step=0;
- if(!locate(ev.position,lane,step))return;
- editor.selectStep(lane,step);
- if(ev.mods.isRightButtonDown()){
-  dragStartVelocity=editor.processor.engine.get(editor.processor.engine.selectedPattern.load(),lane,step);
-  dragStartY=ev.position.y;
- }else mouseDrag(ev);
+ // The click itself paints: no dragging is required to add or remove a note.
+ mouseDrag(ev);
 }
 void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
- const int pat=editor.processor.engine.selectedPattern.load();
- if(ev.mods.isRightButtonDown()){
-  const float sensitivity=ev.mods.isShiftDown()?.25f:1.5f;
-  const int velocity=std::clamp(dragStartVelocity+
-   static_cast<int>(std::round((dragStartY-ev.position.y)*sensitivity)),0,127);
-  editor.processor.engine.set(pat,editor.selectedPad,editor.selectedStep,velocity);
-  editor.refreshStepVelocity();
-  repaint();
-  return;
- }
+ const bool add=ev.mods.isLeftButtonDown();
+ const bool erase=ev.mods.isRightButtonDown() && !add;
+ if(!add && !erase)return;
  int lane=0,step=0;
  if(!locate(ev.position,lane,step))return;
- const int cell=lane*128+step;
+ const int cell=lane*inverso_drum::steps+step;
  if(cell==previousCell)return;
  previousCell=cell;
- const int previous=editor.processor.engine.get(pat,lane,step);
- editor.processor.engine.set(pat,lane,step,previous?0:105);
+ const int pat=editor.processor.engine.selectedPattern.load();
+ inverso_drum::applyStepPaint(editor.processor.engine,pat,lane,step,
+   erase?inverso_drum::StepPaintAction::erase:inverso_drum::StepPaintAction::add);
  editor.selectStep(lane,step);
  repaint();
 }
