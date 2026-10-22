@@ -8,6 +8,15 @@ namespace inverso_drum {
 // overwrites its carefully edited velocity; erasing clears that event alone.
 enum class StepPaintAction { add, erase };
 
+// Navigation stays aligned with individual steps, not rounded to complete bars.
+// This matters especially for 1/32, dotted and triplet lanes.
+inline double timelinePageStartPPQ(int page,int visibleBars,double duration)noexcept {
+ if(page<0||visibleBars<1||!std::isfinite(duration)||duration<=0)return 0.0;
+ const double desired=static_cast<double>(page)*16.0*duration;
+ const double viewLength=4.0*visibleBars;
+ const double timelineLength=std::max(64.0,steps*duration);
+ return std::clamp(desired,0.0,std::max(0.0,timelineLength-viewLength));
+}
 // A timeline coordinate names one absolute step, never a modulo-wrapped loop cell.
 // Range is 0..127, with -1 for coordinates outside the editable sequence.
 inline int absoluteStepForPpq(double ppq,double stepDuration) noexcept {
