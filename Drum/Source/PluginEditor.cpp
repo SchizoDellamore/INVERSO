@@ -63,7 +63,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  for(int i=0;i<8;++i){
   auto& b=patternButtons[i];
   b.setButtonText(juce::String::charToString('A'+i));
-  b.onClick=[this,i]{processor.engine.selectedPattern.store(i);updateUi();};
+  b.onClick=[this,i]{processor.engine.selectedPattern.store(i);clearSelections();updateUi();};
   addAndMakeVisible(b);
   auto& page=pageButtons[i];
   page.setButtonText(juce::String(i*16+1)+"-"+juce::String((i+1)*16));
@@ -72,7 +72,9 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  }
  for(int i=0;i<16;++i){
   auto& b=padButtons[i];b.setButtonText(padNames[i]);
-  b.onClick=[this,i]{selectPad(i);processor.auditionPad(i);};
+  b.onClick=[this,i]{clearSelections();selectPad(i);processor.auditionPad(i);};
+  b.onContextMenu=[this,i](juce::Component* source){showLaneMenu(i,source);};
+  b.onShiftSelect=[this,i](juce::Component*){selectAllLaneSteps(i);};
   addAndMakeVisible(b);
  }
  chain.setToggleState(p.engine.chain.load(),juce::dontSendNotification);
@@ -83,28 +85,53 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  stepVelocity.setNumDecimalPlacesToDisplay(0);
  stepVelocity.onValueChange=[this]{
   if(refreshing)return;
+  if(!velocityDrag)captureLaneUndo(selectedPad);
   inverso_drum::setStepVelocityAt(processor.engine,
                 processor.engine.selectedPattern.load(),selectedPad,selectedStep,
                 static_cast<int>(stepVelocity.getValue()));
+  if(stepSelection.count(selectedPad)>0)
+   stepSelection.forEach(selectedPad,[this](int step){
+    inverso_drum::setStepVelocityAt(processor.engine,
+     processor.engine.selectedPattern.load(),selectedPad,step,
+     static_cast<int>(stepVelocity.getValue()));
+   });
   refreshStepVelocity();
-  laneLength.setValue(processor.engine.laneLength[selectedPad].load(),juce::dontSendNotification);
+  syncLaneLength();
   grid.repaint();
  };
+ stepVelocity.onDragStart=[this]{velocityDrag=true;captureLaneUndo(selectedPad);};
+ stepVelocity.onDragEnd=[this]{velocityDrag=false;};
  const char* stepNames[]={"STEP DRIVE","STEP REVERB SEND","STEP DELAY SEND"};
  for(int i=0;i<3;++i){
   createSlider(stepFxSliders[i],stepFxLabels[i],stepNames[i],0,100,0);
   stepFxSliders[i].setNumDecimalPlacesToDisplay(0);
+  stepFxSliders[i].onDragStart=[this]{stepFxDrag=true;captureLaneUndo(selectedPad);};
+  stepFxSliders[i].onDragEnd=[this]{stepFxDrag=false;};
   stepFxSliders[i].onValueChange=[this,i]{
    if(refreshing)return;
-   processor.engine.setEventFx(processor.engine.selectedPattern.load(),selectedPad,selectedStep,
-       i,static_cast<int>(stepFxSliders[i].getValue()));
+   if(!stepFxDrag)captureLaneUndo(selectedPad);
+   if(stepSelection.count(selectedPad)>0)
+    stepSelection.forEach(selectedPad,[this,i](int step){
+     processor.engine.setEventFx(processor.engine.selectedPattern.load(),
+      selectedPad,step,i,static_cast<int>(stepFxSliders[i].getValue()));
+    });
+   else processor.engine.setEventFx(processor.engine.selectedPattern.load(),
+      selectedPad,selectedStep,i,static_cast<int>(stepFxSliders[i].getValue()));
    refreshStepEffects();grid.repaint();
   };
  }
  resetStepFx.setColour(juce::TextButton::buttonColourId,panel);
  resetStepFx.onClick=[this]{
-  for(int i=0;i<3;++i)processor.engine.setEventFx(
-    processor.engine.selectedPattern.load(),selectedPad,selectedStep,i,inverso_drum::Engine::inheritFx);
+  captureLaneUndo(selectedPad);
+  for(int i=0;i<3;++i){
+   if(stepSelection.count(selectedPad)>0)
+    stepSelection.forEach(selectedPad,[this,i](int step){
+     processor.engine.setEventFx(processor.engine.selectedPattern.load(),
+      selectedPad,step,i,inverso_drum::Engine::inheritFx);
+    });
+   else processor.engine.setEventFx(processor.engine.selectedPattern.load(),
+      selectedPad,selectedStep,i,inverso_drum::Engine::inheritFx);
+  }
   refreshStepEffects();grid.repaint();
  };
  addAndMakeVisible(resetStepFx);
@@ -116,7 +143,21 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  createSlider(laneLength,lengthLabel,"STEPS (x4)",4,128,16);
  laneLength.setRange(4,128,4);
  laneLength.setNumDecimalPlacesToDisplay(0);
- laneLength.onValueChange=[this]{if(!refreshing){processor.engine.setLaneLength(selectedPad,static_cast<int>(laneLength.getValue()));updateUi();}};
+ laneLength.onValueChange=[this]{if(!refreshing){
+  captureLaneUndo(selectedPad);
+  processor.engine.setLaneLength(selectedPad,static_cast<int>(laneLength.getValue()));
+  updateUi();
+ }};
+ createSlider(padVelocity,padVelocityLabel,"PAD VELOCITY %",0,200,100);
+ padVelocity.setNumDecimalPlacesToDisplay(0);
+ padVelocity.onDragStart=[this]{padVelocityDrag=true;captureLaneUndo(selectedPad);};
+ padVelocity.onDragEnd=[this]{padVelocityDrag=false;};
+ padVelocity.onValueChange=[this]{
+  if(refreshing)return;
+  if(!padVelocityDrag)captureLaneUndo(selectedPad);
+  processor.engine.padVelocity[selectedPad].store(
+   static_cast<float>(padVelocity.getValue()*.01));
+ };
  createSlider(level,levelLabel,"LEVEL",0,200,80);
  level.onValueChange=[this]{if(!refreshing)processor.engine.gain[selectedPad].store(static_cast<float>(level.getValue()*.01));};
  createSlider(pan,panLabel,"PAN",-100,100,0);
@@ -154,7 +195,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
    waveform.repaint();
   };
  }
- const float defaults[]={0.f,36.f,24.f,55.f,55.f,45.f,34.f};
+ const float defaults[]={0.f,0.f,0.f,55.f,55.f,45.f,34.f};
  for(int i=0;i<7;++i){
   createSlider(fxSliders[i],fxLabels[i],fxControls[i],0,100,defaults[i]);
   fxSliders[i].onValueChange=[this,i]{
@@ -232,8 +273,9 @@ void InversoDrumEditor::resized(){
  lengthLabel.setBounds(30,551,85,18);laneLength.setBounds(25,575,193,30);
  rateLabel.setBounds(255,551,125,18);laneRate.setBounds(250,577,136,29);
  feelLabel.setBounds(405,551,110,18);laneFeel.setBounds(400,577,150,29);
- levelLabel.setBounds(588,551,100,18);level.setBounds(583,575,202,30);
- panLabel.setBounds(834,551,105,18);pan.setBounds(828,575,194,30);
+ levelLabel.setBounds(571,551,90,18);level.setBounds(563,575,142,30);
+ padVelocityLabel.setBounds(723,551,160,18);padVelocity.setBounds(716,575,164,30);
+ panLabel.setBounds(898,551,100,18);pan.setBounds(888,575,148,30);
  exportButton.setBounds(1046,577,175,29);
  stepVelocityLabel.setBounds(26,622,205,20);
  stepVelocity.setBounds(225,626,490,30);
@@ -272,6 +314,7 @@ void InversoDrumEditor::selectPad(int pad){
  laneRate.setSelectedId(e.division[selectedPad].load()+1,juce::dontSendNotification);
  laneFeel.setSelectedId(e.feel[selectedPad].load()+1,juce::dontSendNotification);
  level.setValue(e.gain[selectedPad].load()*100.,juce::dontSendNotification);
+ padVelocity.setValue(e.padVelocity[selectedPad].load()*100.,juce::dontSendNotification);
  pan.setValue(e.pan[selectedPad].load()*100.,juce::dontSendNotification);
  const double vals[]={e.sampleStart[selectedPad].load()*100.,e.sampleEnd[selectedPad].load()*100.,
   e.samplePitch[selectedPad].load(),e.sampleAttack[selectedPad].load()*100.,e.sampleDecay[selectedPad].load()*100.};
@@ -299,7 +342,10 @@ void InversoDrumEditor::refreshStepVelocity(){
  refreshing=false;
  stepInfo.setText("PAT "+juce::String("ABCDEFGH").substring(pat,pat+1)
   +"  /  "+padNames[selectedPad]+"  /  STEP "+juce::String(selectedStep+1)
-  +"  /  "+juce::String(velocity)+"/127",juce::dontSendNotification);
+  +"  /  "+juce::String(velocity)+"/127"
+  +(stepSelection.count(selectedPad)>0?
+     "  /  "+juce::String(stepSelection.count(selectedPad))+" SELECTED":""),
+     juce::dontSendNotification);
 }
 void InversoDrumEditor::refreshStepEffects(){
  const int pat=juce::jlimit(0,7,processor.engine.selectedPattern.load());
@@ -426,6 +472,10 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
     g.setColour(outsideLoop ? juce::Colour::fromRGB(34,37,41)
                             : juce::Colour::fromRGB(45,47,51));
     g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
+   }
+   if(editor.stepSelection.has(lane,step)&&vel>0&&width>5.f){
+    g.setColour(juce::Colour::fromRGB(255,222,160));
+    g.drawRoundedRectangle(x+.7f,y-.1f,std::max(2.f,width-1.4f),h-2.f,2.f,2.4f);
    }
    if(lane==editor.selectedPad && step==editor.selectedStep && width>5.f){
     g.setColour(juce::Colours::white);
