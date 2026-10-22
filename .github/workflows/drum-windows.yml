@@ -39,11 +39,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Drum'
           $bundle = Join-Path $root 'build\InversoDrum_artefacts\Release\VST3\INVERSO DRUM.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_DRUM_PORTABLE_VST3_0.5.0'
+          $portable = Join-Path $root 'dist\INVERSO_DRUM_PORTABLE_VST3_0.6.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           @'
-          INVERSO DRUM v0.5 | PORTABLE INSTALL
+          INVERSO DRUM v0.6 | PORTABLE INSTALL
           Close Cubase, extract this ZIP, then copy the complete folder
           INVERSO DRUM.vst3 into C:\Program Files\Common Files\VST3
           Reopen Cubase and load it as a VST3 Instrument. No cloud account needed.
@@ -57,12 +57,12 @@ jobs:
       - name: Publish Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: DRUM_VALIDATION_Setup_0.5.0_x64
-          path: Drum/dist/INVERSO_DRUM_Setup_0.5.0_x64.exe
+          name: INVERSO_DRUM_Setup_0.6.0_x64
+          path: Drum/dist/INVERSO_DRUM_Setup_0.6.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3
         uses: actions/upload-artifact@v4
         with:
-          name: DRUM_VALIDATION_PORTABLE_0.5.0
-          path: Drum/dist/INVERSO_DRUM_PORTABLE_VST3_0.5.0/
+          name: INVERSO_DRUM_PORTABLE_VST3_0.6.0_NO_EXE
+          path: Drum/dist/INVERSO_DRUM_PORTABLE_VST3_0.6.0/
           if-no-files-found: error
