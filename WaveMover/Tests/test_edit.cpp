@@ -16,6 +16,7 @@ int main(){
   auto fade=render(a,Op::FadeBoth,{20,1,1}).audio;check(fade.data[0].front()==0&&fade.data[0].back()==0,"fade endpoints");check(fade.data[0][a.frames()/2]==a.data[0][a.frames()/2],"fade leaves middle intact");
   auto stretched=render(a,Op::Stretch,{150,0,1}).audio;check(stretched.frames()==static_cast<std::size_t>(std::llround(sr*1.5)),"stretch exact output length");check(std::abs(frequency(stretched)-440)<4,"stretch preserves pitch");
   auto pitched=render(a,Op::Pitch,{12,0,1}).audio;check(pitched.frames()==a.frames(),"pitch preserves duration");check(std::abs(frequency(pitched)-880)<8,"pitch raises one octave");
+  auto bpmEdit=render(a,Op::Tempo,{120,90,1}).audio;check(bpmEdit.frames()==static_cast<std::size_t>(std::llround(sr*120/90)),"fixed BPM exact duration");check(std::abs(frequency(bpmEdit)-440)<4,"fixed BPM preserves pitch");
   auto ramp=render(a,Op::TempoRamp,{120,60,1}).audio;check(std::abs(static_cast<double>(ramp.frames())-sr*2*std::log(2.))<10,"tempo ramp integral duration");check(std::abs(frequency(ramp)-440)<6,"tempo ramp preserves pitch");
   auto stop=render(a,Op::TapeStop,{}).audio;check(stop.frames()==a.frames()*2,"tape stop finite exact length");check(stop.data[0].back()==0,"tape stop ends silent");
   check(render(a,Op::Repeat,{3,0,1}).audio.frames()==a.frames()*3,"repeat length");check(render(a,Op::Ratchet,{8,0,1}).audio.frames()==a.frames(),"ratchet preserves length");

@@ -59,7 +59,7 @@ inline std::vector<std::size_t> transients(const Clip&a,double sensitivity){
         slow=.92*slow+.08*energy;previous=energy;
     }cleanMarkers(m,a.frames());return m;
 }
-enum class Op {Reverse,Delete,Trim,Silence,Duplicate,FadeIn,FadeOut,FadeBoth,Gain,Normalize,Stretch,Pitch,TempoRamp,Speed,TapeStop,TapeStart,Reverb,Tail,ReverseTail,Delay,Lowpass,Highpass,Saturate,Repeat,Ratchet,PingPong,Freeze,Shuffle};
+enum class Op {Reverse,Delete,Trim,Silence,Duplicate,FadeIn,FadeOut,FadeBoth,Gain,Normalize,Stretch,Pitch,TempoRamp,Speed,TapeStop,TapeStart,Reverb,Tail,ReverseTail,Delay,Lowpass,Highpass,Saturate,Repeat,Ratchet,PingPong,Freeze,Shuffle,Tempo};
 struct Parameters {double a=1,b=1;std::uint32_t seed=1984;};
 struct Result {Clip audio;std::vector<std::size_t> markers;};
 inline float lerpRead(const std::vector<float>&a,double p){
@@ -68,7 +68,8 @@ inline float lerpRead(const std::vector<float>&a,double p){
 }
 inline Clip stretch(const Clip&a,double ratio,double semitones){
     if(!std::isfinite(ratio)||ratio<.25||ratio>4||!std::isfinite(semitones)||std::abs(semitones)>24)throw std::runtime_error("Duracao: 25 a 400%; afinacao: -24 a +24 semitons.");
-    if(a.frames()==0)return a;if(std::abs(ratio-1)<1e-9&&std::abs(semitones)<1e-9)return a;
+    if(a.frames()==0)return a;
+    if(std::abs(ratio-1)<1e-9&&std::abs(semitones)<1e-9)return a;
     const auto n=std::max<std::size_t>(1,static_cast<std::size_t>(std::llround(static_cast<double>(a.frames())*ratio)));
     Clip out(a.channels(),n,a.rate);
     signalsmith::stretch::SignalsmithStretch<float> s; s.presetDefault(a.channels(),static_cast<float>(a.rate));s.setTransposeSemitones(static_cast<float>(semitones));
@@ -102,7 +103,8 @@ inline Clip tempoRamp(const Clip&a,double from,double to){
 }
 inline Clip varispeed(const Clip&a,double start,double end){
     if(!std::isfinite(start)||!std::isfinite(end)||start<0||end<0||start>4||end>4||start+end<.1)throw std::runtime_error("Velocidade invalida (0 a 4x; media minima 0.05x).");
-    if(a.frames()==0)return a;const double average=(start+end)*.5;
+    if(a.frames()==0)return a;
+    const double average=(start+end)*.5;
     Clip out(a.channels(),std::max<std::size_t>(1,static_cast<std::size_t>(std::llround(static_cast<double>(a.frames())/average))),a.rate);
     for(std::size_t i=0;i<out.frames();++i){const double t=out.frames()>1?static_cast<double>(i)/static_cast<double>(out.frames()-1):0;const double p=static_cast<double>(a.frames()-1)*(start*t+.5*(end-start)*t*t)/average;
         const double speed=start+(end-start)*t,band=std::min(1.,1./std::max(1.,speed));const auto center=static_cast<std::int64_t>(p);
@@ -141,20 +143,24 @@ inline Result render(const Clip&a,Op op,Parameters p,std::vector<std::size_t>mar
     case Op::Normalize:{float peak=0;for(const auto&c:a.data)for(float v:c)peak=std::max(peak,std::abs(v));if(peak>0){const float gain=static_cast<float>(std::pow(10.,-.05))/peak;for(auto&c:out.data)for(auto&v:c)v*=gain;}break;}
     case Op::Stretch:out=stretch(a,p.a/100.,0);break;
     case Op::Pitch:out=stretch(a,1,p.a);break;
+    case Op::Tempo:if(p.a<20||p.a>400||p.b<20||p.b>400)throw std::runtime_error("BPM deve ficar entre 20 e 400.");out=stretch(a,p.a/p.b,0);break;
     case Op::TempoRamp:out=tempoRamp(a,p.a,p.b);break;
     case Op::Speed:out=varispeed(a,p.a,p.a);break;
     case Op::TapeStop:case Op::TapeStart:out=varispeed(a,op==Op::TapeStop?1:0,op==Op::TapeStop?0:1);{auto edge=render(out,op==Op::TapeStop?Op::FadeOut:Op::FadeIn,{5,1,p.seed});out=std::move(edge.audio);}break;
     case Op::Reverb:case Op::Tail:case Op::ReverseTail:out=reverb(a,p.a,p.b/100.,op!=Op::Reverb);if(op==Op::ReverseTail)for(auto&c:out.data)std::reverse(c.begin(),c.end());break;
     case Op::Delay:{const auto delay=std::max<std::size_t>(1,static_cast<std::size_t>(std::clamp(p.a,1.,4000.)*a.rate*.001));const double fb=std::clamp(p.b/100.,0.,.9);const int repeats=fb>0?std::min(80,static_cast<int>(std::ceil(std::log(.0001)/std::log(fb)))+1):1;out=Clip(a.channels(),n+delay*static_cast<std::size_t>(repeats),a.rate);
-        for(int c=0;c<a.channels();++c)for(std::size_t i=0;i<out.frames();++i){const double dry=i<n?a.data[c][i]:0;out.data[c][i]=static_cast<float>(dry+(i>=delay?out.data[c][i-delay]*fb:0));}break;}
+        for(int c=0;c<a.channels();++c)for(std::size_t i=0;i<out.frames();++i){const double dry=i<n?a.data[c][i]:0;out.data[c][i]=static_cast<float>(dry+(i>=delay?out.data[c][i-delay]*fb:0));}
+        break;}
     case Op::Lowpass:case Op::Highpass:{const double alpha=1-std::exp(-2*pi*std::clamp(p.a,20.,a.rate*.45)/a.rate);for(int c=0;c<a.channels();++c){double last=0;for(auto&v:out.data[c]){last+=alpha*(v-last);v=op==Op::Lowpass?static_cast<float>(last):v-static_cast<float>(last);}}break;}
     case Op::Saturate:{const double drive=std::pow(10.,std::clamp(p.a,0.,36.)/20.);for(auto&c:out.data)for(auto&v:c)v=static_cast<float>(std::tanh(v*drive));break;}
     case Op::Ratchet:{const int count=std::clamp(static_cast<int>(p.a),2,32);const auto k=std::max<std::size_t>(1,n/static_cast<std::size_t>(count));for(int c=0;c<out.channels();++c)for(std::size_t j=0;j<n;++j)out.data[c][j]=a.data[c][j%k];for(std::size_t j=k;j<n;j+=k)result.markers.push_back(j);break;}
     case Op::Freeze:{const auto count=static_cast<std::size_t>(std::clamp(p.a,.05,30.)*a.rate);out=Clip(a.channels(),count,a.rate);const auto grain=std::min(n,std::max<std::size_t>(8,static_cast<std::size_t>(std::clamp(p.b,10.,500.)*a.rate*.001)));const auto hop=std::max<std::size_t>(1,grain/4);std::vector<float>weights(count);std::mt19937 rng(p.seed);std::uniform_int_distribution<std::size_t>dist(0,n-grain);
         for(std::int64_t start=-static_cast<std::int64_t>(grain)+static_cast<std::int64_t>(hop);start<static_cast<std::int64_t>(count);start+=static_cast<std::int64_t>(hop)){const auto src=dist(rng);for(std::size_t j=0;j<grain;++j){const auto pos=start+static_cast<std::int64_t>(j);if(pos<0||pos>=static_cast<std::int64_t>(count))continue;const float w=grain==1?1.f:static_cast<float>(.5-.5*std::cos(2*pi*static_cast<double>(j)/static_cast<double>(grain-1)));weights[static_cast<std::size_t>(pos)]+=w;for(int c=0;c<a.channels();++c)out.data[c][static_cast<std::size_t>(pos)]+=a.data[c][src+j]*w;}}
-        for(int c=0;c<a.channels();++c)for(std::size_t j=0;j<count;++j)if(weights[j]>.00001f)out.data[c][j]/=weights[j];break;}
+        for(int c=0;c<a.channels();++c)for(std::size_t j=0;j<count;++j)if(weights[j]>.00001f)out.data[c][j]/=weights[j];
+        break;}
     case Op::Shuffle:{cleanMarkers(markers,n);markers.insert(markers.begin(),0);markers.push_back(n);std::vector<std::size_t>order(markers.size()-1);for(std::size_t i=0;i<order.size();++i)order[i]=i;std::mt19937 rng(p.seed);std::shuffle(order.begin(),order.end(),rng);std::size_t dst=0;for(auto k:order){const auto len=markers[k+1]-markers[k];if(dst)result.markers.push_back(dst);for(int c=0;c<a.channels();++c)std::copy_n(a.data[c].begin()+static_cast<std::ptrdiff_t>(markers[k]),len,out.data[c].begin()+static_cast<std::ptrdiff_t>(dst));dst+=len;}break;}
     }
-    for(const auto&c:out.data)for(float v:c)if(!std::isfinite(v))throw std::runtime_error("Audio invalido na operacao "+std::to_string(static_cast<int>(op)));return result;
+    for(const auto&c:out.data)for(float v:c)if(!std::isfinite(v))throw std::runtime_error("Audio invalido na operacao "+std::to_string(static_cast<int>(op)));
+    return result;
 }
 }
