@@ -47,8 +47,7 @@ private:
  private:
   bool locate(const juce::Point<float>&,int& lane,int& step) const noexcept;
   InversoDrumEditor& editor;
-  int previousCell=-1,dragStartVelocity=0;
-  float dragStartY=0.f;
+  int previousCell=-1;
  };
  class Waveform final : public juce::Component {
  public:
