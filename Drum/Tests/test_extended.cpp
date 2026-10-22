@@ -8,6 +8,13 @@ static void ck(bool x,const char* m){if(!x){std::fprintf(stderr,"FAIL: %s\n",m);
 int main(){
  for(int sr:{44100,48000,96000}){
   Engine e;e.prepare(sr);
+  for(int requested=1;requested<=128;++requested){
+   e.setLaneLength(0,requested);
+   const int quantised=e.laneLength[0].load();
+   ck(quantised>=4&&quantised<=128&&quantised%4==0,"length must quantise to 4 steps");
+  }
+  e.setLaneLength(0,4);ck(e.laneLength[0].load()==4,"four step lower bound");
+  e.setLaneLength(0,128);ck(e.laneLength[0].load()==128,"128 step upper bound");
   ck(steps==128&&pages==8,"128 step memory, eight pages");
   for(int pat=0;pat<8;++pat)for(int lane=0;lane<16;++lane){
    e.setLaneLength(lane,(lane+1)*8);

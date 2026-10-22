@@ -1,33 +1,26 @@
-# INVERSO DRUM 0.2 — independent step sequencer and drum sampler
+# INVERSO DRUM v0.3 — sequencing ergonomics and audible effects
 
-VST3 instrument for Windows 64-bit / Cubase. Independent from Loopcloud services; inspired by the **workflow**, not proprietary code or audio libraries. The original Loopcloud company is not affiliated with this product.
+Independent 16-pad drum sampler and sequencer (VST3, Windows x64, JUCE 8). Inspired by the general workflow of Loopcloud DRUM; no proprietary code or content is included.
 
-## Sequencer
-- **16 independent tracks/pads**, **1–128 steps per track**, **eight patterns A–H**.
-- Grid shows 16 steps at a time, with **eight page buttons** covering steps 1–128. Darker cells are outside the individual lane length.
-- Every lane has its own step duration (**1/4, 1/8, 1/16, 1/32**) and rhythmic feel (**Straight, Dotted ×1.5, Triplet ×2/3**).
-- BPM/transport locked to Cubase PPQ. Swing affects alternating steps. Pattern A–H can be selected or chained. When CHAIN is enabled, pattern length expands to the longest lane cycle, rounded up to a four-quarter-note bar, allowing long sequences to complete before switching. In selected-pattern mode each lane repeats at its own length.
-- Click a step to toggle; right-click to cycle velocity. MIDI notes 36–51 trigger the 16 pads. EXPORT MIDI outputs the selected or chained pattern, including per-lane subdivisions, swing and velocities.
+## What's new
+- **Steps in increments of four**: each lane length is now 4, 8, 12, …, 128. Old session lane lengths are rounded to the closest multiple of four when loaded. Step contents are preserved.
+- **Up to 16 bars in the timeline viewport**, with View 1 / 2 / 4 / 8 / 16 bars. 4/4 musical display uses host PPQ; each lane retains its own beat subdivision and dotted/triplet feel. The timeline repeats shorter patterns visually and does not magically add beyond 128 unique steps to a lane.
+- **Jump to step** buttons reposition the viewport; bar-length zoom allows precise editing and a song-length overview. At 1/8 straight, 128 steps cover 16 bars; at 1/16 straight, 128 steps cover 8 bars, so the 16-bar overview displays the phrase repeated.
+- **Sample file drag-and-drop**: drag WAV/AIFF from Windows Explorer onto the specific pad button or lane row, rather than only onto the selected pad. Multiple dragged files populate consecutive pads. File paths continue to be referenced in the session; do not move samples after saving.
+- **MIDI drag-out**: drag the 'EXPORT / DRAG MIDI' control to a Cubase MIDI track to try native OS file drop; clicking continues to export a `.mid` file normally. Host support for external file drag/drop can vary; the MIDI export path is always available.
+- **Reverb/delay audibility correction**: global FX wet gains and reverb diffusion gain have been raised from the previous extremely quiet values. New kits default to nonzero Delay Send and a more audible Reverb Send. Each pad still has its own independent Drive, Reverb Send, and Delay Send. Tempo-synced Delay Note and Feel controls are preserved.
+- Existing 0.1/0.2 project states continue to load. **Existing zero delay sends remain zero intentionally**; to hear delay on an older project, open Effects and raise BOTH Delay Send on the pad AND global Delay Mix (likewise Reverb Send / Reverb Mix).
 
-## Per-pad sample editing (nondestructive)
-- Load WAV/AIFF for each pad independently; built-in synthetic factory samples let the plugin play without third-party content.
-- SAMPLE EDIT tab: waveform overview, **Start / End** sample trim, **Pitch −24 to +24 semitones**, **Reverse**, **Attack**, **Decay**, level and pan. The original audio file is never overwritten.
-- Trim/start/end, pitch, and reverse settings apply when a voice is triggered. Adjusting the sample's settings does not retroactively change notes already playing.
+## Usage / verification
+1. Close Cubase, install v0.3 and reopen in a duplicate test project.
+2. Drag a WAV file onto the snare lane (track 2) and verify that only its sample changes. Alternatively import with Load Sample.
+3. Choose 24 or 128 Steps for that lane, select 16 Bars in View, and add hits across the timeline.
+4. Effects: select a snare pad, set Reverb Send to 70% + Reverb Mix 65%; on another trial use Delay Send 75% + Delay Mix 70%, 1/8 Straight at 120 BPM. Play one isolated snare to listen for audible tails.
+5. Test MIDI drag-out onto a Cubase MIDI track. If the host refuses the native file drop, click the same control to export a file, then import it into the arrangement.
 
-## Effects
-- EFFECTS tab: per-pad **Drive, Reverb Send and Delay Send**.
-- Global **Reverb Mix / Reverb Tail**, **Delay Mix / Delay Feedback**, delay note division 1/4 through 1/32 and straight/dotted/triplet timing, synced to Cubase BPM.
-- Simple algorithmic stereo reverb and feedback delay use buffers allocated **only during prepareToPlay**, not on the audio thread. Drive is a basic nonlinear waveshaper per pad (not a Darkglass amp model).
-- No true-peak limiter: effects and layered samples can clip. Monitor the Cubase master and reduce pad gains/effect sends if required.
-
-## Compatibility and honest limitations
-- **State version 2**, reads 0.1 patterns (16 steps) and sample paths, preserving compatible settings. The saved project stores file **paths**, not embedded WAV/AIFF data. Keep imported samples in a fixed folder.
-- Zero reported latency. Resampling is linear; pitch/reverse and high-frequency drive can alias. Time-stretch, per-step microtiming/probability, multiple DAW output buses, audio drag/export, and host-automation exposure of every per-pad control are not included in 0.2.
-- Chain length assumes a four-quarter-note musical bar for alignment; non-4/4 projects may need future time-signature-aware behavior.
-- Native/plugin JUCE tests and DSP tests check function and stability, not professional mix quality or behavior in a loaded Cubase project.
-- Installer is unsigned; ZIP portable VST3 remains an option if the `.exe` encounters browser reputation warnings.
-
-## Build
-`cmake -S Drum -B Drum/build-test -DINVERSO_DSP_TESTS_ONLY=ON && cmake --build Drum/build-test && ctest --test-dir Drum/build-test --output-on-failure`
-
-GitHub Actions builds the actual Windows VST3 and installer with JUCE 8 + Visual Studio 2022 + Inno Setup 6, and runs the JUCE host smoke test before publishing. Do not describe a build as verified until GitHub Actions has completed successfully.
+## Constraints
+- 16 bars is a **viewport** in 4/4; per-lane pattern length remains limited to 128 unique events and repeats as needed. Non-4/4 bar ruler support is not yet available.
+- Reverb and delay are lightweight algorithmic effects, not sampled impulse-response processors. They may raise peaks; watch Cubase meters.
+- Audio drag-out and per-lane multiple outputs have not been implemented. MIDI file drag-out depends on host acceptance of native Windows file drops.
+- The original request regarding *note controls* was incomplete. This update retains left-click step on/off and right-click velocity cycling, rather than guessing another desired interaction.
+- Windows installer is unsigned. GitHub Actions builds Windows VST3 and runs DSP/host tests; the user must still audition effects and synchronization in Cubase.

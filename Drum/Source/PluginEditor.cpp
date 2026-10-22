@@ -30,6 +30,19 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 :AudioProcessorEditor(&p),processor(p),grid(*this),waveform(*this){
  setSize(1250,865);
  addAndMakeVisible(grid);
+ viewBars.addItem("1 bar",1);viewBars.addItem("2 bars",2);
+ viewBars.addItem("4 bars",3);viewBars.addItem("8 bars",4);
+ viewBars.addItem("16 bars",5);
+ viewBars.setSelectedId(3,juce::dontSendNotification);
+ viewBars.onChange=[this]{
+  const int spans[]={1,2,4,8,16};
+  displayedBars=spans[juce::jlimit(0,4,viewBars.getSelectedId()-1)];
+  updateUi();
+ };
+ viewBars.setColour(juce::ComboBox::backgroundColourId,panel);
+ viewBars.setColour(juce::ComboBox::textColourId,text);
+ addAndMakeVisible(viewBars);
+ viewLabel.setText("VIEW",juce::dontSendNotification);addAndMakeVisible(viewLabel);
  addAndMakeVisible(waveform);
  for(int i=0;i<8;++i){
   auto& b=patternButtons[i];
@@ -51,7 +64,9 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  addAndMakeVisible(chain);
  createSlider(swing,swingLabel,"SWING",0,100,0);
  swing.onValueChange=[this]{if(!refreshing)processor.engine.swing.store(static_cast<float>(swing.getValue()*.01));};
- createSlider(laneLength,lengthLabel,"STEPS",1,128,16);
+ createSlider(laneLength,lengthLabel,"STEPS (x4)",4,128,16);
+ laneLength.setRange(4,128,4);
+ laneLength.setNumDecimalPlacesToDisplay(0);
  laneLength.onValueChange=[this]{if(!refreshing){processor.engine.setLaneLength(selectedPad,static_cast<int>(laneLength.getValue()));updateUi();}};
  createSlider(level,levelLabel,"LEVEL",0,200,80);
  level.onValueChange=[this]{if(!refreshing)processor.engine.gain[selectedPad].store(static_cast<float>(level.getValue()*.01));};
@@ -90,7 +105,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
    waveform.repaint();
   };
  }
- const float defaults[]={0.f,15.f,0.f,30.f,45.f,25.f,30.f};
+ const float defaults[]={0.f,36.f,24.f,55.f,55.f,45.f,34.f};
  for(int i=0;i<7;++i){
   createSlider(fxSliders[i],fxLabels[i],fxControls[i],0,100,defaults[i]);
   fxSliders[i].onValueChange=[this,i]{
@@ -112,7 +127,16 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  sampleTab.onClick=[this]{showFx=false;updateTabs();};addAndMakeVisible(sampleTab);
  fxTab.onClick=[this]{showFx=true;updateTabs();};addAndMakeVisible(fxTab);
  loadButton.onClick=[this]{loadSelected();};addAndMakeVisible(loadButton);
- exportButton.onClick=[this]{exportMidi();};addAndMakeVisible(exportButton);
+ exportButton.onClick=[this]{exportMidi();};
+ exportButton.onStartExternalDrag=[this](juce::Component* source){
+  const auto destination=juce::File::getSpecialLocation(juce::File::tempDirectory)
+     .getNonexistentChildFile("INVERSO_DRUM_pattern", ".mid",false);
+  if(processor.exportMidi(destination)){
+   juce::DragAndDropContainer::performExternalDragDropOfFiles(
+     juce::StringArray{destination.getFullPathName()},false,source);
+  }
+ };
+ addAndMakeVisible(exportButton);
  selectedSample.setColour(juce::Label::textColourId,text);addAndMakeVisible(selectedSample);
  tempoLabel.setColour(juce::Label::textColourId,muted);addAndMakeVisible(tempoLabel);
  selectPad(0);
@@ -129,12 +153,18 @@ void InversoDrumEditor::paint(juce::Graphics& g){
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
  g.drawText("PATTERNS",25,84,160,21,juce::Justification::centredLeft);
- g.setColour(muted);g.drawText("STEP PAGE",188,132,174,21,juce::Justification::centredLeft);
+ g.setColour(muted);g.drawText("JUMP TO STEP",188,132,174,21,juce::Justification::centredLeft);
  g.drawText("LANES",24,166,150,19,juce::Justification::centredLeft);
  g.setColour(panel);g.fillRoundedRectangle(18.f,548.f,1214.f,68.f,7.f);
  g.fillRoundedRectangle(18.f,658.f,1214.f,178.f,7.f);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(11.f)));
- g.drawText("LEFT CLICK: TOGGLE STEP  |  RIGHT CLICK: VELOCITY  |  MIDI NOTES 36-51  |  SAMPLES REFERENCE SOURCE PATHS",20,838,1170,17,juce::Justification::centredLeft);
+ g.drawText("DROP WAV/AIFF ON A TRACK  |  DRAG MIDI TO CUBASE  |  RIGHT CLICK: VELOCITY  |  16-BAR VIEW",20,838,1170,17,juce::Justification::centredLeft);
+ if(dragOver){
+  g.setColour(orange.withAlpha(.85f));
+  g.drawRoundedRectangle(8.f,178.f,1228.f,368.f,6.f,2.f);
+  g.setFont(juce::Font(juce::FontOptions(15.f,juce::Font::bold)));
+  g.drawText("DROP SAMPLE ON THE DESIRED TRACK",600,160,500,20,juce::Justification::centredRight);
+ }
 }
 void InversoDrumEditor::resized(){
  for(int i=0;i<8;++i){
@@ -144,6 +174,7 @@ void InversoDrumEditor::resized(){
  chain.setBounds(683,84,138,28);
  swingLabel.setBounds(847,79,85,18);swing.setBounds(840,99,190,28);
  tempoLabel.setBounds(1030,89,193,25);
+ viewLabel.setBounds(1080,51,55,20);viewBars.setBounds(1138,47,94,30);
  const float row=22.f;
  for(int i=0;i<16;++i)padButtons[i].setBounds(20,187+static_cast<int>(i*row),156,21);
  grid.setBounds(188,186,1034,352);
@@ -152,7 +183,7 @@ void InversoDrumEditor::resized(){
  feelLabel.setBounds(405,551,110,18);laneFeel.setBounds(400,577,150,29);
  levelLabel.setBounds(588,551,100,18);level.setBounds(583,575,202,30);
  panLabel.setBounds(834,551,105,18);pan.setBounds(828,575,194,30);
- exportButton.setBounds(1060,577,157,29);
+ exportButton.setBounds(1046,577,175,29);
  sampleTab.setBounds(19,625,164,30);fxTab.setBounds(190,625,155,30);
  selectedSample.setBounds(365,625,840,27);
  waveform.setBounds(24,668,450,76);
@@ -225,37 +256,74 @@ void InversoDrumEditor::timerCallback(){
  tempoLabel.setText("HOST "+juce::String(processor.hostBpm.load(),1)+" BPM  /  OUT "+
   juce::String(juce::Decibels::gainToDecibels(processor.outputPeak.load(),-100.f),1)+" dBFS",juce::dontSendNotification);
 }
+// Timeline axis is musical time, not an arbitrary 16-cell page. All lanes align to Cubase PPQ.
+// A 16-bar view is 64 quarter notes in 4/4; 128 eighth-notes cover all 16 bars.
+double InversoDrumEditor::viewStartPPQ() const noexcept {
+ const auto& e=processor.engine;
+ const auto duration=inverso_drum::divisionPPQ(e.division[selectedPad].load(),e.feel[selectedPad].load());
+ const double desired=currentPage*16.0*duration;
+ const double viewLength=4.0*displayedBars;
+ // Keep selected page in view, with a stable 0..64 PPQ overview.
+ return std::clamp(std::floor(desired/4.0)*4.0,0.0,std::max(0.0,64.0-viewLength));
+}
 void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
- const int pat=editor.processor.engine.selectedPattern.load();
- const bool playingPat=editor.processor.engine.currentPattern.load()==pat;
- const float w=getWidth()/16.f,h=getHeight()/16.f;
+ const auto& engine=editor.processor.engine;
+ const int pat=engine.selectedPattern.load();
+ const bool playingPat=engine.currentPattern.load()==pat;
+ const double from=editor.viewStartPPQ(), lengthPPQ=4.0*editor.displayedBars;
+ const float w=getWidth(),h=getHeight()/16.f;
+ // Alternating bars and vertical bar-lines make up to 16 bars legible.
+ for(int bar=0;bar<editor.displayedBars;++bar){
+  const float x=bar*w/editor.displayedBars;
+  if(bar%2){g.setColour(juce::Colour::fromRGB(29,31,35));g.fillRect(x,0.f,w/editor.displayedBars,getHeight()*1.f);}
+  g.setColour(juce::Colour::fromRGB(83,87,90));g.drawVerticalLine(static_cast<int>(x),0.f,static_cast<float>(getHeight()));
+ }
  for(int lane=0;lane<16;++lane){
-  const int len=editor.processor.engine.laneLength[lane].load();
-  const int play=editor.processor.engine.currentLaneStep[lane].load();
-  for(int col=0;col<16;++col){
-   const int step=editor.currentPage*16+col;
-   const float x=col*w+2.f,y=lane*h+1.f;
-   const bool enabled=step<len;
-   const int vel=editor.processor.engine.get(pat,lane,step);
-   const bool highlight=play==step&&playingPat;
-   juce::Colour color=enabled?(vel>0?orange.withAlpha(.30f+.70f*vel/127.f):juce::Colour::fromRGB(col%4==0?49:34,40,42)):
-    juce::Colour::fromRGB(23,26,28);
-   g.setColour(color);g.fillRoundedRectangle(x,y,w-4.f,h-3.f,3.f);
-   if(highlight){g.setColour(juce::Colours::white.withAlpha(.88f));g.drawRoundedRectangle(x,y,w-4.f,h-3.f,3.f,1.3f);}
-   if(lane==editor.selectedPad && !highlight){g.setColour(orange.withAlpha(.60f));g.drawRoundedRectangle(x,y,w-4.f,h-3.f,3.f,1.f);}
+  const float y=lane*h+1.f;
+  const int len=engine.laneLength[lane].load();
+  const double dur=inverso_drum::divisionPPQ(engine.division[lane].load(),engine.feel[lane].load());
+  const int first=std::max(0,static_cast<int>(std::floor(from/dur)));
+  const int last=std::min(20000,static_cast<int>(std::ceil((from+lengthPPQ)/dur)));
+  const float width=std::max(1.5f,static_cast<float>(dur/lengthPPQ*w));
+  for(int index=first;index<last;++index){
+   const double at=index*dur;
+   if(at<from-1e-8 || at>=from+lengthPPQ-1e-8)continue;
+   const int step=index%len;
+   const int vel=engine.get(pat,lane,step);
+   const float x=static_cast<float>((at-from)/lengthPPQ*w);
+   if(vel>0){
+    g.setColour(orange.withAlpha(.35f+.65f*vel/127.f));
+    g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
+   } else if(width>6.f){
+    g.setColour(juce::Colour::fromRGB(45,47,51));
+    g.fillRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f);
+   }
+   if(engine.currentLaneStep[lane].load()==step&&playingPat&&width>5.f){
+    g.setColour(juce::Colours::white.withAlpha(.7f));
+    g.drawRoundedRectangle(x+1.f,y,std::max(1.f,width-2.f),h-3.f,2.5f,1.f);
+   }
+  }
+  if(lane==editor.selectedPad){
+   g.setColour(orange.withAlpha(.70f));
+   g.drawRect(0.f,y-1.f,w,h,1.1f);
   }
  }
 }
 void InversoDrumEditor::StepGrid::mouseDown(const juce::MouseEvent& ev){previousCell=-1;mouseDrag(ev);}
 void InversoDrumEditor::StepGrid::mouseDrag(const juce::MouseEvent& ev){
- const int col=static_cast<int>(ev.position.x/(getWidth()/16.f));
  const int lane=static_cast<int>(ev.position.y/(getHeight()/16.f));
- if(col<0||col>=16||lane<0||lane>=16)return;
- const int step=editor.currentPage*16+col;
- if(step>=editor.processor.engine.laneLength[lane].load())return;
- const int cell=lane*128+step;if(cell==previousCell)return;previousCell=cell;
- const int pat=editor.processor.engine.selectedPattern.load();
- const int previous=editor.processor.engine.get(pat,lane,step);
+ if(lane<0||lane>=16||ev.position.x<0||ev.position.x>=getWidth())return;
+ const auto& e=editor.processor.engine;
+ const double duration=inverso_drum::divisionPPQ(e.division[lane].load(),e.feel[lane].load());
+ const double ppq=editor.viewStartPPQ()+4.0*editor.displayedBars*ev.position.x/getWidth();
+ const int length=std::clamp(e.laneLength[lane].load(),4,128);
+ const int absolute=std::max(0,static_cast<int>(std::floor(ppq/duration+1e-9)));
+ const int step=absolute%length;
+ const int cell=lane*128+step;
+ if(cell==previousCell)return;
+ previousCell=cell;
+ const int pat=e.selectedPattern.load();
+ const int previous=e.get(pat,lane,step);
  const int next=ev.mods.isRightButtonDown()?(previous==0?55:previous<80?90:previous<115?127:0):(previous?0:105);
  editor.processor.engine.set(pat,lane,step,next);
  editor.selectPad(lane);repaint();
@@ -283,8 +351,29 @@ bool InversoDrumEditor::isInterestedInFileDrag(const juce::StringArray& files){
  for(const auto& file:files){const auto ext=juce::File(file).getFileExtension().toLowerCase();if(ext==".wav"||ext==".aif"||ext==".aiff")return true;}
  return false;
 }
-void InversoDrumEditor::filesDropped(const juce::StringArray& files,int,int){
- if(files.size()>0&&processor.loadPadFile(selectedPad,juce::File(files[0])))selectPad(selectedPad);
+void InversoDrumEditor::filesDropped(const juce::StringArray& files,int x,int y){
+ dragOver=false;
+ const juce::Point<int> drop(x,y);
+ int target=selectedPad;
+ for(int lane=0;lane<16;++lane){
+  if(padButtons[lane].getBounds().contains(drop) ||
+     (grid.getBounds().contains(drop) &&
+      static_cast<int>((y-grid.getY())/(grid.getHeight()/16.f))==lane)) {
+   target=lane;break;
+  }
+ }
+ // Multiple selected files populate consecutive pads, never overwrite outside 16 pads.
+ int inserted=0;
+ for(const auto& filename:files){
+  const juce::File f(filename);
+  if(!f.existsAsFile())continue;
+  const auto ext=f.getFileExtension().toLowerCase();
+  if(ext!=".wav" && ext!=".aif" && ext!=".aiff")continue;
+  const int pad=target+inserted;
+  if(pad>=16)break;
+  if(processor.loadPadFile(pad,f))++inserted;
+ }
+ if(inserted>0){selectPad(target);updateUi();}
 }
 void InversoDrumEditor::loadSelected(){
  chooser=std::make_unique<juce::FileChooser>("Load drum sample",juce::File{},"*.wav;*.aif;*.aiff");
@@ -308,3 +397,11 @@ void InversoDrumEditor::exportMidi(){
   safe->processor.exportMidi(target);
  });
 }
+
+void InversoDrumEditor::fileDragEnter(const juce::StringArray&,int x,int y){
+ dragOver=true;dragX=x;dragY=y;repaint();
+}
+void InversoDrumEditor::fileDragMove(const juce::StringArray&,int x,int y){
+ dragOver=true;dragX=x;dragY=y;repaint();
+}
+void InversoDrumEditor::fileDragExit(const juce::StringArray&){dragOver=false;repaint();}

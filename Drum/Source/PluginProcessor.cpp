@@ -86,7 +86,7 @@ juce::String InversoDrumProcessor::sampleName(int pad)const{
 }
 void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
  juce::XmlElement root("INVERSO_DRUM_STATE");
- root.setAttribute("version",2);
+ root.setAttribute("version",3);
  root.setAttribute("pattern",engine.selectedPattern.load());
  root.setAttribute("chain",engine.chain.load()?1:0);
  root.setAttribute("swing",static_cast<double>(engine.swing.load()));
@@ -136,10 +136,10 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
  auto readEffect=[&](const char* key,std::atomic<float>& dst,float initial){
   dst.store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute(key,initial))));
  };
- readEffect("reverbWet",effects.reverbWet,.3f);
- readEffect("reverbDecay",effects.reverbDecay,.45f);
- readEffect("delayWet",effects.delayWet,.25f);
- readEffect("delayFeedback",effects.delayFeedback,.3f);
+ readEffect("reverbWet",effects.reverbWet,.55f);
+ readEffect("reverbDecay",effects.reverbDecay,.55f);
+ readEffect("delayWet",effects.delayWet,.45f);
+ readEffect("delayFeedback",effects.delayFeedback,.34f);
  effects.delayDivision.store(juce::jlimit(0,3,xml->getIntAttribute("delayDivision",1)));
  effects.delayFeel.store(juce::jlimit(0,2,xml->getIntAttribute("delayFeel",0)));
  const int fileVersion=xml->getIntAttribute("version",1);
@@ -156,8 +156,8 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
   engine.sampleAttack[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("attack"+suffix,0))));
   engine.sampleDecay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("decay"+suffix,1))));
   engine.drive[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("drive"+suffix,0))));
-  engine.sendVerb[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("verbSend"+suffix,.15))));
-  engine.sendDelay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("delaySend"+suffix,0))));
+  engine.sendVerb[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("verbSend"+suffix,.36))));
+  engine.sendDelay[pad].store(juce::jlimit(0.f,1.f,static_cast<float>(xml->getDoubleAttribute("delaySend"+suffix,.24))));
  }
  for(auto* element:xml->getChildIterator()){
   if(!element->hasTagName("PATTERN"))continue;

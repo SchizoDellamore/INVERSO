@@ -1,5 +1,5 @@
 #pragma once
-// INVERSO DRUM 0.2: 16 independent lanes, 128 steps each, 8 patterns.
+// INVERSO DRUM 0.3: 16 independent lanes, 128 steps each, 8 patterns.
 // Scheduling uses musical PPQ positions supplied by the VST host.
 #include <algorithm>
 #include <array>
@@ -70,8 +70,8 @@ public:
   for(auto& a:sampleAttack)a.store(0.f);
   for(auto& a:sampleDecay)a.store(1.f);
   for(auto& a:drive)a.store(0.f);
-  for(auto& a:sendVerb)a.store(.15f);
-  for(auto& a:sendDelay)a.store(.0f);
+  for(auto& a:sendVerb)a.store(.36f);
+  for(auto& a:sendDelay)a.store(.24f);
   for(auto& a:currentLaneStep)a.store(-1);
   for(int s=0;s<16;s+=4)grid[0][0][s].store(116);
   grid[0][1][4].store(110);grid[0][1][12].store(110);
@@ -106,7 +106,7 @@ public:
  }
  void setLaneLength(int pad,int length)noexcept{
   if(pad<0||pad>=pads)return;
-  laneLength[static_cast<size_t>(pad)].store(std::clamp(length,1,steps),std::memory_order_relaxed);
+  laneLength[static_cast<size_t>(pad)].store(std::clamp(((length+2)/4)*4,4,steps),std::memory_order_relaxed);
   refreshSpan();
  }
  void setDivision(int pad,int rateIndex,int feelIndex)noexcept{

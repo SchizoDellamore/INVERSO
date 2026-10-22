@@ -39,7 +39,7 @@ public:
   const float feedbackVerb=.68f+.26f*clip(reverbDecay.load(),0.f,1.f);
   float rev[2]{};
   for(int ch=0;ch<2;++ch){
-   const float signal=clip(ch?inputVerbR:inputVerbL,-4.f,4.f)*.24f;
+   const float signal=clip(ch?inputVerbR:inputVerbL,-4.f,4.f)*.82f;
    float sum=0;
    for(auto& c:combs[ch]){
     const float y=c.buffer[c.index];
@@ -55,7 +55,7 @@ public:
     if(++a.index>=a.buffer.size())a.index=0;
     val=output;
    }
-   rev[ch]=val;
+   rev[ch]=val*1.2f;
   }
   const int size=static_cast<int>(delay[0].size());
   const int read=(write+size-delayFrames)%size;
@@ -69,7 +69,7 @@ public:
   if(!std::isfinite(left))left=0;
   if(!std::isfinite(right))right=0;
  }
- std::atomic<float> reverbWet{.3f},reverbDecay{.45f},delayWet{.25f},delayFeedback{.3f};
+ std::atomic<float> reverbWet{.55f},reverbDecay{.55f},delayWet{.45f},delayFeedback{.34f};
  std::atomic<int> delayDivision{1},delayFeel{0};
 private:
  struct Line{std::vector<float> buffer;size_t index=0;};
