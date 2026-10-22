@@ -87,15 +87,18 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  stepVelocity.onValueChange=[this]{
   if(refreshing)return;
   if(!velocityDrag)captureLaneUndo(selectedPad);
-  inverso_drum::setStepVelocityAt(processor.engine,
-                processor.engine.selectedPattern.load(),selectedPad,selectedStep,
-                static_cast<int>(stepVelocity.getValue()));
-  if(stepSelection.count(selectedPad)>0)
+  // With a Shift-selection, edit ONLY selected hits, not the last clicked
+  // step (which may have just been deselected).
+  if(stepSelection.count(selectedPad)>0){
    stepSelection.forEach(selectedPad,[this](int step){
     inverso_drum::setStepVelocityAt(processor.engine,
      processor.engine.selectedPattern.load(),selectedPad,step,
      static_cast<int>(stepVelocity.getValue()));
    });
+   if(static_cast<int>(stepVelocity.getValue())==0)clearSelections();
+  }else inverso_drum::setStepVelocityAt(processor.engine,
+                processor.engine.selectedPattern.load(),selectedPad,selectedStep,
+                static_cast<int>(stepVelocity.getValue()));
   refreshStepVelocity();
   syncLaneLength();
   grid.repaint();
