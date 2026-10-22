@@ -526,17 +526,9 @@ void InversoDrumEditor::timerCallback(){
 // A 16-bar view is 64 quarter notes in 4/4; 128 eighth-notes cover all 16 bars.
 double InversoDrumEditor::viewStartPPQ() const noexcept {
  const auto& e=processor.engine;
- const auto duration=inverso_drum::divisionPPQ(e.division[selectedPad].load(),e.feel[selectedPad].load());
- const double desired=currentPage*16.0*duration;
- const double viewLength=4.0*displayedBars;
- // A quarter-note lane with 128 steps spans 32 bars; triplet and dotted
- // lanes have other durations. Never clip the viewport at 16 bars or the
- // final steps become impossible to select and edit.
- const double selectedLaneMaxPPQ=128.0*duration;
- const double navigablePPQ=std::max(64.0,selectedLaneMaxPPQ);
- // Keep the exact step-based page origin. Rounding to 4/4 bar lines would
- // make adjacent pages show the same steps at 1/32 or with triplet divisions.
- return std::clamp(desired,0.0,std::max(0.0,navigablePPQ-viewLength));
+ const auto duration=inverso_drum::divisionPPQ(
+   e.division[selectedPad].load(),e.feel[selectedPad].load());
+ return inverso_drum::timelinePageStartPPQ(currentPage,displayedBars,duration);
 }
 void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
  const auto& engine=editor.processor.engine;
@@ -545,10 +537,20 @@ void InversoDrumEditor::StepGrid::paint(juce::Graphics& g){
  const double from=editor.viewStartPPQ(), lengthPPQ=4.0*editor.displayedBars;
  const float w=getWidth(),h=getHeight()/16.f;
  // Alternating bars and vertical bar-lines make up to 16 bars legible.
- for(int bar=0;bar<editor.displayedBars;++bar){
-  const float x=bar*w/editor.displayedBars;
-  if(bar%2){g.setColour(juce::Colour::fromRGB(29,31,35));g.fillRect(x,0.f,w/editor.displayedBars,getHeight()*1.f);}
-  g.setColour(juce::Colour::fromRGB(83,87,90));g.drawVerticalLine(static_cast<int>(x),0.f,static_cast<float>(getHeight()));
+ const int firstBar=static_cast<int>(std::floor(from/4.0));
+ const int lastBar=static_cast<int>(std::ceil((from+lengthPPQ)/4.0));
+ for(int bar=firstBar;bar<lastBar;++bar){
+  const double barBegin=4.0*bar,barEnd=barBegin+4.0;
+  const float x=static_cast<float>((std::max(from,barBegin)-from)/lengthPPQ*w);
+  const float xe=static_cast<float>((std::min(from+lengthPPQ,barEnd)-from)/lengthPPQ*w);
+  if(bar%2){g.setColour(juce::Colour::fromRGB(29,31,35));
+   g.fillRect(x,0.f,std::max(0.f,xe-x),static_cast<float>(getHeight()));
+  }
+  if(barBegin>=from-1.e-8){
+   g.setColour(juce::Colour::fromRGB(83,87,90));
+   g.drawVerticalLine(static_cast<int>((barBegin-from)/lengthPPQ*w),0.f,
+                      static_cast<float>(getHeight()));
+  }
  }
  for(int lane=0;lane<16;++lane){
   const float y=lane*h+1.f;
