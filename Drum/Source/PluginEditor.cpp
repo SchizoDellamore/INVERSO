@@ -252,7 +252,7 @@ void InversoDrumEditor::refreshStepVelocity(){
  refreshing=true;
  stepVelocity.setValue(velocity,juce::dontSendNotification);
  refreshing=false;
- stepInfo.setText("PAT "+juce::String::charToString(static_cast<juce::juce_wchar>('A'+pat))
+ stepInfo.setText("PAT "+juce::String("ABCDEFGH").substring(pat,pat+1)
   +"  /  "+padNames[selectedPad]+"  /  STEP "+juce::String(selectedStep+1)
   +"  /  "+juce::String(velocity)+"/127",juce::dontSendNotification);
 }
