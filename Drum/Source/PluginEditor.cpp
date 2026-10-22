@@ -144,7 +144,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
  clearStep.onClick=[this]{stepVelocity.setValue(0,juce::sendNotificationSync);};
  addAndMakeVisible(clearStep);
  swing.onValueChange=[this]{if(!refreshing)processor.engine.swing.store(static_cast<float>(swing.getValue()*.01));};
- createSlider(laneLength,lengthLabel,"STEPS (x4)",4,128,16);
+ createSlider(laneLength,lengthLabel,"LOOP STEPS (x4)",4,128,16);
  laneLength.setRange(4,128,4);
  laneLength.setNumDecimalPlacesToDisplay(0);
  laneLength.onValueChange=[this]{if(!refreshing){
@@ -283,7 +283,7 @@ void InversoDrumEditor::paint(juce::Graphics& g){
  g.setColour(panel);g.fillRoundedRectangle(18.f,548.f,1214.f,68.f,7.f);
  g.fillRoundedRectangle(18.f,798.f,1214.f,178.f,7.f);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(11.f)));
- g.drawText("EXTERNAL WAV/AIFF  |  LMB ADDS / RMB ERASES  |  VELOCITY & FX PER EVENT  |  EFFECT TAILS CONTINUE NATURALLY",20,978,1195,17,juce::Justification::centredLeft);
+ g.drawText("VIEW = TIME DISPLAY  |  LOOP STEPS = PLAYBACK REPEAT  |  SHIFT SELECTS  |  RMB ON LANE = MENU  |  NEW KIT FX = OFF",20,978,1195,17,juce::Justification::centredLeft);
  if(dragOver){
   g.setColour(orange.withAlpha(.85f));
   g.drawRoundedRectangle(8.f,178.f,1228.f,368.f,6.f,2.f);
@@ -305,7 +305,7 @@ void InversoDrumEditor::resized(){
  const float row=22.f;
  for(int i=0;i<16;++i)padButtons[i].setBounds(20,187+static_cast<int>(i*row),156,21);
  grid.setBounds(188,186,1034,352);
- lengthLabel.setBounds(30,551,85,18);laneLength.setBounds(25,575,193,30);
+ lengthLabel.setBounds(30,551,190,18);laneLength.setBounds(25,575,193,30);
  rateLabel.setBounds(255,551,125,18);laneRate.setBounds(250,577,136,29);
  feelLabel.setBounds(405,551,110,18);laneFeel.setBounds(400,577,150,29);
  levelLabel.setBounds(571,551,90,18);level.setBounds(563,575,142,30);
@@ -451,6 +451,7 @@ void InversoDrumEditor::showLaneMenu(int pad,juce::Component* source){
  menu.addItem(2,"Select all notes ("+juce::String(existing)+")",existing>0);
  menu.addItem(3,"Erase all notes (current pattern)",existing>0);
  menu.addItem(4,"Clear selection",stepSelection.count(pad)>0);
+ menu.addItem(6,"Make this track dry (pad + current pattern)");
  menu.addSeparator();
  menu.addItem(5,"Undo last track edit",laneUndo.canUndo(pad));
  juce::Component::SafePointer<InversoDrumEditor> safe(this);
@@ -467,6 +468,17 @@ void InversoDrumEditor::showLaneMenu(int pad,juce::Component* source){
     safe->selectPad(pad);safe->updateUi();
    }else if(result==4){
     safe->clearSelections();safe->updateUi();
+   }else if(result==6){
+    safe->captureLaneUndo(pad);
+    auto& engine=safe->processor.engine;
+    engine.drive[pad].store(0.f);
+    engine.sendVerb[pad].store(0.f);
+    engine.sendDelay[pad].store(0.f);
+    const int pat=engine.selectedPattern.load();
+    for(int step=0;step<inverso_drum::steps;++step)
+     for(int fx=0;fx<3;++fx)
+      engine.setEventFx(pat,pad,step,fx,inverso_drum::Engine::inheritFx);
+    safe->selectPad(pad);safe->updateUi();
    }else if(result==5)safe->undoLaneEdit(pad);
   });
 }
