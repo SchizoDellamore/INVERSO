@@ -76,6 +76,7 @@ public:
   for(auto& a:sendVerb)a.store(.36f);
   for(auto& a:sendDelay)a.store(.24f);
   for(auto& a:currentLaneStep)a.store(-1);
+  for(auto& a:currentLaneTimelineStep)a.store(-1);
   for(int s=0;s<16;s+=4)grid[0][0][s].store(116);
   grid[0][1][4].store(110);grid[0][1][12].store(110);
   for(int s=0;s<16;s+=2)grid[0][2][s].store(s%4==0?75:57);
@@ -181,7 +182,9 @@ public:
  }
  void stopTransport()noexcept{
   for(auto& x:lastLaneIndex)x=std::numeric_limits<long long>::min();
-  currentStep.store(-1);for(auto& s:currentLaneStep)s.store(-1);
+  currentStep.store(-1);
+  for(auto& s:currentLaneStep)s.store(-1);
+  for(auto& s:currentLaneTimelineStep)s.store(-1);
  }
  // PPQ is supplied for this single sample, not calculated by a local unsynchronised clock.
  void transportSample(double ppq,bool playing)noexcept{
@@ -202,6 +205,8 @@ public:
    const int cell=static_cast<int>((absolute%length+length)%length);
    const long long key=absolute+static_cast<long long>(pat)*1000000000LL;
    currentLaneStep[lane].store(cell,std::memory_order_relaxed);
+   currentLaneTimelineStep[lane].store(absolute>=0 && absolute<steps?
+       static_cast<int>(absolute):-1,std::memory_order_relaxed);
    if(lastLaneIndex[lane]!=key){
     const bool first=lastLaneIndex[lane]==std::numeric_limits<long long>::min();
     lastLaneIndex[lane]=key;
@@ -259,7 +264,7 @@ public:
  std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> eventDrive{},eventVerb{},eventDelay{};
  std::array<std::atomic<float>,pads> gain{},pan{},sampleStart{},sampleEnd{},samplePitch{},sampleAttack{},sampleDecay{},drive{},sendVerb{},sendDelay{};
  std::array<std::atomic<bool>,pads> sampleReverse{};
- std::array<std::atomic<int>,pads> laneLength{},division{},feel{},currentLaneStep{};
+ std::array<std::atomic<int>,pads> laneLength{},division{},feel{},currentLaneStep{},currentLaneTimelineStep{};
  std::atomic<int> selectedPattern{0},currentPattern{0},currentStep{-1};
  std::atomic<bool> chain{false};
  std::atomic<float> swing{0};
