@@ -8,6 +8,12 @@ static void check(bool b,const char* msg){if(!b){std::fprintf(stderr,"HOST TEST 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
  InversoDrumProcessor p;
+ for(int pad=0;pad<16;++pad){
+  check(p.engine.sendVerb[pad].load()==0.f,"new pads must not send to reverb");
+  check(p.engine.sendDelay[pad].load()==0.f,"new pads must not send to delay");
+  check(p.engine.drive[pad].load()==0.f,"new pads must have no drive");
+  check(p.engine.padVelocity[pad].load()==1.f,"new pad velocity must be neutral");
+ }
  for(int rate:{44100,48000,96000}){
   p.prepareToPlay(rate,32);
   for(int sz:{1,17,64,511,2048,8192}){
@@ -26,6 +32,7 @@ int main(){
   p.engine.set(0,0,0,17);p.engine.set(0,0,1,91);p.engine.set(0,0,127,127);
   p.engine.sampleStart[0].store(.2f);p.engine.samplePitch[0].store(7.f);
   p.engine.drive[0].store(.5f);p.effects.delayFeel.store(1);
+  p.engine.padVelocity[0].store(.73f);
   juce::MemoryBlock extended;p.getStateInformation(extended);
   InversoDrumProcessor expanded;expanded.setStateInformation(extended.getData(),static_cast<int>(extended.getSize()));
   check(expanded.engine.get(0,0,0)==17,"step 1 velocity restored");
@@ -35,6 +42,8 @@ int main(){
   check(expanded.engine.feel[0].load()==2,"triplet state restored");
   check(std::abs(expanded.engine.samplePitch[0].load()-7)<.01f,"sample pitch state restored");
   check(expanded.effects.delayFeel.load()==1,"effect division state restored");
+  check(std::abs(expanded.engine.padVelocity[0].load()-.73f)<.001f,
+        "global pad velocity was not restored");
   // MIDI export must preserve exact 1..127 per-step velocity values, not fixed presets.
   auto midiPath=juce::File::getSpecialLocation(juce::File::tempDirectory)
       .getNonexistentChildFile("INVERSO_velocity_test",".mid",false);
