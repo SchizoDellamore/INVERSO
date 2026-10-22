@@ -51,7 +51,7 @@ public:
   s.bodyLo+=bodyLoA*(x-s.bodyLo);
   s.bodyHi+=bodyHiA*(x-s.bodyHi);
   const float bodyBand=s.bodyHi-s.bodyLo;
-  const float activation=std::max(smDrive,smFuzz*.55f);
+  const float activation=std::max(smDrive,target.mode==FuzzMode::Off?0.f:smFuzz*.55f);
   const float bodyLift=smBody*activation*1.35f*bodyBand;
 
   // Parallel asymmetric preamp. Higher drive = richer even/odd harmonics,

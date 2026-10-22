@@ -21,6 +21,11 @@ int main(){
  Parameters p;p.drive=0;p.fuzz=0;p.mode=FuzzMode::Off;p.mix=1;p.outputDb=0;
  auto clean=render(p,120,.12f);
  check(std::abs(magnitude(clean,120)-.12)<.003,"default zero drive/fuzz is transparent");
+ // A disabled fuzz mode must remain transparent, even with Fuzz Amount set.
+ p.fuzz=1.f;p.mode=FuzzMode::Off;
+ auto fuzzOff=render(p,120,.12f);
+ check(std::abs(magnitude(fuzzOff,120)-.12)<.003,"fuzz Off must not change audio with drive zero");
+ p.fuzz=0.f;
  p.drive=.45f;
  auto driven=render(p,120,.12f);
  auto drivenHi=render(p,550,.12f);
