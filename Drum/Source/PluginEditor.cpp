@@ -87,6 +87,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
                 processor.engine.selectedPattern.load(),selectedPad,selectedStep,
                 static_cast<int>(stepVelocity.getValue()));
   refreshStepVelocity();
+  laneLength.setValue(processor.engine.laneLength[selectedPad].load(),juce::dontSendNotification);
   grid.repaint();
  };
  const char* stepNames[]={"STEP DRIVE","STEP REVERB SEND","STEP DELAY SEND"};
