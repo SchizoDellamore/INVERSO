@@ -153,6 +153,14 @@ void InversoDrumProcessor::setStateInformation(const void* data,int size){
  readEffect("delayFeedback",effects.delayFeedback,.34f);
  effects.delayDivision.store(juce::jlimit(0,3,xml->getIntAttribute("delayDivision",1)));
  effects.delayFeel.store(juce::jlimit(0,2,xml->getIntAttribute("delayFeel",0)));
+ // Clear old per-event overrides before loading any project, including pre-v0.6
+ // projects with no FX attributes. Otherwise an old session can retain FX
+ // belonging to whichever project was loaded just before it.
+ for(int pattern=0;pattern<inverso_drum::patterns;++pattern)
+  for(int pad=0;pad<inverso_drum::pads;++pad)
+   for(int step=0;step<inverso_drum::steps;++step)
+    for(int fx=0;fx<3;++fx)
+     engine.setEventFx(pattern,pad,step,fx,inverso_drum::Engine::inheritFx);
  const int fileVersion=xml->getIntAttribute("version",1);
  for(int pad=0;pad<16;++pad){
   auto suffix=juce::String(pad);
