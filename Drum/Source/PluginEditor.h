@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "SampleLibraries.h"
 #include <array>
 #include <memory>
 #include <functional>
@@ -78,8 +79,9 @@ private:
  juce::ComboBox laneRate,laneFeel,delayRate,delayFeel,viewBars;
  juce::Label swingLabel,levelLabel,panLabel,lengthLabel,rateLabel,feelLabel;
  juce::Label selectedSample,tempoLabel,delayRateLabel,delayFeelLabel,viewLabel;
- juce::TextButton loadButton{"LOAD SAMPLE"};
+ juce::TextButton loadButton{"LOAD SAMPLE"},libraryButton{"DAW LIBRARIES"};
  InversoMidiDragButton exportButton{"EXPORT / DRAG MIDI"};
+ InversoSampleLibraries sampleLibrary;
  juce::TextButton sampleTab{"SAMPLE EDIT"},fxTab{"EFFECTS"};
  juce::ToggleButton reverse{"REVERSE"};
  std::array<juce::Slider,5> sampleSliders;
