@@ -16,20 +16,20 @@ void WheelSlider::mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWhee
 }
 InversoBassDriveEditor::InversoBassDriveEditor(InversoBassDriveProcessor& p)
  :AudioProcessorEditor(&p),processor(p){
- setSize(780,570);
- const char* ids[]={"DRIVE","BODY","CROSSOVER","MIX","OUTPUT","FUZZ","TONE"};
- const char* names[]={"DRIVE","BODY","CROSSOVER","MIX","OUTPUT","FUZZ AMOUNT","FUZZ TONE"};
- for(int i=0;i<7;++i){
+ setSize(820,630);
+ const char* ids[]={"DRIVE","BODY","CROSSOVER","DRIVE_TONE","MIX","OUTPUT","FUZZ","TONE"};
+ const char* names[]={"DRIVE","BODY","CROSSOVER","DRIVE TONE","MIX","OUTPUT","FUZZ AMOUNT","FUZZ TONE"};
+ for(int i=0;i<8;++i){
   auto& s=sliders[static_cast<size_t>(i)];
   s.setSliderStyle(juce::Slider::LinearHorizontal);
   s.setTextBoxStyle(juce::Slider::TextBoxRight,false,76,24);
-  s.setColour(juce::Slider::trackColourId,(i==0||i==1||i==5)?orange:teal);
+  s.setColour(juce::Slider::trackColourId,(i==0||i==1||i==3||i==6)?orange:teal);
   s.setColour(juce::Slider::thumbColourId,text);
   s.setColour(juce::Slider::backgroundColourId,juce::Colour::fromRGB(51,58,62));
   s.setColour(juce::Slider::textBoxTextColourId,text);
   s.setColour(juce::Slider::textBoxOutlineColourId,panel);
   if(i==2)s.textFromValueFunction=[](double v){return juce::String(v,0)+" Hz";};
-  else if(i==4)s.textFromValueFunction=[](double v){return juce::String(v,1)+" dB";};
+  else if(i==5)s.textFromValueFunction=[](double v){return juce::String(v,1)+" dB";};
   else s.textFromValueFunction=[](double v){return juce::String(v,1)+"%";};
   addAndMakeVisible(s);
   auto& label=labels[static_cast<size_t>(i)];
@@ -43,7 +43,7 @@ InversoBassDriveEditor::InversoBassDriveEditor(InversoBassDriveProcessor& p)
  modeLabel.setColour(juce::Label::textColourId,muted);
  modeLabel.setFont(juce::Font(13.f,juce::Font::bold));
  addAndMakeVisible(modeLabel);
- modes.addItem("Off - Warm drive",1);
+ modes.addItem("Off - Drive only",1);
  modes.addItem("Vintage - Asymmetric",2);
  modes.addItem("Silicon - Aggressive",3);
  modes.addItem("Gated - Broken",4);
@@ -52,6 +52,18 @@ InversoBassDriveEditor::InversoBassDriveEditor(InversoBassDriveProcessor& p)
  modes.setColour(juce::ComboBox::outlineColourId,muted.withAlpha(.3f));
  addAndMakeVisible(modes);
  modeAttachment=std::make_unique<CA>(p.apvts,"FUZZ_MODE",modes);
+ gruntLabel.setText("GRUNT / LOW DRIVE",juce::dontSendNotification);
+ gruntLabel.setColour(juce::Label::textColourId,muted);
+ addAndMakeVisible(gruntLabel);
+ grunt.addItem("Tight",1);grunt.addItem("Balanced",2);grunt.addItem("Thick",3);
+ grunt.setColour(juce::ComboBox::backgroundColourId,panel);
+ grunt.setColour(juce::ComboBox::textColourId,text);
+ grunt.setColour(juce::ComboBox::outlineColourId,muted.withAlpha(.3f));
+ addAndMakeVisible(grunt);
+ gruntAttachment=std::make_unique<CA>(p.apvts,"GRUNT",grunt);
+ midBoost.setColour(juce::ToggleButton::textColourId,text);
+ addAndMakeVisible(midBoost);
+ midBoostAttachment=std::make_unique<BA>(p.apvts,"MID_BOOST",midBoost);
  lowProtect.setColour(juce::ToggleButton::textColourId,text);
  addAndMakeVisible(lowProtect);
  bypass.setColour(juce::ToggleButton::textColourId,text);
@@ -66,15 +78,15 @@ void InversoBassDriveEditor::paint(juce::Graphics& g){
  g.setFont(juce::Font(27.f,juce::Font::bold));
  g.drawText("INVERSO   /   BASS DRIVE",22,13,620,44,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(12.5f);
- g.drawText("HARMONIC DRIVE   /   BODY   /   OPTIONAL FUZZ   /   ZERO LATENCY",24,55,700,23,juce::Justification::centredLeft);
- const auto visual=juce::Rectangle<float>(20.f,86.f,740.f,96.f);
+ g.drawText("DRIVE WITH GRUNT + MID CONTROL   /   OPTIONAL FUZZ   /   ZERO LATENCY",24,55,760,23,juce::Justification::centredLeft);
+ const auto visual=juce::Rectangle<float>(20.f,86.f,780.f,96.f);
  g.setColour(panel);g.fillRoundedRectangle(visual,8.f);
  const auto crossover=processor.apvts.getRawParameterValue("CROSSOVER")->load();
  const float boundary=juce::jmap(juce::jlimit(60.f,500.f,crossover),60.f,500.f,190.f,354.f);
  g.setColour(teal.withAlpha(.12f));g.fillRoundedRectangle(30.f,97.f,boundary-30.f,58.f,4.f);
- g.setColour(orange.withAlpha(.12f));g.fillRoundedRectangle(boundary,97.f,750.f-boundary,58.f,4.f);
+ g.setColour(orange.withAlpha(.12f));g.fillRoundedRectangle(boundary,97.f,790.f-boundary,58.f,4.f);
  g.setColour(teal);g.fillRoundedRectangle(39.f,133.f,boundary-48.f,4.f,2.f);
- g.setColour(orange);g.fillRoundedRectangle(boundary+8.f,133.f,739.f-boundary-17.f,4.f,2.f);
+ g.setColour(orange);g.fillRoundedRectangle(boundary+8.f,133.f,779.f-boundary-17.f,4.f,2.f);
  g.setColour(text);g.setFont(13.f);
  g.drawText("CLEAN LOW",42,103,150,22,juce::Justification::centredLeft);
  g.drawText("DRIVE   /   OPTIONAL FUZZ",static_cast<int>(boundary+19),103,200,22,juce::Justification::centredLeft);
@@ -85,25 +97,28 @@ void InversoBassDriveEditor::paint(juce::Graphics& g){
  g.drawText("IN  "+juce::String(juce::Decibels::gainToDecibels(in,-100.f),1)+" dBFS",33,155,160,24,juce::Justification::centredLeft);
  const auto nearClip=inter>=1.f || out>=1.f;
  g.setColour(nearClip?juce::Colours::salmon:teal);
- g.drawText("OUT  "+juce::String(juce::Decibels::gainToDecibels(out,-100.f),1)+" dBFS"+(nearClip?"  /  PEAK ALERT":""),540,155,205,24,juce::Justification::centredRight);
+ g.drawText("OUT  "+juce::String(juce::Decibels::gainToDecibels(out,-100.f),1)+" dBFS"+(nearClip?"  /  PEAK ALERT":""),580,155,205,24,juce::Justification::centredRight);
  g.setColour(muted);g.setFont(11.5f);
  g.setColour(orange);
  g.setFont(13.f);
  g.drawText("DRIVE ENGINE",24,191,260,22,juce::Justification::centredLeft);
  g.setColour(muted);
- g.drawText("FUZZ  /  OPTIONAL",24,378,260,22,juce::Justification::centredLeft);
+ g.drawText("FUZZ  /  OPTIONAL",24,424,260,22,juce::Justification::centredLeft);
  g.setFont(11.5f);
- g.drawText("SHIFT + WHEEL: finer adjustment   |   Reduce OUTPUT if peak warning appears",23,545,690,17,juce::Justification::centredLeft);
+ g.drawText("SHIFT + WHEEL: finer adjustment   |   Reduce OUTPUT if peak warning appears",23,605,760,17,juce::Justification::centredLeft);
 }
 void InversoBassDriveEditor::resized(){
- const int xx[]={24,272,520,24,272,24,272};
- const int yy[]={218,218,218,300,300,406,406};
- for(int i=0;i<7;++i){
-  labels[static_cast<size_t>(i)].setBounds(xx[i],yy[i],228,20);
-  sliders[static_cast<size_t>(i)].setBounds(xx[i],yy[i]+22,225,32);
+ const int xx[]={24,224,424,624,24,224,24,224};
+ const int yy[]={224,224,224,224,300,300,450,450};
+ for(int i=0;i<8;++i){
+  labels[static_cast<size_t>(i)].setBounds(xx[i],yy[i],188,20);
+  sliders[static_cast<size_t>(i)].setBounds(xx[i],yy[i]+22,185,32);
  }
- modeLabel.setBounds(521,401,235,20);
- modes.setBounds(521,425,235,31);
- lowProtect.setBounds(25,503,190,34);
- bypass.setBounds(649,503,110,34);
+ gruntLabel.setBounds(425,300,183,20);
+ grunt.setBounds(425,324,180,31);
+ midBoost.setBounds(630,324,170,31);
+ modeLabel.setBounds(425,445,180,20);
+ modes.setBounds(425,472,366,31);
+ lowProtect.setBounds(25,563,185,34);
+ bypass.setBounds(690,563,105,34);
 }
