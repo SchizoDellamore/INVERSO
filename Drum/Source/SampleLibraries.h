@@ -82,6 +82,29 @@ public:
  }
  void setLoadHandler(FileHandler handler){loadHandler=std::move(handler);}
  void setPad(int index){pad.setSelectedId(juce::jlimit(1,16,index+1),juce::dontSendNotification);}
+ // Same code path as the IMPORT PATH button; exercised in host integration tests.
+ bool importFilePath(const juce::String& fullPath){
+  auto name=fullPath.trim().unquoted();
+  if(name.isEmpty()){
+   status.setText("Enter a WAV/AIFF file path.",juce::dontSendNotification);
+   return false;
+  }
+  const juce::File f(name);
+  if(!supported(f)){
+   status.setText("Cannot access WAV/AIFF file: "+name,juce::dontSendNotification);
+   return false;
+  }
+  const int chosenPad=pad.getSelectedId()-1;
+  if(loadHandler && loadHandler(chosenPad,f)){
+   status.setText("IMPORTED "+f.getFileName()+" TO PAD "+juce::String(chosenPad+1),
+                  juce::dontSendNotification);
+   addRoot(groupForId(source.getSelectedId()),categoryForId(category.getSelectedId()),f,true);
+   persistAndScan();
+   return true;
+  }
+  status.setText("Decoder rejected: "+f.getFileName(),juce::dontSendNotification);
+  return false;
+ }
  void open(){
   setVisible(true);
   toFront(true);
@@ -92,6 +115,7 @@ public:
   return false;
  }
  void filesDropped(const juce::StringArray& files,int,int) override {
+  signalThreadShouldExit();stopThread(5000);
   const auto group=groupForId(source.getSelectedId());
   const auto cat=categoryForId(category.getSelectedId());
   juce::File first;
@@ -259,6 +283,7 @@ private:
                        juce::FileBrowserComponent::canSelectMultipleItems,
     [safe,group,cat](const juce::FileChooser& fc){
      if(safe==nullptr)return;
+     safe->signalThreadShouldExit();safe->stopThread(5000);
      juce::File first;
      for(const auto& file:fc.getResults()){
       if(!supported(file))continue;
@@ -272,23 +297,7 @@ private:
      }
     });
  }
- void loadDirectPath(){
-  auto name=path.getText().trim().unquoted();
-  // Accept paths copied with surrounding quotes from a file manager.
-  const juce::File f(name);
-  if(!supported(f)){
-   status.setText("File not found or unsupported. Paste a full, accessible WAV/AIFF path.",
-      juce::dontSendNotification);return;
-  }
-  const int chosenPad=pad.getSelectedId()-1;
-  if(loadHandler && loadHandler(chosenPad,f)){
-   status.setText("IMPORTED "+f.getFileName()+" TO PAD "+juce::String(chosenPad+1),
-                  juce::dontSendNotification);
-   addRoot(groupForId(source.getSelectedId()),categoryForId(category.getSelectedId()),f,true);
-   persistAndScan();
-  }else status.setText("File exists, but audio decoder could not load it.",
-                      juce::dontSendNotification);
- }
+ void loadDirectPath(){importFilePath(path.getText());}
  void removeSelectedRoot(){
   const int i=rootChoice.getSelectedId()-1;
   if(i<0||i>=static_cast<int>(roots.size()))return;
