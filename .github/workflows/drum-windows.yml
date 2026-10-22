@@ -2,7 +2,7 @@ name: Build INVERSO DRUM sequencer Windows VST3
 on:
   workflow_dispatch:
   push:
-    branches: [main, drum-validated-import-event-fx, drum-lmb-rmb-step-edit]
+    branches: [main, drum-unique-timeline-steps]
     paths:
       - 'Drum/**'
       - '.github/workflows/drum-windows.yml'
@@ -39,11 +39,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Drum'
           $bundle = Join-Path $root 'build\InversoDrum_artefacts\Release\VST3\INVERSO DRUM.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_DRUM_PORTABLE_VST3_0.6.1'
+          $portable = Join-Path $root 'dist\INVERSO_DRUM_PORTABLE_VST3_0.6.2'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           @'
-          INVERSO DRUM v0.6.1 | PORTABLE INSTALL
+          INVERSO DRUM v0.6.2 | PORTABLE INSTALL
           Close Cubase, extract this ZIP, then copy the complete folder
           INVERSO DRUM.vst3 into C:\Program Files\Common Files\VST3
           Reopen Cubase and load it as a VST3 Instrument. No cloud account needed.
@@ -57,12 +57,12 @@ jobs:
       - name: Publish Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_DRUM_Setup_0.6.1_x64
-          path: Drum/dist/INVERSO_DRUM_Setup_0.6.1_x64.exe
+          name: INVERSO_DRUM_Setup_0.6.2_x64
+          path: Drum/dist/INVERSO_DRUM_Setup_0.6.2_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_DRUM_PORTABLE_VST3_0.6.1_NO_EXE
-          path: Drum/dist/INVERSO_DRUM_PORTABLE_VST3_0.6.1/
+          name: INVERSO_DRUM_PORTABLE_VST3_0.6.2_NO_EXE
+          path: Drum/dist/INVERSO_DRUM_PORTABLE_VST3_0.6.2/
           if-no-files-found: error
