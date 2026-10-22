@@ -186,6 +186,13 @@ public:
   status.setText("Scanning user-selected libraries...",juce::dontSendNotification);
   startThread(juce::Thread::Priority::low);
  }
+ // Calls the SAME scanner as the background thread, deterministically.
+ // Host integration test only: production always uses beginScan() on a worker.
+ void scanSynchronouslyForValidation(){
+  signalThreadShouldExit();stopThread(5000);
+  catalog=scanFiles(false);
+  refreshFilter();
+ }
  void addFolder(const juce::String& group,const juce::File& folder){
   if(!folder.isDirectory())return;
   addRoot(group,categoryForId(category.getSelectedId()),folder,true);
@@ -337,18 +344,18 @@ private:
                   juce::dontSendNotification);
   }
  }
- void run() override {
+ std::vector<Entry> scanFiles(bool respectInterrupt){
   std::vector<Entry> result;
   // Snapshot roots before the worker starts. The message thread stops and joins
   // this thread before it edits roots again.
   for(const auto& root:roots){
-   if(threadShouldExit())return;
+   if(respectInterrupt && threadShouldExit())return {};
    if(supported(root.folder)){
     result.push_back({root.group,root.category,root.folder.getFileName(),root.folder});
    }else if(root.folder.isDirectory()){
     juce::RangedDirectoryIterator scan(root.folder,true,"*",juce::File::findFiles);
     for(const auto& item:scan){
-     if(threadShouldExit())return;
+     if(respectInterrupt && threadShouldExit())return {};
      const auto file=item.getFile();
      if(!supported(file))continue;
      result.push_back({root.group,root.category,file.getRelativePathFrom(root.folder),file});
@@ -357,10 +364,14 @@ private:
    }
    if(result.size()>=50000)break;
   }
-  if(threadShouldExit())return;
   std::sort(result.begin(),result.end(),[](const Entry& a,const Entry& b){
    return a.file.getFileName().compareIgnoreCase(b.file.getFileName())<0;
   });
+  return result;
+ }
+ void run() override {
+  auto result=scanFiles(true);
+  if(threadShouldExit())return;
   juce::Component::SafePointer<InversoSampleLibraries> safe(this);
   juce::MessageManager::callAsync([safe,found=std::move(result)]()mutable {
    if(safe==nullptr)return;
