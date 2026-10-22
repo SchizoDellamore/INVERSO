@@ -30,6 +30,21 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 :AudioProcessorEditor(&p),processor(p),grid(*this),waveform(*this){
  setSize(1250,925);
  addAndMakeVisible(grid);
+ libraryButton.setColour(juce::TextButton::buttonColourId,orange);
+ libraryButton.setColour(juce::TextButton::textColourOffId,juce::Colours::black);
+ libraryButton.onClick=[this]{
+  sampleLibrary.setPad(selectedPad);
+  sampleLibrary.open();
+ };
+ addAndMakeVisible(libraryButton);
+ sampleLibrary.setLoadHandler([this](int pad,const juce::File& file){
+  if(!processor.loadPadFile(pad,file))return false;
+  selectPad(pad);
+  processor.auditionPad(pad);
+  return true;
+ });
+ sampleLibrary.setVisible(false);
+ addAndMakeVisible(sampleLibrary);
  viewBars.addItem("1 bar",1);viewBars.addItem("2 bars",2);
  viewBars.addItem("4 bars",3);viewBars.addItem("8 bars",4);
  viewBars.addItem("16 bars",5);
@@ -161,7 +176,7 @@ InversoDrumEditor::InversoDrumEditor(InversoDrumProcessor& p)
 void InversoDrumEditor::paint(juce::Graphics& g){
  g.fillAll(bg);
  g.setColour(text);g.setFont(juce::Font(juce::FontOptions(25.f,juce::Font::bold)));
- g.drawText("INVERSO / DRUM  v0.4",22,12,520,39,juce::Justification::centredLeft);
+ g.drawText("INVERSO / DRUM  v0.5",22,12,520,39,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(juce::Font(juce::FontOptions(12.f)));
  g.drawText("16 LANES  /  UP TO 128 STEPS EACH  /  HOST-SYNCED SEQUENCER",25,53,700,19,juce::Justification::centredLeft);
  g.setColour(orange);g.setFont(juce::Font(juce::FontOptions(13.f,juce::Font::bold)));
@@ -188,6 +203,8 @@ void InversoDrumEditor::resized(){
  swingLabel.setBounds(847,79,85,18);swing.setBounds(840,99,190,28);
  tempoLabel.setBounds(1030,89,193,25);
  viewLabel.setBounds(1080,51,55,20);viewBars.setBounds(1138,47,94,30);
+ libraryButton.setBounds(925,14,188,29);
+ sampleLibrary.setBounds(155,130,940,690);
  const float row=22.f;
  for(int i=0;i<16;++i)padButtons[i].setBounds(20,187+static_cast<int>(i*row),156,21);
  grid.setBounds(188,186,1034,352);
@@ -240,6 +257,7 @@ void InversoDrumEditor::selectPad(int pad){
  reverse.setToggleState(e.sampleReverse[selectedPad].load(),juce::dontSendNotification);
  refreshing=false;
  selectedSample.setText("PAD "+juce::String(selectedPad+1)+"  /  "+processor.sampleName(selectedPad),juce::dontSendNotification);
+ sampleLibrary.setPad(selectedPad);
  waveform.repaint();updateUi();
 }
 void InversoDrumEditor::selectStep(int pad,int step){
