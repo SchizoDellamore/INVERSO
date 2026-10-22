@@ -1,0 +1,78 @@
+name: Build INVERSO WaveMover Windows VST3
+on:
+  workflow_dispatch:
+  push:
+    branches: [wavemover-editor]
+    paths: ['WaveMover/**', '.github/workflows/wavemover-windows.yml']
+concurrency:
+  group: inverso-wavemover-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: external/JUCE
+      - uses: actions/checkout@v4
+        with:
+          repository: Signalsmith-Audio/signalsmith-stretch
+          ref: 88061fd4eda56a2353c5d65c74aa3f4ccf76f9da
+          path: external/Stretch
+      - uses: actions/checkout@v4
+        with:
+          repository: Signalsmith-Audio/linear
+          ref: 0.6.6
+          path: external/Linear
+      - name: Configure and compile Windows x64
+        shell: pwsh
+        run: |
+          cmake -S WaveMover -B WaveMover/build -A x64 -DJUCE_ROOT="$env:GITHUB_WORKSPACE/external/JUCE" -DSTRETCH_ROOT="$env:GITHUB_WORKSPACE/external/Stretch" -DLINEAR_ROOT="$env:GITHUB_WORKSPACE/external/Linear"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build WaveMover/build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test audio edits and actual native VST3
+        shell: pwsh
+        run: |
+          ctest --test-dir WaveMover/build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package VST3 and standalone
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dist = 'WaveMover/dist/INVERSO_WaveMover_0.1.0_Windows_x64'
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          Copy-Item -LiteralPath 'WaveMover/build/InversoWaveMover_artefacts/Release/VST3/INVERSO WaveMover.vst3' -Destination $dist -Recurse
+          Copy-Item -LiteralPath 'WaveMover/build/InversoWaveMover_artefacts/Release/Standalone/INVERSO WaveMover.exe' -Destination $dist
+          Copy-Item WaveMover/README.md "$dist/LEIA-ME.md"
+          New-Item -ItemType Directory -Force "$dist/ThirdParty" | Out-Null
+          Copy-Item external/Stretch/LICENSE.txt "$dist/ThirdParty/Signalsmith-Stretch-LICENSE.txt"
+          Copy-Item external/Linear/LICENSE.txt "$dist/ThirdParty/Signalsmith-Linear-LICENSE.txt"
+          @'
+          INVERSO WaveMover 0.1.0 - Windows x64
+          Feche o Cubase e copie a pasta inteira INVERSO WaveMover.vst3 para:
+          C:\Program Files\Common Files\VST3
+          Reabra o Cubase e carregue como efeito de insercao VST3.
+          O aplicativo independente INVERSO WaveMover.exe tambem acompanha o pacote.
+          Consulte LEIA-ME.md para captura, selecao, efeitos e exportacao.
+          '@ | Set-Content "$dist/INSTALAR.txt" -Encoding UTF8
+          Get-ChildItem $dist -Recurse -File | ForEach-Object { $h=Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content "$dist/SHA256SUMS.txt"
+      - name: Upload Windows plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_WaveMover_0.1.0_Windows_x64
+          path: WaveMover/dist/INVERSO_WaveMover_0.1.0_Windows_x64/
+          if-no-files-found: error
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaveMover-validation
+          path: |
+            WaveMover/build/test-output/WaveMover_UI.png
+            WaveMover/build/Testing/Temporary/LastTest.log
