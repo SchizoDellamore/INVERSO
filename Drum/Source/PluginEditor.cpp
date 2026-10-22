@@ -364,6 +364,96 @@ void InversoDrumEditor::refreshStepEffects(){
  }
  refreshing=false;
 }
+void InversoDrumEditor::captureLaneUndo(int pad){
+ const int pat=juce::jlimit(0,7,processor.engine.selectedPattern.load());
+ laneUndo.capture(processor.engine,pat,pad,
+                  processor.samplePath(pad).toStdString());
+}
+void InversoDrumEditor::clearSelections(){
+ stepSelection.clear();
+ selectionPattern=processor.engine.selectedPattern.load();
+}
+void InversoDrumEditor::selectAllLaneSteps(int pad){
+ const int pat=processor.engine.selectedPattern.load();
+ if(selectionPattern!=pat)clearSelections();
+ stepSelection.clear();
+ const int count=stepSelection.selectAllLoaded(processor.engine,pat,pad);
+ selectedStep=0;
+ if(count>0){
+  for(int step=0;step<inverso_drum::steps;++step)
+   if(stepSelection.has(pad,step)){selectedStep=step;break;}
+ }
+ selectPad(pad);
+ updateUi();
+}
+void InversoDrumEditor::syncLaneLength(){
+ laneLength.setValue(processor.engine.laneLength[selectedPad].load(),
+                     juce::dontSendNotification);
+}
+void InversoDrumEditor::undoLaneEdit(int pad){
+ if(!laneUndo.canUndo(pad))return;
+ const int pattern=laneUndo.lastPattern(pad);
+ std::string path;
+ if(!laneUndo.undo(processor.engine,pad,&path))return;
+ processor.restorePadReference(pad,path);
+ processor.engine.selectedPattern.store(pattern);
+ clearSelections();selectedStep=0;selectPad(pad);updateUi();
+}
+void InversoDrumEditor::showLaneMenu(int pad,juce::Component* source){
+ selectPad(pad);
+ juce::PopupMenu menu;
+ menu.addSectionHeader(juce::String("TRACK ")+juce::String(pad+1)+
+                       "  /  "+padNames[pad]);
+ menu.addItem(1,"Load sample...");
+ menu.addSeparator();
+ const int pat=processor.engine.selectedPattern.load();
+ int existing=0;
+ for(int step=0;step<inverso_drum::steps;++step)
+  if(processor.engine.get(pat,pad,step)>0)++existing;
+ menu.addItem(2,"Select all notes ("+juce::String(existing)+")",existing>0);
+ menu.addItem(3,"Erase all notes (current pattern)",existing>0);
+ menu.addItem(4,"Clear selection",stepSelection.count(pad)>0);
+ menu.addSeparator();
+ menu.addItem(5,"Undo last track edit",laneUndo.canUndo(pad));
+ juce::Component::SafePointer<InversoDrumEditor> safe(this);
+ menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(source),
+  [safe,pad](int result){
+   if(safe==nullptr)return;
+   if(result==1)safe->loadSampleOnPad(pad);
+   else if(result==2)safe->selectAllLaneSteps(pad);
+   else if(result==3){
+    safe->captureLaneUndo(pad);
+    inverso_drum::eraseAllLaneNotes(safe->processor.engine,
+                    safe->processor.engine.selectedPattern.load(),pad);
+    safe->clearSelections();
+    safe->selectPad(pad);safe->updateUi();
+   }else if(result==4){
+    safe->clearSelections();safe->updateUi();
+   }else if(result==5)safe->undoLaneEdit(pad);
+  });
+}
+void InversoDrumEditor::loadSampleOnPad(int pad){
+ if(pad<0||pad>=16)return;
+ chooser=std::make_unique<juce::FileChooser>("Load sample for "+juce::String(padNames[pad]),
+   juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+   "*.wav;*.wave;*.aif;*.aiff",false);
+ juce::Component::SafePointer<InversoDrumEditor> safe(this);
+ chooser->launchAsync(juce::FileBrowserComponent::openMode |
+                        juce::FileBrowserComponent::canSelectFiles,
+  [safe,pad](const juce::FileChooser& fileChooser){
+   if(safe==nullptr)return;
+   const auto file=fileChooser.getResult();
+   if(!file.existsAsFile())return;
+   safe->captureLaneUndo(pad);
+   if(safe->processor.loadPadFile(pad,file)){
+    safe->clearSelections();safe->selectPad(pad);
+    safe->processor.auditionPad(pad);
+   }else juce::AlertWindow::showMessageBoxAsync(
+    juce::MessageBoxIconType::WarningIcon,
+    "INVERSO DRUM — Sample Load",
+    "Could not load WAV/AIFF file: "+file.getFullPathName());
+  });
+}
 void InversoDrumEditor::updateUi(){
  const int active=processor.engine.selectedPattern.load();
  for(int i=0;i<8;++i){
@@ -583,24 +673,7 @@ void InversoDrumEditor::filesDropped(const juce::StringArray& files,int x,int y)
  }
  if(inserted>0){selectPad(target);updateUi();}
 }
-void InversoDrumEditor::loadSelected(){
- chooser=std::make_unique<juce::FileChooser>("Import WAV/AIFF sample",
-   juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),"*.wav;*.wave;*.aif;*.aiff",false);
- const int pad=selectedPad;
- juce::Component::SafePointer<InversoDrumEditor> safe(this);
- chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
- [safe,pad](const juce::FileChooser& fc){
-  if(safe==nullptr)return;
-  const auto file=fc.getResult();
-  if(!file.existsAsFile())return;
-  if(safe->processor.loadPadFile(pad,file)){
-   safe->selectPad(pad);
-   safe->processor.auditionPad(pad);
-  }else juce::AlertWindow::showMessageBoxAsync(
-     juce::MessageBoxIconType::WarningIcon,"INVERSO DRUM",
-     "The selected file could not be imported: "+file.getFullPathName());
- });
-}
+void InversoDrumEditor::loadSelected(){loadSampleOnPad(selectedPad);}
 void InversoDrumEditor::exportMidi(){
  chooser=std::make_unique<juce::FileChooser>("Export drum pattern to MIDI",juce::File{},"*.mid");
  juce::Component::SafePointer<InversoDrumEditor> safe(this);
