@@ -21,16 +21,43 @@ int main(){
   juce::MemoryBlock mem;p.getStateInformation(mem);check(mem.getSize()>10,"save state");
   InversoDrumProcessor restored;restored.setStateInformation(mem.getData(),static_cast<int>(mem.getSize()));
   check(restored.engine.get(0,0,0)==p.engine.get(0,0,0),"pattern state restored");
-  p.engine.setLaneLength(0,128);p.engine.setDivision(0,2,2);p.engine.set(0,0,127,105);
+  p.engine.setLaneLength(0,128);p.engine.setDivision(0,2,2);
+  p.engine.set(0,0,0,17);p.engine.set(0,0,1,91);p.engine.set(0,0,127,127);
   p.engine.sampleStart[0].store(.2f);p.engine.samplePitch[0].store(7.f);
   p.engine.drive[0].store(.5f);p.effects.delayFeel.store(1);
   juce::MemoryBlock extended;p.getStateInformation(extended);
   InversoDrumProcessor expanded;expanded.setStateInformation(extended.getData(),static_cast<int>(extended.getSize()));
-  check(expanded.engine.get(0,0,127)==105,"128th step state restored");
+  check(expanded.engine.get(0,0,0)==17,"step 1 velocity restored");
+  check(expanded.engine.get(0,0,1)==91,"step 2 velocity restored");
+  check(expanded.engine.get(0,0,127)==127,"step 128 velocity restored");
   check(expanded.engine.laneLength[0].load()==128,"lane length state restored");
   check(expanded.engine.feel[0].load()==2,"triplet state restored");
   check(std::abs(expanded.engine.samplePitch[0].load()-7)<.01f,"sample pitch state restored");
   check(expanded.effects.delayFeel.load()==1,"effect division state restored");
+  // MIDI export must preserve exact 1..127 per-step velocity values, not fixed presets.
+  auto midiPath=juce::File::getSpecialLocation(juce::File::tempDirectory)
+      .getNonexistentChildFile("INVERSO_velocity_test",".mid",false);
+  p.engine.chain.store(false);p.engine.selectedPattern.store(0);
+  check(p.exportMidi(midiPath),"MIDI file export failed");
+  std::unique_ptr<juce::FileInputStream> stream(midiPath.createInputStream());
+  check(stream!=nullptr&&stream->openedOk(),"MIDI file could not reopen");
+  juce::MidiFile readBack;
+  check(readBack.readFrom(*stream),"MIDI file parse failed");
+  const auto* track=readBack.getTrack(0);
+  check(track!=nullptr,"MIDI export track missing");
+  bool found17=false,found91=false,found127=false;
+  for(int i=0;i<track->getNumEvents();++i){
+   const auto& msg=track->getEventPointer(i)->message;
+   if(msg.isNoteOn()&&msg.getNoteNumber()==36){
+    found17|=msg.getVelocity()==17;
+    found91|=msg.getVelocity()==91;
+    found127|=msg.getVelocity()==127;
+   }
+  }
+  check(found17&&found91&&found127,"distinct step velocities lost in MIDI export");
+  stream.reset();midiPath.deleteFile();
+  std::unique_ptr<juce::AudioProcessorEditor> ui(p.createEditor());
+  check(ui!=nullptr&&ui->getHeight()>=900,"v0.4 velocity editor did not open");
   p.releaseResources();
  }
  std::puts("Inverso Drum JUCE host smoke passed");
