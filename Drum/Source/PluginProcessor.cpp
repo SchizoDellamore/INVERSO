@@ -84,6 +84,16 @@ juce::String InversoDrumProcessor::sampleName(int pad)const{
  const auto& p=samplePaths[static_cast<size_t>(pad)];
  return p.isNotEmpty()?juce::File(p).getFileNameWithoutExtension():"Factory " + juce::String(pad+1);
 }
+juce::String InversoDrumProcessor::samplePath(int pad)const{
+ if(pad<0||pad>=16)return {};
+ juce::ScopedLock lock(pathLock);
+ return samplePaths[static_cast<size_t>(pad)];
+}
+void InversoDrumProcessor::restorePadReference(int pad,const std::string& path){
+ if(pad<0||pad>=16)return;
+ juce::ScopedLock lock(pathLock);
+ samplePaths[static_cast<size_t>(pad)]=juce::String::fromUTF8(path.c_str());
+}
 void InversoDrumProcessor::getStateInformation(juce::MemoryBlock& dest){
  juce::XmlElement root("INVERSO_DRUM_STATE");
  root.setAttribute("version",7);
