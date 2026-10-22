@@ -35,6 +35,16 @@ int main(){
  check(e.laneLength[snare].load()==52,"precision velocity must expand lane to step 50");
  check(e.get(pattern,snare,49)==63&&e.get(pattern,snare,first)==83,
        "late velocity incorrectly changed earlier step");
+ // Page labels must move 16 steps even when 16 steps take less than one bar.
+ for(int division=0;division<4;++division)
+  for(int feel=0;feel<3;++feel){
+   const double duration=divisionPPQ(division,feel);
+   const double p0=timelinePageStartPPQ(0,1,duration);
+   const double p1=timelinePageStartPPQ(1,1,duration);
+   check(p1>p0,"next page repeated previous page under a dotted/triplet rate");
+   check(std::abs((p1-p0)/duration-16.)<1e-7,
+         "page 17-32 should begin precisely 16 events after page 1-16");
+  }
  check(absoluteStepForPpq(127.5*dur,dur)==127,"128th step cannot be selected");
  check(absoluteStepForPpq(128*dur,dur)==-1,"out-of-bounds step was wrapped");
  check(absoluteStepForPosition(0,bars,-.01,width,dur)==-1,"negative pointer accepted");
