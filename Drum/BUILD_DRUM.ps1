@@ -21,5 +21,5 @@ if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyCont
 if(-not $iscc){throw 'Inno Setup 6 not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_DRUM.iss')
 Assert-Step 'Installer'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_DRUM_Setup_0.5.0_x64.exe'))){throw 'Installer missing'}
-Write-Host 'INVERSO DRUM 0.5.0 built and tested.'
+if(-not (Test-Path (Join-Path $root 'dist\INVERSO_DRUM_Setup_0.6.0_x64.exe'))){throw 'Installer missing'}
+Write-Host 'INVERSO DRUM 0.6.0 built and tested.'
