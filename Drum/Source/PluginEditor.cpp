@@ -391,8 +391,11 @@ void InversoDrumEditor::refreshStepEffects(){
   const bool inherited=overrideValue==inverso_drum::Engine::inheritFx;
   stepFxSliders[i].setValue(inherited?std::round(defaults[i]*100.f):overrideValue,
                             juce::dontSendNotification);
+  const int grouped=stepSelection.count(selectedPad);
   stepFxLabels[i].setText(juce::String(titles[i])+
-      (inherited?" (PAD DEFAULT)":" (THIS HIT ONLY)"),juce::dontSendNotification);
+      (grouped>0?(" ("+juce::String(grouped)+" SELECTED)"):
+        (inherited?" (PAD DEFAULT)":" (THIS HIT ONLY)")),
+        juce::dontSendNotification);
  }
  refreshing=false;
 }
