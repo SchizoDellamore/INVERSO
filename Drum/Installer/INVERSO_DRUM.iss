@@ -1,4 +1,4 @@
-#define Ver "0.5.0"
+#define Ver "0.6.0"
 #define Plugin "INVERSO DRUM.vst3"
 #define SourcePlugin "..\build\InversoDrum_artefacts\Release\VST3\" + Plugin
 [Setup]
