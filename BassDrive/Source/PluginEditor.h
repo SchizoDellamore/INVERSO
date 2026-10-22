@@ -20,12 +20,17 @@ private:
  using CA=juce::AudioProcessorValueTreeState::ComboBoxAttachment;
  void timerCallback()override{repaint();}
  InversoBassDriveProcessor& processor;
- std::array<WheelSlider,7> sliders;
- std::array<juce::Label,7> labels;
- std::array<std::unique_ptr<SA>,7> attachments;
+ std::array<WheelSlider,8> sliders;
+ std::array<juce::Label,8> labels;
+ std::array<std::unique_ptr<SA>,8> attachments;
  juce::ComboBox modes;
  std::unique_ptr<CA> modeAttachment;
  juce::Label modeLabel;
+ juce::Label gruntLabel;
+ juce::ComboBox grunt;
+ std::unique_ptr<CA> gruntAttachment;
+ juce::ToggleButton midBoost{"MID BOOST"};
+ std::unique_ptr<BA> midBoostAttachment;
  juce::ToggleButton lowProtect{"PRESERVE LOW"};
  juce::ToggleButton bypass{"BYPASS"};
  std::unique_ptr<BA> bypassAttachment;
