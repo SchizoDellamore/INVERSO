@@ -1,5 +1,5 @@
 #pragma once
-// INVERSO DRUM 0.3: 16 independent lanes, 128 steps each, 8 patterns.
+// INVERSO DRUM experimental: independent velocity and effect sends per event.
 // Scheduling uses musical PPQ positions supplied by the VST host.
 #include <algorithm>
 #include <array>
@@ -58,6 +58,9 @@ class Engine {
 public:
  Engine(){
   for(auto& pat:grid)for(auto& lane:pat)for(auto& cell:lane)cell.store(0);
+  for(auto& pattern:eventDrive)for(auto& lane:pattern)for(auto& val:lane)val.store(inheritFx);
+  for(auto& pattern:eventVerb)for(auto& lane:pattern)for(auto& val:lane)val.store(inheritFx);
+  for(auto& pattern:eventDelay)for(auto& lane:pattern)for(auto& val:lane)val.store(inheritFx);
   for(auto& g:gain)g.store(.8f);
   for(auto& p:pan)p.store(0.f);
   for(auto& a:laneLength)a.store(16);
@@ -104,6 +107,22 @@ public:
   if(pat>=0&&pat<patterns&&pad>=0&&pad<pads&&step>=0&&step<steps)
    grid[pat][pad][step].store(static_cast<uint8_t>(std::clamp(velocity,0,127)),std::memory_order_relaxed);
  }
+ // 255 means "inherit pad"; explicit 0 means NO effect for this individual hit.
+ static constexpr int inheritFx=255;
+ void setEventFx(int pattern,int pad,int step,int fx,int value)noexcept{
+  if(pattern<0||pattern>=patterns||pad<0||pad>=pads||step<0||step>=steps)return;
+  const auto v=static_cast<uint8_t>(value==inheritFx?inheritFx:std::clamp(value,0,100));
+  if(fx==0)eventDrive[pattern][pad][step].store(v,std::memory_order_relaxed);
+  if(fx==1)eventVerb[pattern][pad][step].store(v,std::memory_order_relaxed);
+  if(fx==2)eventDelay[pattern][pad][step].store(v,std::memory_order_relaxed);
+ }
+ int getEventFx(int pattern,int pad,int step,int fx)const noexcept{
+  if(pattern<0||pattern>=patterns||pad<0||pad>=pads||step<0||step>=steps)return inheritFx;
+  if(fx==0)return eventDrive[pattern][pad][step].load(std::memory_order_relaxed);
+  if(fx==1)return eventVerb[pattern][pad][step].load(std::memory_order_relaxed);
+  if(fx==2)return eventDelay[pattern][pad][step].load(std::memory_order_relaxed);
+  return inheritFx;
+ }
  void setLaneLength(int pad,int length)noexcept{
   if(pad<0||pad>=pads)return;
   laneLength[static_cast<size_t>(pad)].store(std::clamp(((length+2)/4)*4,4,steps),std::memory_order_relaxed);
@@ -124,7 +143,8 @@ public:
   }
   spanPPQ.store(std::ceil(largest/4.-1e-9)*4.,std::memory_order_relaxed);
  }
- void trigger(int pad,float velocity)noexcept{
+ // Pattern & step are -1 for MIDI/audition notes, which inherit the pad settings.
+ void trigger(int pad,float velocity,int eventPattern=-1,int eventStep=-1)noexcept{
   if(pad<0||pad>=pads)return;
   auto sample=getSample(pad);if(!sample)return;
   Voice* dest=nullptr;uint64_t oldest=UINT64_MAX;
@@ -145,6 +165,14 @@ public:
   dest->pos=dest->reverse?static_cast<double>(last-1):static_cast<double>(first);
   dest->pad=pad;dest->age=0;
   dest->velocity=clip(velocity,0.f,1.f);dest->serial=++voiceSerial;
+  const auto effectValue=[this,pad,eventPattern,eventStep](int fx,float padDefault)noexcept{
+   if(eventPattern<0||eventStep<0)return clip(padDefault,0.f,1.f);
+   const int overrideValue=getEventFx(eventPattern,pad,eventStep,fx);
+   return overrideValue==inheritFx?clip(padDefault,0.f,1.f):overrideValue*.01f;
+  };
+  dest->effectDrive=effectValue(0,drive[pad].load());
+  dest->effectVerb=effectValue(1,sendVerb[pad].load());
+  dest->effectDelay=effectValue(2,sendDelay[pad].load());
   const float pitch=clip(samplePitch[pad].load(),-24,24);
   dest->step=std::pow(2.,pitch/12.)*dest->sample->sampleRate/rate;
   dest->attackFrames=rate*.1*clip(sampleAttack[pad].load(),0,1);
@@ -180,7 +208,7 @@ public:
     const double boundary=static_cast<double>(absolute)*duration+((absolute&1LL)?swingAmt*duration:0.);
     // Avoid triggering mid-step when host starts at an arbitrary PPQ position.
     if(!first||std::abs(localPPQ-boundary)<.002){
-     const int vel=get(pat,lane,cell);if(vel)trigger(lane,vel/127.f);
+     const int vel=get(pat,lane,cell);if(vel)trigger(lane,vel/127.f,pat,cell);
     }
    }
   }
@@ -203,7 +231,7 @@ public:
    const float g=gain[v.pad].load()*v.velocity*envelope;
    const float p=clip(pan[v.pad].load(),-1,1);
    float yl=lo*g*(p>0?1-p:1),yr=ro*g*(p<0?1+p:1);
-   const float d=clip(drive[v.pad].load(),0,1);
+   const float d=v.effectDrive;
    if(d>.00001f){
     const float inputGain=1.f+22.f*d*d;
     const float mix=.85f*d;
@@ -214,7 +242,7 @@ public:
     yl=saturate(yl);yr=saturate(yr);
    }
    l+=yl;r+=yr;
-   const float verb=clip(sendVerb[v.pad].load(),0,1),del=clip(sendDelay[v.pad].load(),0,1);
+   const float verb=v.effectVerb,del=v.effectDelay;
    vl+=yl*verb;vr+=yr*verb;dl+=yl*del;dr+=yr*del;
    v.pos+=v.reverse?-v.step:v.step;v.age++;
    if(v.pos<v.first||v.pos+1>v.last)v.sample.reset();
@@ -227,6 +255,8 @@ public:
   float vl=0,vr=0,dl=0,dr=0;renderFrame(left,right,vl,vr,dl,dr);
  }
  std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> grid{};
+ // Per-event FX: values 0..100% or 255 (inherit the corresponding pad setting).
+ std::array<std::array<std::array<std::atomic<uint8_t>,steps>,pads>,patterns> eventDrive{},eventVerb{},eventDelay{};
  std::array<std::atomic<float>,pads> gain{},pan{},sampleStart{},sampleEnd{},samplePitch{},sampleAttack{},sampleDecay{},drive{},sendVerb{},sendDelay{};
  std::array<std::atomic<bool>,pads> sampleReverse{};
  std::array<std::atomic<int>,pads> laneLength{},division{},feel{},currentLaneStep{};
@@ -237,7 +267,7 @@ private:
  struct Voice {
   std::shared_ptr<const Sample> sample;
   double pos=0,step=1,age=0,attackFrames=0,decaySeconds=12;
-  float velocity=1;uint64_t serial=0;int pad=0,first=0,last=0;bool reverse=false;
+  float velocity=1,effectDrive=0,effectVerb=0,effectDelay=0;uint64_t serial=0;int pad=0,first=0,last=0;bool reverse=false;
  };
  std::array<Voice,voices> active{};
  std::array<std::shared_ptr<const Sample>,pads> samples{};
