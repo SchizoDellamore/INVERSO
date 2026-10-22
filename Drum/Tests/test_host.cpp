@@ -151,6 +151,12 @@ int main(){
   check(eventCopy.engine.getEventFx(0,1,11,1)==0,"dry reverb hit-specific state lost");
   check(eventCopy.engine.getEventFx(0,1,3,0)==57,"drive hit-specific state lost");
   check(eventCopy.engine.getEventFx(0,1,4,1)==255,"adjacent step inherited effect was corrupted");
+  // A project with no event overrides must remove stale FX from the previous project.
+  InversoDrumProcessor cleanProject;
+  juce::MemoryBlock cleanState;cleanProject.getStateInformation(cleanState);
+  eventCopy.setStateInformation(cleanState.getData(),static_cast<int>(cleanState.getSize()));
+  check(eventCopy.engine.getEventFx(0,1,3,1)==255,
+        "loading a clean or legacy project retained a previous reverb step");
   p.releaseResources();
  }
  std::puts("Inverso Drum JUCE host smoke passed");
