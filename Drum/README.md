@@ -1,4 +1,4 @@
-# INVERSO DRUM v0.6 — externally loaded samples, user sample collections, per-hit FX
+# INVERSO DRUM v0.6.1 — externally loaded samples, user sample collections, per-hit FX
 
 Windows x64 VST3 / JUCE 8. Independent drum sampler and step sequencer for DAWs. Cubase/Studio One/Ableton compatibility must be verified in the actual host; CI does not substitute for testing the host GUI.
 
@@ -16,14 +16,17 @@ Windows x64 VST3 / JUCE 8. Independent drum sampler and step sequencer for DAWs.
 - **RESET STEP FX** switches the selected hit back to pad settings.
 - On playback, each voice captures its effective Drive, Reverb Send and Delay Send at trigger time. FX of one hit cannot change the sends of a later hit or the same instrument's other steps. The shared reverb/delay tail may naturally overlap subsequent dry hits.
 - Global reverb tone/decay and delay division/feedback remain common processor settings, **not independent delay-time or reverb algorithms per event**.
-- Velocity 0–127 remains stored for each individual event, independent of pad gain. Right-drag adjusts the selected step; wheel +/-5 or Shift+wheel +/-1; exact text value below the timeline. Those values are saved and exported as MIDI velocities.
+- **Left mouse button (LMB)** adds a step (default velocity 105). Repeated clicks or left-dragging over a programmed step **never toggle or overwrite it**. LMB can paint multiple steps while dragging.
+- **Right mouse button (RMB)** deletes a note (velocity 0) and clears its now-unused per-event FX. Right-drag can erase multiple steps. Adjacent notes, even on the same drum lane, are untouched.
+- Velocity 0–127 remains individual to each event, independent of pad gain. Select the note and use **STEP VELOCITY** for exact entry; wheel +/-5, Shift+wheel +/-1. Those values are saved and exported as MIDI velocities.
 
 ## Automated validation
-Windows GitHub Actions runs 6 tests, including:
+Windows GitHub Actions runs 7 tests, including:
 - Real generated WAV file written to disk, decoded into pad 4 in place of a factory sample, played by a MIDI event through processBlock, and reloaded from the saved session path.
 - The same production importer via **IMPORT PATH**, plus folder discovery by the production indexing algorithm.
 - Per-step reverb-only, delay-only and dry samples from the **same** snare, with drive rendering difference.
 - Reverb and delay output/tail audibility, independent steps, pattern/MIDI save state and precise 0–127 velocity.
 - Clean-session reload clears old event effects; older project files remain readable.
+- Mouse-edit regressions: LMB add, RMB erase, drag painting, no toggling of existing notes, and unchanged velocities/effects on other steps.
 
 Successful CI does not prove native Cubase MediaBay drag-and-drop, native file chooser focus, Windows antivirus heuristics, or the end-user experience in Cubase 15. The installer is unsigned; verify provenance and SHA-256 before use. Close Cubase before replacing the old plugin and test in a duplicate project.
