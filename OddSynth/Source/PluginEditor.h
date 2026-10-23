@@ -42,9 +42,11 @@ public:explicit OddSamplePanel(OddProcessor&);~OddSamplePanel()override;void res
 private:
     void choose(bool exporting);void importFile(const juce::File&);
     OddProcessor& processor;OddWave wave;OddKnob sampleMix,speed,grain;
-    juce::TextButton load{"Carregar audio"},save{"Exportar WAV"},all{"Selecionar tudo"},preview{"Tocar / parar C4"};
+    juce::TextButton load{"Carregar audio"},save{"Exportar WAV"},all{"Selecionar tudo"},preview{"Tocar / parar"};
     juce::Label status,help;
     juce::ToggleButton granular{"Granular"},loop{"Loop"},reverse{"Reverse na reproducao"};
+    juce::ComboBox route;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> routeA;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> granularA,loopA,reverseA;
     std::array<juce::TextButton,7> edits;
     juce::Slider start,end;juce::Label startLabel,endLabel;

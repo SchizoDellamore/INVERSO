@@ -26,7 +26,9 @@ struct Settings {
     float attack = .08f, release = .8f, gain = .18f;
     float sampleMix = 0, sampleStart = 0, sampleEnd = 1, sampleSpeed = 1;
     float grainSize = .14f; bool granular = false, sampleLoop = true, reverse = false;
+    int sampleRoute = 0;
 };
+struct MotionState { double seconds = 0;std::array<float,dimensions> last{};bool valid = false; };
 
 // The random trajectory is a function of time and seed, never of buffer size.
 // Locks override the range. A zero amount or Manual is exactly the base value.
@@ -35,6 +37,8 @@ public:
     void prepare(double sampleRate) { sr = std::max(8000.0, sampleRate); reset(); }
     void reset() { clock = 0; last.fill(0); haveLast = false; }
     void reseed() { reset(); }
+    MotionState snapshot() const { return {clock,last,haveLast}; }
+    void restore(const MotionState& s) { clock=std::isfinite(s.seconds)?std::clamp(s.seconds,0.0,315360000.0):0;last=s.last;for(auto& x:last)x=unit(x);haveLast=s.valid; }
     std::array<float, dimensions> tick(const Settings& s) {
         std::array<float, dimensions> out{};
         const double period = 8.0 * std::pow(.025, static_cast<double>(unit(s.rate)));
@@ -84,7 +88,10 @@ class Engine {
         uint64_t age = 0;
         double phase = 0, pulse = 0, play = 0, grainClock = 0;
         std::array<double, 12> partial{};
+        std::array<float, 12> resonance1{},resonance2{};
+        std::array<float, 6> formant1{},formant2{};
         float env = 0, velocity = 1, noise = 0;
+        float lastL = 0, lastR = 0, tailL = 0, tailR = 0;
         uint32_t rng = 1, grainSeed = 1;
         float nextNoise() { rng = hash(rng+0x9e3779b9u); return static_cast<float>(rng >> 8)/8388607.5f-1; }
     };
@@ -93,13 +100,16 @@ public:
     void reset() { for (auto& v:voices) v=Voice{}; ordinal=0; motion.reset(); bend.fill(0); sustain.fill(false); }
     void stop() { for(auto& v:voices)v=Voice{}; }
     void restartMotion() { ordinal=0; motion.reset(); }
+    MotionState motionSnapshot() const { return motion.snapshot(); }
+    void restoreMotion(const MotionState& s) { ordinal=0;motion.restore(s); }
     void setSample(const Sample* data) { stop(); sample=data; }
     bool hasSample() const { return sample && sample->left.size()>1; }
     void noteOn(int note, float velocity, int channel, const Settings& s) {
         Voice* chosen=nullptr;
         for(auto& v:voices) if(!v.active){chosen=&v;break;}
         if(!chosen) chosen=&*std::min_element(voices.begin(),voices.end(),[](const Voice& a,const Voice& b){return a.env < b.env;});
-        *chosen=Voice{}; chosen->active=true; chosen->note=std::clamp(note,0,127);
+        const float stolenL=chosen->lastL,stolenR=chosen->lastR;
+        *chosen=Voice{};chosen->tailL=stolenL;chosen->tailR=stolenR;chosen->active=true; chosen->note=std::clamp(note,0,127);
         chosen->channel=std::clamp(channel,1,16);chosen->velocity=unit(velocity);
         chosen->rng=hash(s.seed ^ hash(++ordinal) ^ hash(static_cast<uint32_t>(note)));
         chosen->grainSeed=chosen->rng;
@@ -142,15 +152,25 @@ public:
             v.noise += (.015f+.6f*bright)*(white-v.noise);
             v.phase = std::fmod(v.phase+f/sr,1.0);
             const float fundamental=static_cast<float>(std::sin(v.phase*2*pi));
+            const bool useSample=hasSample()&&s.sampleMix>0;
+            const auto sampled=useSample?sampleVoice(v,s,f,dense,unstable):Stereo{};
             float material=0, swarmL=0, swarmR=0;
+            Stereo sampleMatter;
             for(size_t j=0;j<v.partial.size();++j){
                 double ratio;
                 if(j<6)ratio=1.0+static_cast<double>(j)*(1.0+rough*.67)+rough*.13*j*j;
                 else ratio=std::pow(2.0,(static_cast<double>(j)-8.5)*(dense*.13+unstable*.12)/12.0);
                 const double pf=f*ratio;
                 v.partial[j]=std::fmod(v.partial[j]+pf/sr,1.0);
-                const float osc=pf<sr*.45 ? static_cast<float>(std::sin(v.partial[j]*2*pi)) : 0.0f;
-                if(j<6)material+=osc*static_cast<float>(std::exp(-static_cast<double>(j)*(.85-.6*bright)))/(1.0f+.4f*static_cast<float>(j));
+                const bool needed=j<6?s.level[0]>.00001f:s.level[2]>.00001f;
+                const float osc=needed&&pf<sr*.45 ? static_cast<float>(std::sin(v.partial[j]*2*pi)) : 0.0f;
+                if(j<6){
+                    material+=osc*static_cast<float>(std::exp(-static_cast<double>(j)*(.85-.6*bright)))/(1.0f+.4f*static_cast<float>(j));
+                    if(useSample&&s.sampleRoute==1&&pf<sr*.45){
+                        const float pole=.996f+bright*.003f;
+                        for(size_t c=0;c<2;++c){const auto at=j+c*6;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)+2*pole*static_cast<float>(std::cos(pf/sr*2*pi))*v.resonance1[at]-pole*pole*v.resonance2[at];v.resonance2[at]=v.resonance1[at];v.resonance1[at]=ring;if(c==0)sampleMatter.l+=ring/(1+.4f*static_cast<float>(j));else sampleMatter.r+=ring/(1+.4f*static_cast<float>(j));}
+                    }
+                }
                 else {
                     const float weight=unit(dense*6.0f-static_cast<float>(j-6));
                     if(j%2==0)swarmL+=osc*weight;else swarmR+=osc*weight;
@@ -161,7 +181,7 @@ public:
             // Formant-like, band-limited harmonics: explicitly synthetic voice source.
             float throat=0;
             const double formant=350+vowel*1700;
-            for(int h=1;h<=14;++h){
+            for(int h=1;s.level[1]>.00001f&&h<=14;++h){
                 const double hf=f*h;
                 if(hf>=sr*.45)break;
                 const double formantWeight=std::exp(-std::pow((hf-formant)/(130+vowel*380),2.0)*.5);
@@ -171,14 +191,22 @@ public:
             v.pulse=std::fmod(v.pulse+(0.2+12*pulseRate)/sr,1.0);
             const float beat=static_cast<float>(std::exp(-v.pulse*(14+rough*34)));
             const float pulse=(fundamental*.7f+v.noise*rough*.5f)*beat;
-            const float base=material*unit(s.level[0])+throat*unit(s.level[1])+pulse*unit(s.level[3]);
-            Stereo voice{base+swarmL*.18f*unit(s.level[2]),base+swarmR*.18f*unit(s.level[2])};
-            if(hasSample()&&s.sampleMix>0){
-                const auto a=sampleVoice(v,s,f);
-                voice.l+=a.l*unit(s.sampleMix);voice.r+=a.r*unit(s.sampleMix);
+            Stereo outMaterial{material,material},outThroat{throat,throat},outPulse{pulse,pulse};
+            if(useSample&&s.sampleRoute==1){outMaterial.l=material*(1-unit(s.sampleMix))+sampleMatter.l*3*unit(s.sampleMix);outMaterial.r=material*(1-unit(s.sampleMix))+sampleMatter.r*3*unit(s.sampleMix);}
+            if(useSample&&s.sampleRoute==2){
+                Stereo filtered;
+                for(size_t k=0;k<3;++k){const double hz=(350+vowel*1400)*(1+static_cast<double>(k)*.72);const float pole=.975f;for(size_t c=0;c<2;++c){const auto at=k+c*3;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)+2*pole*static_cast<float>(std::cos(std::min(hz,sr*.42)/sr*2*pi))*v.formant1[at]-pole*pole*v.formant2[at];v.formant2[at]=v.formant1[at];v.formant1[at]=ring;if(c==0)filtered.l+=ring;else filtered.r+=ring;}}
+                outThroat.l=throat*(1-unit(s.sampleMix))+filtered.l*unit(s.sampleMix);outThroat.r=throat*(1-unit(s.sampleMix))+filtered.r*unit(s.sampleMix);
             }
+            if(useSample&&s.sampleRoute==3){swarmL=swarmL*(1-unit(s.sampleMix))+sampled.l*(1+fundamental*dense)*3*unit(s.sampleMix);swarmR=swarmR*(1-unit(s.sampleMix))+sampled.r*(1-fundamental*dense)*3*unit(s.sampleMix);}
+            if(useSample&&s.sampleRoute==4){outPulse.l=pulse*(1-unit(s.sampleMix))+sampled.l*beat*unit(s.sampleMix);outPulse.r=pulse*(1-unit(s.sampleMix))+sampled.r*beat*unit(s.sampleMix);}
+            const Stereo base{outMaterial.l*unit(s.level[0])+outThroat.l*unit(s.level[1])+outPulse.l*unit(s.level[3]),outMaterial.r*unit(s.level[0])+outThroat.r*unit(s.level[1])+outPulse.r*unit(s.level[3])};
+            Stereo voice{base.l+swarmL*.18f*unit(s.level[2]),base.r+swarmR*.18f*unit(s.level[2])};
+            if(useSample&&s.sampleRoute==0){voice.l+=sampled.l*unit(s.sampleMix);voice.r+=sampled.r*unit(s.sampleMix);}
             const float amp=v.env*v.velocity;
-            result.l+=voice.l*amp;result.r+=voice.r*amp;
+            const float tailDecay=static_cast<float>(std::exp(-1.0/(sr*.003)));
+            v.lastL=voice.l*amp+v.tailL;v.lastR=voice.r*amp+v.tailR;
+            result.l+=v.lastL;result.r+=v.lastR;v.tailL*=tailDecay;v.tailR*=tailDecay;
             ++v.age;
         }
         result.l*=std::clamp(s.gain,0.0f,1.0f);result.r*=std::clamp(s.gain,0.0f,1.0f);
@@ -194,7 +222,7 @@ private:
         const auto i=static_cast<size_t>(at),j=std::min(i+1,data.size()-1);
         return data[i]+(data[j]-data[i])*static_cast<float>(at-static_cast<double>(i));
     }
-    Stereo sampleVoice(Voice& v,const Settings& s,double f){
+    Stereo sampleVoice(Voice& v,const Settings& s,double f,float density,float unstable){
         const double length=sampleLength();
         const double lo=std::min(unit(s.sampleStart),unit(s.sampleEnd))*std::max(0.0,length-2);
         const double hi=std::max(lo+2,std::max(unit(s.sampleStart),unit(s.sampleEnd))*length);
@@ -204,14 +232,21 @@ private:
         double pos=v.play;
         float window=1;
         if(s.granular){
-            const double grainSamples=std::clamp(static_cast<double>(s.grainSize),.015,.5)*sr;
-            const double cycle=v.grainClock/grainSamples;
-            const auto index=static_cast<uint64_t>(cycle);
-            const double phase=cycle-std::floor(cycle);
-            const double region=std::max(0.0,span-grainSamples*step);
-            pos=lo+randomAt(v.grainSeed,index,14)*region+phase*grainSamples*step;
-            window=static_cast<float>(.5-.5*std::cos(phase*2*pi));
-            ++v.grainClock;
+            const double grainSamples=std::clamp(static_cast<double>(s.grainSize)*(1-.65*density),.008,.5)*sr;
+            Stereo grain;
+            for(int overlap=0;overlap<2;++overlap){
+                const double cycle=v.grainClock/grainSamples+.5*overlap;
+                const auto index=static_cast<uint64_t>(cycle);
+                const double phase=cycle-std::floor(cycle);
+                const double region=std::max(0.0,span-grainSamples*step);
+                const double drift=static_cast<double>(randomAt(v.grainSeed,index,14+overlap))*unstable;
+                double p=lo+drift*region+phase*grainSamples*step;
+                p=lo+std::fmod(std::max(0.0,p-lo),span);
+                if(s.reverse)p=hi-1-(p-lo);
+                const float w=static_cast<float>(.5-.5*std::cos(phase*2*pi));
+                grain.l+=read(sample->left,p)*w;grain.r+=read(sample->right.empty()?sample->left:sample->right,p)*w;
+            }
+            ++v.grainClock;return grain;
         }else{
             if(!s.sampleLoop&&v.play>=hi)return {};
             pos=lo+std::fmod(std::max(0.0,v.play-lo),span);

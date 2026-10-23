@@ -22,6 +22,7 @@ Layout OddProcessor::layout(){
     f("sampleMix","Sample",0,1,0);f("sampleStart","Inicio do trecho",0,1,0);f("sampleEnd","Fim do trecho",0,1,1);
     f("sampleSpeed","Velocidade do sample",.125f,4,1,.5f);f("grain","Tamanho do grao s",.015f,.5f,.14f,.5f);
     b("granular","Granular",false);b("sampleLoop","Loop",true);b("sampleReverse","Reproducao reversa",false);
+    l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"sampleRoute",1},"Destino do sample",juce::StringArray{"Camada","Materia","Garganta","Enxame","Pulso"},0));
     f("reverb","Reverb",0,1,0);f("delay","Delay",0,1,0);f("drive","Distorcao",0,1,0);
     f("delayTime","Tempo do delay s",.05f,1.5f,.37f,.5f);
     return l;
@@ -29,7 +30,7 @@ Layout OddProcessor::layout(){
 OddProcessor::OddProcessor():AudioProcessor(BusesProperties().withOutput("Saida",juce::AudioChannelSet::stereo(),true)),state(*this,&undoManager,"OddSynth",layout()){}
 bool OddProcessor::isBusesLayoutSupported(const BusesLayout& b)const{return b.getMainInputChannelSet().isDisabled()&&(b.getMainOutputChannelSet()==juce::AudioChannelSet::stereo()||b.getMainOutputChannelSet()==juce::AudioChannelSet::mono());}
 float OddProcessor::value(const juce::String& id)const{if(auto* p=state.getRawParameterValue(id))return p->load();return 0;}
-void OddProcessor::setValue(const juce::String& id,float v){if(auto* p=state.getParameter(id)){p->beginChangeGesture();p->setValueNotifyingHost(p->convertTo0to1(v));p->endChangeGesture();}}
+void OddProcessor::setValue(const juce::String& id,float v){if(auto* p=state.getParameter(id)){p->beginChangeGesture();state.getParameterAsValue(id).setValue(p->convertFrom0to1(p->convertTo0to1(v)));p->endChangeGesture();}}
 odd::Settings OddProcessor::settings()const{
     odd::Settings s;
     for(size_t i=0;i<ids.size();++i)s.route[i]={value(ids[i]),value(ids[i]+"Low"),value(ids[i]+"High"),value(ids[i]+"Lock")>.5f};
@@ -39,6 +40,7 @@ odd::Settings OddProcessor::settings()const{
     s.gain=juce::Decibels::decibelsToGain(value("gain"))*expression;
     s.sampleMix=value("sampleMix");s.sampleStart=value("sampleStart");s.sampleEnd=value("sampleEnd");s.sampleSpeed=value("sampleSpeed");
     s.grainSize=value("grain");s.granular=value("granular")>.5f;s.sampleLoop=value("sampleLoop")>.5f;s.reverse=value("sampleReverse")>.5f;
+    s.sampleRoute=static_cast<int>(value("sampleRoute"));
     return s;
 }
 void OddProcessor::prepareToPlay(double sampleRate,int block){
@@ -64,6 +66,7 @@ void OddProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuffe
     keyboard.processNextMidiBuffer(events,0,buffer.getNumSamples(),true);
     bool playing=false;if(auto* p=getPlayHead())if(auto pos=p->getPosition())playing=pos->getIsPlaying();
     if((playing&&!wasPlaying&&value("repeat")>.5f)||restartRequest.exchange(false))engine.restartMotion();
+    if(motionRestoreRequest.exchange(false))engine.restoreMotion(pendingMotion);
     wasPlaying=playing;
     if(panicRequest.exchange(false)){engine.stop();keyboard.allNotesOff(0);reverb.reset();std::fill(delayL.begin(),delayL.end(),0);std::fill(delayR.begin(),delayR.end(),0);}
     auto s=settings();const float smooth=static_cast<float>(1-std::exp(-1.0/(sr*.015)));
@@ -96,6 +99,7 @@ void OddProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuffe
 void OddProcessor::restart(){restartRequest=true;}
 void OddProcessor::panic(){panicRequest=true;}
 void OddProcessor::randomise(){
+    state.copyState();
     undoManager.beginNewTransaction("Variar timbre");
     const uint32_t seed=static_cast<uint32_t>(value("seed"));
     for(size_t i=0;i<ids.size();++i)if(value(ids[i]+"Lock")<.5f){float lo=value(ids[i]+"Low"),hi=value(ids[i]+"High");if(lo>hi)std::swap(lo,hi);const float base=std::clamp(value(ids[i]),lo,hi);setValue(ids[i],base+value("amount")*(lo+(hi-lo)*odd::randomAt(seed,1,static_cast<int>(i))-base));}
@@ -125,13 +129,13 @@ bool OddProcessor::loadSample(const juce::File& file,juce::String& error){
     for(auto* d:{&s->left,&s->right})for(auto& x:*d)if(!std::isfinite(x))x=0;
     undoManager.beginNewTransaction("Carregar sample");undoManager.perform(new SampleAction(*this,s,file.getFileName()));setValue("sampleStart",0);setValue("sampleEnd",1);setValue("sampleMix",.7f);return true;
 }
-void OddProcessor::sampleEdit(int action){
-    auto original=sampleCopy();if(!original)return;auto next=std::make_shared<odd::Sample>(*original);
-    const float a=value("sampleStart"),b=value("sampleEnd");const auto range=odd::edit::range(*next,a,b);if(range.second<=range.first)return;
+bool OddProcessor::sampleEdit(int action){
+    auto original=sampleCopy();if(!original)return false;auto next=std::make_shared<odd::Sample>(*original);
+    const float a=value("sampleStart"),b=value("sampleEnd");const auto range=odd::edit::range(*next,a,b);if(range.second<=range.first)return false;
     if(action==0)odd::edit::reverse(*next,a,b);if(action==1)odd::edit::crop(*next,a,b);if(action==2)odd::edit::erase(*next,a,b);
     if(action==3)odd::edit::fade(*next,a,b,true);if(action==4)odd::edit::fade(*next,a,b,false);
-    if(action==5){if(next->left.size()+range.second-range.first>8000000)return;odd::edit::speed(*next,a,b,.5);}if(action==6)odd::edit::speed(*next,a,b,2);
-    undoManager.beginNewTransaction("Editar sample");undoManager.perform(new SampleAction(*this,next,sampleName()));if(action==1||action==2||action==5||action==6){setValue("sampleStart",0);setValue("sampleEnd",1);}
+    if(action==5){if(next->left.size()+range.second-range.first>8000000)return false;odd::edit::speed(*next,a,b,.5);}if(action==6)odd::edit::speed(*next,a,b,2);
+    const auto name=sampleName();undoManager.beginNewTransaction("Editar sample");undoManager.perform(new SampleAction(*this,next->left.empty()?nullptr:next,next->left.empty()?juce::String{}:name));if(action==1||action==2||action==5||action==6){setValue("sampleStart",0);setValue("sampleEnd",1);}return true;
 }
 static bool writeWav(const juce::File& file,const juce::AudioBuffer<float>& audio,double rate){
     juce::TemporaryFile temp(file);auto stream=temp.getFile().createOutputStream();if(!stream)return false;
@@ -155,12 +159,14 @@ juce::String OddProcessor::encodeSample(const odd::Sample& s){
 std::shared_ptr<const odd::Sample> OddProcessor::decodeSample(const juce::String& text){
     if(text.isEmpty())return {};if(text.length()>100000000)return {};juce::MemoryBlock compressed;if(!compressed.fromBase64Encoding(text))return {};
     juce::MemoryInputStream input(compressed,false);juce::GZIPDecompressorInputStream zip(input);const double rate=zip.readDouble();const int n=zip.readInt();
-    if(rate<8000||rate>384000||!std::isfinite(rate)||n<2||n>8000000||n>rate*120)return {};
+    if(rate<8000||rate>384000||!std::isfinite(rate)||n<2||n>8000000)return {};
     auto s=std::make_shared<odd::Sample>();s->sampleRate=rate;s->left.resize(static_cast<size_t>(n));s->right.resize(static_cast<size_t>(n));
     for(auto* d:{&s->left,&s->right})for(auto& x:*d){if(zip.isExhausted())return {};x=zip.readFloat();if(!std::isfinite(x))x=0;}return s;
 }
 juce::ValueTree OddProcessor::makeState(bool withSlots){
     auto tree=state.copyState();tree.setProperty("formatVersion",1,nullptr);tree.setProperty("sampleName",sampleName(),nullptr);if(auto s=sampleCopy())tree.setProperty("sampleData",encodeSample(*s),nullptr);
+    odd::MotionState movement;{const juce::ScopedLock lock(getCallbackLock());movement=motionRestoreRequest.load()?pendingMotion:engine.motionSnapshot();}
+    tree.setProperty("motionSeconds",movement.seconds,nullptr);tree.setProperty("motionValid",movement.valid,nullptr);for(size_t i=0;i<movement.last.size();++i)tree.setProperty("motion"+juce::String(static_cast<int>(i)),movement.last[i],nullptr);
     if(withSlots){if(slotA.isValid()){auto a=juce::ValueTree("SlotA");a.addChild(slotA.createCopy(),-1,nullptr);tree.addChild(a,-1,nullptr);}if(slotB.isValid()){auto b=juce::ValueTree("SlotB");b.addChild(slotB.createCopy(),-1,nullptr);tree.addChild(b,-1,nullptr);}}return tree;
 }
 bool OddProcessor::applyState(const juce::ValueTree& t,bool withSlots){
@@ -168,8 +174,9 @@ bool OddProcessor::applyState(const juce::ValueTree& t,bool withSlots){
     const auto data=t.getProperty("sampleData").toString();auto sample=decodeSample(data);if(data.isNotEmpty()&&!sample)return false;
     auto clean=t.createCopy();clean.removeProperty("sampleData",nullptr);clean.removeProperty("sampleName",nullptr);clean.removeChild(clean.getChildWithName("SlotA"),nullptr);clean.removeChild(clean.getChildWithName("SlotB"),nullptr);
     state.replaceState(clean);swapSample(sample,t.getProperty("sampleName").toString());
+    {const juce::ScopedLock lock(getCallbackLock());pendingMotion.seconds=static_cast<double>(t.getProperty("motionSeconds",0));pendingMotion.valid=static_cast<bool>(t.getProperty("motionValid",false));for(size_t i=0;i<pendingMotion.last.size();++i)pendingMotion.last[i]=static_cast<float>(t.getProperty("motion"+juce::String(static_cast<int>(i)),0));motionRestoreRequest=true;}
     if(withSlots){slotA=t.getChildWithName("SlotA").getChild(0).createCopy();slotB=t.getChildWithName("SlotB").getChild(0).createCopy();undoManager.clearUndoHistory();}
-    restart();return true;
+    return true;
 }
 void OddProcessor::getStateInformation(juce::MemoryBlock& out){auto xml=makeState(true).createXml();copyXmlToBinary(*xml,out);}
 void OddProcessor::setStateInformation(const void* bytes,int size){if(auto xml=getXmlFromBinary(bytes,size))applyState(juce::ValueTree::fromXml(*xml),true);}
@@ -181,6 +188,7 @@ bool OddProcessor::recallSlot(int slot){
     undoManager.beginNewTransaction(slot==0?"Recuperar A":"Recuperar B");
     undoManager.perform(new SampleAction(*this,sample,t.getProperty("sampleName").toString()));
     for(int i=0;i<t.getNumChildren();++i){auto c=t.getChild(i);const auto id=c.getProperty("id").toString();if(state.getParameter(id))setValue(id,static_cast<float>(c.getProperty("value")));}
+    {const juce::ScopedLock lock(getCallbackLock());pendingMotion.seconds=static_cast<double>(t.getProperty("motionSeconds",0));pendingMotion.valid=static_cast<bool>(t.getProperty("motionValid",false));for(size_t i=0;i<pendingMotion.last.size();++i)pendingMotion.last[i]=static_cast<float>(t.getProperty("motion"+juce::String(static_cast<int>(i)),0));motionRestoreRequest=true;}
     restart();return true;
 }
 bool OddProcessor::morph(float mix){

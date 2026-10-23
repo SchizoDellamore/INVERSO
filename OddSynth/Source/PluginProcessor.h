@@ -47,7 +47,7 @@ public:
     bool morph(float);
     void factoryPreset(int);
     bool loadSample(const juce::File&, juce::String& error);
-    void sampleEdit(int action); // reverse, crop, erase, fade-in, fade-out, half speed, double speed
+    bool sampleEdit(int action); // reverse, crop, erase, fade-in, fade-out, half speed, double speed
     std::shared_ptr<const odd::Sample> sampleCopy() const;
     juce::String sampleName() const;
     bool exportSample(const juce::File&);
@@ -74,6 +74,8 @@ private:
     bool wasPlaying=false;
     float wheel=0, expression=1;
     std::atomic<bool> restartRequest{false},panicRequest{false};
+    std::atomic<bool> motionRestoreRequest{false};
+    odd::MotionState pendingMotion;
     struct CaptureBuffer {
         explicit CaptureBuffer(double rate):sampleRate(rate),frames(static_cast<size_t>(rate*25)),audio(std::make_unique<std::atomic<float>[]>(frames*2)) { for(size_t i=0;i<frames*2;++i)audio[i].store(0,std::memory_order_relaxed); }
         double sampleRate;size_t frames;

@@ -25,7 +25,7 @@ Seis controles: Atrito, Instabilidade, Densidade, Brilho, Garganta e Pulso. Cada
 
 ## A/B e guardar resultados
 
-Guardar A e Guardar B conservam duas alternativas completas, incluindo audio do sample. Ouvir A/B recupera a alternativa. Morph interpola os seis controles e os niveis dos quatro motores e do sample, preservando controles travados; nao interpola arquivos, efeitos, sementes ou faixas de variacao. As alternativas sao salvas com o preset e com o projeto da DAW.
+Guardar A e Guardar B conservam duas alternativas completas, incluindo audio do sample. Ouvir A/B recupera a alternativa. Morph interpola os seis controles e os niveis dos quatro motores e do sample, preservando controles travados; nao interpola arquivos, efeitos, sementes ou faixas de variacao. As alternativas sao salvas com o preset e com o projeto da DAW, incluindo a posicao do movimento para recuperar controles congelados.
 
 **Guardar audio recente** exporta ate os ultimos 15 segundos ouvidos em WAV estereo de 24 bits. A captura ocorre continuamente, incluindo efeitos. E preciso tocar audio antes de exportar.
 
@@ -33,9 +33,11 @@ Guardar A e Guardar B conservam duas alternativas completas, incluindo audio do 
 
 Carregue um arquivo ou arraste um arquivo de audio para a aba Samples. Suporte a WAV, AIFF, FLAC, Ogg e MP3. Arraste na forma de onda para selecionar o trecho; Inicio e Fim tambem permitem ajuste numerico normalizado. Selecionar tudo restaura a faixa completa.
 
-Reverse trecho, Manter trecho, Apagar trecho, Fade in/out e velocidade 0.5x/2x alteram o audio selecionado e aceitam Desfazer/Refazer. A velocidade altera duracao e afinacao juntas. A leitura por MIDI transpoe a partir de C4. Granular reorganiza o trecho em graos, com duracao ajustavel; Loop e Reverse na reproducao sao controles independentes das edicoes gravadas no audio.
+Reverse trecho, Manter trecho, Apagar trecho, Fade in/out e velocidade 0.5x/2x alteram o audio selecionado e aceitam Desfazer/Refazer. A velocidade altera duracao e afinacao juntas. A leitura por MIDI transpoe a partir da nota MIDI 60. Granular reorganiza o trecho em graos, com duracao ajustavel; Loop e Reverse na reproducao sao controles independentes das edicoes gravadas no audio.
 
-O botao Tocar/parar C4 dispara o patch atual, incluindo os motores ativos. Para ouvir apenas o sample, zere os quatro motores e ajuste o nivel Sample. Exportar WAV exporta o sample editado, sem os motores nem os efeitos do instrumento; Guardar audio recente exporta o som ouvido completo.
+O controle Destino permite somar o sample como uma camada ou transforma-lo atraves de Materia, Garganta, Enxame ou Pulso. Ajuste tambem o nivel do motor escolhido. Em modo Granular, Densidade afeta a duracao dos graos e Instabilidade afeta a dispersao das posicoes dentro do trecho selecionado; esses controles compartilham as faixas, travas e movimentos da aba Instrumento.
+
+O botao Tocar/parar dispara o patch atual, incluindo os motores ativos. Para ouvir apenas o sample, escolha Destino: camada, zere os quatro motores e ajuste o nivel Sample. Exportar WAV exporta o sample editado, sem os motores nem os efeitos do instrumento; Guardar audio recente exporta o som ouvido completo.
 
 Limite de importacao: 120 segundos e 8 milhoes de amostras por canal. Arquivos mono sao reproduzidos nos dois canais. O sample editado e incluido no estado salvo, evitando dependencia do arquivo externo; arquivos grandes aumentam o tamanho do preset/projeto.
 
