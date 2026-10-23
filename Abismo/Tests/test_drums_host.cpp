@@ -77,10 +77,10 @@ int main(){
  restored.setStateInformation(saved.getData(),static_cast<int>(saved.getSize()));
  verify(std::lround(restored.apvts.getRawParameterValue("P03_OBJECT")->load())==13,"pad object not restored");
  verify(std::abs(restored.apvts.getRawParameterValue("P03_TUNE")->load()+7.f)<.05f,"pad tune not restored");
+ p.setCurrentProgram(0); // editor opens on the default kit
  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
  verify(editor!=nullptr && editor->getWidth()>0,"editor failed to open");
  if(const char* path=std::getenv("ABISMO_SNAPSHOT")){
-  p.setCurrentProgram(0);
   const auto image=editor->createComponentSnapshot(editor->getLocalBounds());
   juce::File file(juce::File::getCurrentWorkingDirectory().getChildFile(path));
   file.deleteFile();
