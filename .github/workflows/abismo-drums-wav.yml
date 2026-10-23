@@ -1,12 +1,7 @@
 name: Build ABISMO DRUMS WAV library
+# Runs only when started by hand (Actions > Run workflow), to save build minutes.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, 'claude/**']
-    paths:
-      - 'Abismo/Tools/**'
-      - 'Abismo/Library/**'
-      - '.github/workflows/abismo-drums-wav.yml'
 jobs:
   wav:
     runs-on: ubuntu-24.04

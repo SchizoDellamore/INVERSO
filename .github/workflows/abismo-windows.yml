@@ -1,11 +1,7 @@
 name: Build INVERSO ABISMO Windows VST3
+# Runs only when started by hand (Actions > Run workflow), to save build minutes.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, 'claude/**']
-    paths:
-      - 'Abismo/**'
-      - '.github/workflows/abismo-windows.yml'
 jobs:
   build:
     runs-on: windows-2022
@@ -25,10 +21,10 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
-      - name: Build VST3 and installer and run DSP tests
+      - name: Build VST3 and installer and run DSP tests (host tests run on Linux before each push)
         shell: pwsh
         run: |
-          .\Abismo\BUILD_ABISMO.ps1 -JucePath "${{ github.workspace }}\JUCE"
+          .\Abismo\BUILD_ABISMO.ps1 -JucePath "${{ github.workspace }}\JUCE" -NoLto
       - name: Create portable VST3 distribution and file checksums
         shell: pwsh
         run: |

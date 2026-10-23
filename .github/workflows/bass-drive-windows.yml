@@ -1,11 +1,7 @@
 name: Build INVERSO BASS DRIVE Windows VST3
+# Runs only when started by hand (Actions > Run workflow), to save build minutes.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'BassDrive/**'
-      - '.github/workflows/bass-drive-windows.yml'
 jobs:
   build:
     runs-on: windows-2022

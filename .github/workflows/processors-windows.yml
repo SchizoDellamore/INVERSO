@@ -1,11 +1,7 @@
 name: Build INVERSO DE-MUDDER and DE-ANNOYANCE
+# Runs only when started by hand (Actions > Run workflow), to save build minutes.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'Processors/**'
-      - '.github/workflows/processors-windows.yml'
 jobs:
   build:
     runs-on: windows-2022

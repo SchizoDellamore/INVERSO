@@ -1,11 +1,7 @@
 name: Build INVERSO DRUM sequencer Windows VST3
+# Runs only when started by hand (Actions > Run workflow), to save build minutes.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, drum-unique-timeline-steps]
-    paths:
-      - 'Drum/**'
-      - '.github/workflows/drum-windows.yml'
 # Keep only the latest revision's build when several code fixes are pushed.
 concurrency:
   group: inverso-drum-${{ github.ref }}

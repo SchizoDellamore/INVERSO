@@ -1,16 +1,21 @@
+# -HostSmoke also builds and runs the JUCE host tests (slow: each compiles JUCE again).
+# -NoLto skips link-time optimisation (faster build, same sound).
 [CmdletBinding()]
-param([string]$JucePath="",[string]$Generator="Visual Studio 17 2022",[switch]$SkipInstaller)
+param([string]$JucePath="",[string]$Generator="Visual Studio 17 2022",[switch]$SkipInstaller,[switch]$HostSmoke,[switch]$NoLto)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=$PSScriptRoot
 function Assert-Status([string]$step){if($LASTEXITCODE -ne 0){throw "$step failed with exit code $LASTEXITCODE"}}
 if(-not $JucePath){$JucePath=Join-Path (Split-Path $root -Parent) 'JUCE'}
 if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not found: $JucePath"}
-& cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF
+& cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF "-DINVERSO_LTO=$(if($NoLto){'OFF'}else{'ON'})"
 Assert-Status 'CMake configure'
-& cmake --build (Join-Path $root 'build') --config Release --target InversoAbismo_VST3 InversoAbismoSampler_VST3 InversoAbismoDrums_VST3 InversoRelicario_VST3 abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine InversoAbismoHostSmoke InversoAbismoSamplerHostSmoke InversoAbismoDrumsHostSmoke InversoRelicarioHostSmoke --parallel 4
+$targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3',
+ 'abismo_engine','abismo_presets','abismo_stress','abismo_sampler','abismo_drums','relicario_engine')
+if($HostSmoke){$targets+=@('InversoAbismoHostSmoke','InversoAbismoSamplerHostSmoke','InversoAbismoDrumsHostSmoke','InversoRelicarioHostSmoke')}
+& cmake --build (Join-Path $root 'build') --config Release --target $targets --parallel 4
 Assert-Status 'Build VST3'
-& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure
+if($HostSmoke){& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure} else {& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure -E host_smoke}
 Assert-Status 'DSP and host tests'
 $bundle=Join-Path $root 'build\InversoAbismo_artefacts\Release\VST3\INVERSO ABISMO.vst3'
 if(-not (Test-Path -LiteralPath $bundle -PathType Container)){throw "Missing VST3 bundle $bundle"}

@@ -28,6 +28,10 @@ target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CU
 if(INVERSO_DSP_TESTS_ONLY)
  return()
 endif()
+# Link-time optimisation for the plugins. The DSP of each plugin sits in one
+# translation unit, so turning it off (as CI does to save build minutes) costs
+# almost nothing at run time.
+option(INVERSO_LTO "Link-time optimisation for the plugins" ON)
 if(DEFINED JUCE_ROOT AND EXISTS "${JUCE_ROOT}/CMakeLists.txt")
  add_subdirectory("${JUCE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/juce")
 else()
@@ -66,7 +70,7 @@ target_link_libraries(InversoAbismo PRIVATE
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
- juce::juce_recommended_lto_flags)
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
 
 # Drives the JUCE processor like a DAW: MIDI at varying block sizes, programs,
 # automation and state save/restore. Builds on the Windows runner.
@@ -77,7 +81,7 @@ target_compile_definitions(InversoAbismoHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUC
 target_link_libraries(InversoAbismoHostSmoke PRIVATE
  AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
- juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+ juce::juce_recommended_warning_flags)
 add_test(NAME abismo_host_smoke COMMAND InversoAbismoHostSmoke)
 
 # ABISMO SAMPLER: second instrument built from the same DSP and UI blocks.
@@ -110,7 +114,7 @@ target_link_libraries(InversoAbismoSampler PRIVATE
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
- juce::juce_recommended_lto_flags)
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
 
 juce_add_console_app(InversoAbismoSamplerHostSmoke PRODUCT_NAME "INVERSO Abismo Sampler Host Smoke")
 juce_generate_juce_header(InversoAbismoSamplerHostSmoke)
@@ -119,7 +123,7 @@ target_compile_definitions(InversoAbismoSamplerHostSmoke PRIVATE JUCE_WEB_BROWSE
 target_link_libraries(InversoAbismoSamplerHostSmoke PRIVATE
  AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
- juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+ juce::juce_recommended_warning_flags)
 add_test(NAME abismo_sampler_host_smoke COMMAND InversoAbismoSamplerHostSmoke)
 
 # ABISMO DRUMS: synthesised junkyard percussion and musical saw.
@@ -152,7 +156,7 @@ target_link_libraries(InversoAbismoDrums PRIVATE
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
- juce::juce_recommended_lto_flags)
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
 
 juce_add_console_app(InversoAbismoDrumsHostSmoke PRODUCT_NAME "INVERSO Abismo Drums Host Smoke")
 juce_generate_juce_header(InversoAbismoDrumsHostSmoke)
@@ -161,7 +165,7 @@ target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE JUCE_WEB_BROWSER=
 target_link_libraries(InversoAbismoDrumsHostSmoke PRIVATE
  AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
- juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+ juce::juce_recommended_warning_flags)
 add_test(NAME abismo_drums_host_smoke COMMAND InversoAbismoDrumsHostSmoke)
 # The drum recordings (CC0, see Library/SOURCES.md) ship inside the plugin bundle,
 # in Contents/Resources, so the installer and the portable copy carry them along.
@@ -204,7 +208,7 @@ target_link_libraries(InversoRelicario PRIVATE
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
- juce::juce_recommended_lto_flags)
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
 juce_add_console_app(InversoRelicarioHostSmoke PRODUCT_NAME "INVERSO Relicario Host Smoke")
 juce_generate_juce_header(InversoRelicarioHostSmoke)
 target_sources(InversoRelicarioHostSmoke PRIVATE Tests/test_relicario_host.cpp ${RELICARIO_SOURCES})
@@ -212,5 +216,5 @@ target_compile_definitions(InversoRelicarioHostSmoke PRIVATE JUCE_WEB_BROWSER=0 
 target_link_libraries(InversoRelicarioHostSmoke PRIVATE
  AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
- juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+ juce::juce_recommended_warning_flags)
 add_test(NAME relicario_host_smoke COMMAND InversoRelicarioHostSmoke)
