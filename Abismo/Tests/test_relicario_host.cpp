@@ -86,6 +86,31 @@ int main(){
  for(int i=0;i<400;++i){block.clear();p.processBlock(block,midi);midi.clear();}
  verify(p.voicesSounding.load()==0,"pedal up must release the voice");
 
+ // A knob learned as aftertouch: the first CC seen while armed is reported (not mod wheel or sustain).
+ {
+  p.learnPressure.store(true);
+  juce::MidiBuffer cc;
+  cc.addEvent(juce::MidiMessage::controllerEvent(1,1,90),0);
+  cc.addEvent(juce::MidiMessage::controllerEvent(1,64,127),1);
+  cc.addEvent(juce::MidiMessage::controllerEvent(1,21,100),2);
+  cc.addEvent(juce::MidiMessage::controllerEvent(1,64,0),3);
+  block.clear();
+  p.processBlock(block,cc);
+  verify(p.learnedCC.load()==21,"knob learn must pick CC 21");
+  p.learnPressure.store(false);
+  param(p,"PRESSURE_CC",21.f);
+  verify(std::abs(p.apvts.getRawParameterValue("PRESSURE_CC")->load()-21.f)<.5f,"pressure CC not stored");
+  // Full pressure from the knob fills the bellows above its resting level.
+  p.setCurrentProgram(7);
+  juce::MidiBuffer notes;
+  notes.addEvent(juce::MidiMessage::noteOn(1,60,.9f),0);
+  notes.addEvent(juce::MidiMessage::controllerEvent(1,21,127),1);
+  for(int i=0;i<200;++i){block.clear();p.processBlock(block,notes);notes.clear();}
+  verify(p.bellows.load()>1.05f,"knob did not act as aftertouch");
+  juce::MidiBuffer off; off.addEvent(juce::MidiMessage::allNotesOff(1),0); off.addEvent(juce::MidiMessage::controllerEvent(1,21,0),0);
+  block.clear(); p.processBlock(block,off);
+  param(p,"PRESSURE_CC",0.f);
+ }
  // Program change and state round trip.
  p.setCurrentProgram(5);
  param(p,"LOOP_LENGTH",7.5f);

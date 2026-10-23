@@ -8,6 +8,8 @@ Este pacote instala quatro instrumentos VST3 para Windows x64:
 
 O SAMPLER, o DRUMS e o RELICÁRIO têm seções próprias mais adiante.
 
+**Knob como aftertouch (0.10.1):** teclados sem aftertouch (Alesis V49, por exemplo) podem usar um knob no lugar. No ABISMO, no SAMPLER e no RELICÁRIO, clique em **LEARN** no MASTER (embaixo, em AFTERTOUCH KNOB) e gire o knob: ele passa a fazer tudo o que o aftertouch faz (arco e filtro no ABISMO, fole e faísca no RELICÁRIO). O knob escolhido fica salvo no projeto e não muda quando você troca de preset; o X ao lado desliga. O mod wheel e o pedal de sustain não podem ser escolhidos.
+
 **Idioma (0.10):** a interface dos quatro instrumentos está em inglês: controles, módulos, presets, kits e objetos. Este manual continua em português; onde ele cita um controle pelo nome antigo em português, procure o equivalente em inglês na mesma seção da tela (por exemplo RESSONADOR → RESONATOR, MUTILAÇÃO → MUTILATION, SERROTE → MUSICAL SAW, Ferro-Velho → Scrapyard). Projetos salvos abrem iguais: só os nomes mudaram.
 
 Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifônico (16 vozes) voltado para trilha de terror e suspense: clusters dissonantes, metal friccionado, vidro, sinos, drones, glissandos e afinação instável. É um instrumento independente; os outros plugins INVERSO não são alterados.

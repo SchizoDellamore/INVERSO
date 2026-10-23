@@ -30,6 +30,9 @@ public:
 
  juce::AudioProcessorValueTreeState apvts;
  std::atomic<float> outputPeak{0.f};
+ // Knob-as-aftertouch learn: the editor arms it, the audio thread reports the first CC it sees.
+ std::atomic<bool> learnPressure{false};
+ std::atomic<int> learnedCC{-1};
  std::atomic<int> voicesSounding{0};
  // For the editor's screens: tape loop positions and bellows pressure.
  std::atomic<float> loop1{0.f},loop2{0.f},bellows{1.f};

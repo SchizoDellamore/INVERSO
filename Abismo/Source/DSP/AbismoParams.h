@@ -41,6 +41,8 @@ enum : int {
  ResMaterialB, ResMorph, ResTune, ResKeytrack, ResStretch, ResBright, ResStereo, ResInput, ResRattle,
  DriveMode, RingMix, RingPitch, Reverse, RevReverse, Warp,
  StutterSync, StutterMs,
+ // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
+ PressureCC,
  Count
 };
 }
@@ -123,6 +125,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"WARP","Tape warp",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Free",""},
   {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
+  {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
  }};
  return table;
 }

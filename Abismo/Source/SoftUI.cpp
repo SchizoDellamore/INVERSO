@@ -674,6 +674,12 @@ Master::Master(juce::AudioProcessorValueTreeState& apvts, const ParamSpec& out, 
   second.onValueChange();
  }
 }
+void Master::setAccessory(std::unique_ptr<juce::Component> c, int height) {
+ accessory = std::move(c);
+ accessoryHeight = height;
+ addAndMakeVisible(*accessory);
+ resized();
+}
 void Master::setReadout(float peak, juce::String line) {
  meterPtr->setLevel(peak);
  const float db = juce::Decibels::gainToDecibels(peak, -90.f);
@@ -716,8 +722,46 @@ void Master::resized() {
   secondValue.setBounds(inner.removeFromTop(16));
  }
  inner.removeFromTop(16);
+ if (accessory) { accessory->setBounds(inner.removeFromBottom(accessoryHeight)); inner.removeFromBottom(12); }
  if (vintage) meter->setBounds(inner.withSizeKeepingCentre(inner.getWidth(), std::min(inner.getHeight(), inner.getWidth() * 3 / 4)));
  else meter->setBounds(inner.withSizeKeepingCentre(16, inner.getHeight()));
+}
+
+KnobLearn::KnobLearn(juce::AudioProcessorValueTreeState& apvts, const ParamSpec& spec, std::atomic<bool>& armedFlag, std::atomic<int>& learnedCC)
+ : param(apvts.getParameter(spec.id)),
+   attachment(*param, [this](float v) { cc = juce::roundToInt(v); refresh(); }, nullptr),
+   armed(armedFlag), learned(learnedCC) {
+ addAndMakeVisible(learnButton);
+ addAndMakeVisible(clearButton);
+ learnButton.setTooltip("Click, then turn a knob on your keyboard: it will work as aftertouch");
+ clearButton.setTooltip("Stop using a knob as aftertouch");
+ learnButton.onClick = [this] { learned.store(-1); armed.store(!armed.load()); refresh(); };
+ clearButton.onClick = [this] { armed.store(false); attachment.setValueAsCompleteGesture(0.f); };
+ attachment.sendInitialUpdate();
+ startTimerHz(10);
+}
+KnobLearn::~KnobLearn() { armed.store(false); }
+void KnobLearn::timerCallback() {
+ const int got = learned.exchange(-1);
+ if (got > 0) { armed.store(false); attachment.setValueAsCompleteGesture(static_cast<float>(got)); }
+ refresh();
+}
+void KnobLearn::refresh() {
+ const juce::String text = armed.load() ? juce::String("TURN A KNOB...") : cc > 0 ? "KNOB CC " + juce::String(cc) : juce::String("LEARN");
+ if (learnButton.getButtonText() != text) learnButton.setButtonText(text);
+ clearButton.setVisible(cc > 0 && !armed.load());
+}
+void KnobLearn::resized() {
+ auto r = getLocalBounds();
+ r.removeFromTop(16);
+ auto row = r.removeFromTop(32);
+ clearButton.setBounds(row.removeFromRight(30));
+ learnButton.setBounds(row);
+}
+void KnobLearn::paint(juce::Graphics& g) {
+ g.setColour(colour::muted);
+ g.setFont(uiFont(9.5f, true).withExtraKerningFactor(.06f));
+ g.drawText("AFTERTOUCH KNOB", getLocalBounds().removeFromTop(14), juce::Justification::centred);
 }
 
 void PresetBar::paint(juce::Graphics& g) {

@@ -39,6 +39,8 @@ enum : int {
  TremoloDepth, TremoloRate, TremoloShape,
  VibratoDepth, VibratoRate,
  EchoSync, EchoTone, RevDamp,
+ // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
+ PressureCC,
  Count
 };
 }
@@ -135,6 +137,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"ECHO_SYNC","Echo timing",0,6,0,0,1,Kind::Choice,"Free|1/4|1/8|1/8 dotted|1/16|1/4T|1/8T",""},
   {"ECHO_TONE","Echo tone",0,100,50,0,.01f,Kind::Float,nullptr,"%"},
   {"REV_DAMP","Reverb darkness",0,100,45,0,.01f,Kind::Float,nullptr,"%"},
+  {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
  }};
  return table;
 }

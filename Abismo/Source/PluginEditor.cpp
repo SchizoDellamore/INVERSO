@@ -24,7 +24,7 @@ const char* const* shortNames(){
   "BITS","RATE","DIVISION","DEPTH","CHAOS",
   "MATERIAL B","MORPH","TUNE","KEYTRACK","STRETCH","BRIGHTNESS","STEREO","OSC INPUT","RATTLE",
   "TYPE","RING","RING PITCH","REVERSE","REVERSE VERB","TAPE WARP",
-  "TIMING","TIME"};
+  "TIMING","TIME","AT KNOB"};
  return names;
 }
 
@@ -142,6 +142,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::RevReverse,P::Freeze},{P::RevMix}}},104,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
+ master->setAccessory(std::make_unique<soft::KnobLearn>(processor.apvts,specs()[P::PressureCC],processor.learnPressure,processor.learnedCC),48);
 
  auto& m=modules;
  // ---- screens

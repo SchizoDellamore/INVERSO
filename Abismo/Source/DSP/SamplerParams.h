@@ -18,6 +18,8 @@ enum : int {
  Tension, Crush, Downsample, StutterDiv, StutterDepth, Chaos,
  RevMix, RevSize, RevDecay, RevDamp, Freeze, Width, Output,
  StutterSync, StutterMs,
+ // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
+ PressureCC,
  Count
 };
 }
@@ -83,6 +85,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"OUTPUT","Output",-36,12,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Free",""},
   {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
+  {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
  }};
  return table;
 }

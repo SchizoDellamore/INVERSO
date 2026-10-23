@@ -18,6 +18,7 @@ juce::String formatValue(const ParamSpec& s,double v){
  if(unit=="dB") return juce::String(v,1)+" dB";
  if(unit=="st") return (v>0?"+":"")+juce::String(v,s.kind==Kind::Int?0:1)+" st";
  if(unit=="pan") return std::abs(v)<.5?juce::String("C"):(v<0?"L ":"R ")+juce::String(std::abs(v),0);
+ if(unit=="cc") return v<.5?juce::String("OFF"):"CC "+juce::String(juce::roundToInt(v));
  if(unit=="ct") return (v>0?"+":"")+juce::String(v,0)+" ct";
  if(unit=="/s") return juce::String(v,v<10.?1:0)+" /s";
  if(*s.unit==0 && s.kind==Kind::Int) return juce::MidiMessage::getMidiNoteName(juce::roundToInt(v),true,true,3);

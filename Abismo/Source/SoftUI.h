@@ -5,6 +5,7 @@
 // module never shows more than a handful of controls at once.
 #include <JuceHeader.h>
 #include "AbismoUI.h"
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -142,9 +143,13 @@ public:
  Master(juce::AudioProcessorValueTreeState&, const inverso_abismo::ParamSpec& output, const inverso_abismo::ParamSpec* second,
         juce::String secondName, juce::Colour accent);
  void setReadout(float peak, juce::String line);
+ // An extra block shown above the readout (e.g. the aftertouch knob learn).
+ void setAccessory(std::unique_ptr<juce::Component>, int height);
  void paint(juce::Graphics&) override;
  void resized() override;
 private:
+ std::unique_ptr<juce::Component> accessory;
+ int accessoryHeight = 0;
  Knob output, second;
  juce::Label outValue, secondValue;
  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outAttach, secondAttach;
@@ -154,6 +159,27 @@ private:
  std::unique_ptr<juce::Component> meter;
  float peakDb = -90.f;
  juce::Image cardCache;
+};
+
+// Lets a hardware knob stand in for aftertouch: click LEARN, turn the knob,
+// and its MIDI CC is stored in the plugin's PRESSURE_CC parameter. The audio
+// thread reports the first CC it sees while `armed` is set through `learned`.
+class KnobLearn final : public juce::Component, private juce::Timer {
+public:
+ KnobLearn(juce::AudioProcessorValueTreeState&, const inverso_abismo::ParamSpec& pressureCC,
+           std::atomic<bool>& armed, std::atomic<int>& learned);
+ ~KnobLearn() override;
+ void resized() override;
+ void paint(juce::Graphics&) override;
+private:
+ void timerCallback() override;
+ void refresh();
+ juce::RangedAudioParameter* param;
+ juce::ParameterAttachment attachment;
+ std::atomic<bool>& armed;
+ std::atomic<int>& learned;
+ juce::TextButton learnButton, clearButton{"X"};
+ int cc = 0;
 };
 
 // Vertical stereo peak meter.

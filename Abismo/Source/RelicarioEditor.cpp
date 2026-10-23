@@ -27,7 +27,7 @@ const char* const* shortNames(){
   "MIX","RATE","DEPTH","FEEDBACK",
   "DEPTH","RATE","SHAPE",
   "DEPTH","RATE",
-  "SYNC","TONE","DARKNESS"};
+  "SYNC","TONE","DARKNESS","AT KNOB"};
  return names;
 }
 
@@ -136,6 +136,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Dust},{P::RevMix}}},96,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
+ master->setAccessory(std::make_unique<soft::KnobLearn>(processor.apvts,specs()[P::PressureCC],processor.learnPressure,processor.learnedCC),48);
 
  auto& m=modules;
  const juce::String off=juce::String::fromUTF8("OFF  \xc2\xb7  TURN UP THE LEVEL");
