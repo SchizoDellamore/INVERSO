@@ -71,6 +71,11 @@ private:
  mutable juce::CriticalSection pathLock;
  std::array<std::atomic<float>*,inverso_abismo::drums::P::Count> raw{};
  std::atomic<std::uint32_t> auditions{0},padLights{0};
+ // Kit change: fade the current block out, then switch cleanly on the next one.
+ std::atomic<bool> kitChanged{false};
+ bool kitFadePending=false;
+ juce::MidiBuffer deferredMidi; // notes that arrive while the old kit fades: played on the new one
+ void applyKit(int index);
  int currentProgram=0;
  std::atomic<bool> prepared{false};
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoAbismoDrumsProcessor)

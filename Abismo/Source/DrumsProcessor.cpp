@@ -50,6 +50,8 @@ InversoAbismoDrumsProcessor::InversoAbismoDrumsProcessor()
  for (std::size_t i=0;i<raw.size();++i) raw[i]=apvts.getRawParameterValue(specs()[i].id);
  formats.registerBasicFormats();
  if (!library().objects.empty()) engine.setLibrary(&library());
+ applyKit(0); // the plugin opens on the first kit, matching the program the host sees
+ kitChanged=false;
  startTimer(500);
 }
 
@@ -65,6 +67,8 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
+ deferredMidi.ensureSize(8192);
+ deferredMidi.clear();
  prepared=true;
  outputPeak.store(0.f);
 }
@@ -91,11 +95,23 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
  Values v{};
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
- engine.setValues(v);
+ if (kitFadePending) {
+  engine.switchKit(v);
+  kitFadePending=false;
+  // Notes held back during the fade start this block, on the new kit.
+  if (!deferredMidi.isEmpty()) { deferredMidi.addEvents(midi,0,-1,0); midi.swapWith(deferredMidi); deferredMidi.clear(); }
+ }
+ else engine.setValues(v);
+ const bool fadeThisBlock=kitChanged.exchange(false);
+ if (fadeThisBlock) {
+  // This block only fades the old kit out; its notes wait for the new kit.
+  for (const auto metadata : midi) deferredMidi.addEvent(metadata.getMessage(),0);
+  midi.clear();
+ }
  if (auto* head=getPlayHead())
   if (const auto position=head->getPosition())
    engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
- if (const auto pads=auditions.exchange(0))
+ if (const auto pads=fadeThisBlock?0u:auditions.exchange(0))
   for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) engine.noteOn(firstPadNote+pad,.8f);
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
@@ -114,6 +130,11 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  }
  if (position<samples) engine.render(left+position,right+position,samples-position);
  for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
+ if (fadeThisBlock) {
+  // The old kit fades out over this block; the next block starts on the new kit.
+  for (int i=0;i<samples;++i) { const float g=1.f-static_cast<float>(i+1)/static_cast<float>(samples); left[i]*=g; right[i]*=g; }
+  kitFadePending=true;
+ }
  float peak=0.f;
  for (int i=0;i<samples;++i) peak=std::max({peak,std::abs(left[i]),std::abs(right[i])});
  outputPeak.store(std::max(peak,outputPeak.load(std::memory_order_relaxed)*.9f),std::memory_order_relaxed);
@@ -235,8 +256,17 @@ const juce::String InversoAbismoDrumsProcessor::getProgramName(int index) {
  if (index<0 || index>=getNumPrograms()) return {};
  return juce::String::fromUTF8(kits()[static_cast<std::size_t>(index)].name);
 }
+// Hosts re-send the current program (Cubase does on load and while playing);
+// re-applying it would wipe the user's edits, so only a different kit is applied.
 void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
- if (index<0 || index>=getNumPrograms()) return;
+ if (index<0 || index>=getNumPrograms() || index==currentProgram) return;
+ applyKit(index);
+ // Tell the host which program is now active. Without this its program
+ // parameter keeps the old kit and the host switches back to it.
+ updateHostDisplay(ChangeDetails().withProgramChanged(true));
+}
+
+void InversoAbismoDrumsProcessor::applyKit(int index) {
  currentProgram=index;
  const auto values=kitValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {
@@ -246,6 +276,7 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
    param->endChangeGesture();
   }
  }
+ kitChanged=true;
 }
 
 // Pad recordings are stored by path, not embedded: sessions stay small, but a

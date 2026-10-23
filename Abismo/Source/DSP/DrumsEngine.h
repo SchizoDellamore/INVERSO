@@ -445,6 +445,12 @@ public:
   setFilter(megaLp, 3400.f, 1.2f);
   setFilter(gramLp, 3800.f, 1.3f);
  }
+ // Silence the delay line and filters without reallocating (audio thread safe).
+ void clear() {
+  std::fill(delay.begin(), delay.end(), 0.f);
+  for (auto* f : {&megaL, &megaR, &megaHL, &megaHR, &gramL, &gramR}) f->reset();
+  hpL = hpR = gHpL = gHpR = 0.f;
+ }
  void process(float& l, float& r, float megaphone, float gramophone) {
   if (megaphone > 0.f) {
    float ml = l, mr = r;
@@ -524,6 +530,15 @@ public:
   derive();
  }
  void setValues(const Values& v) { target = v; }
+ // A new kit: drop what is sounding and take the new values at once, so the old
+ // kit's tails and gliding knobs (room size, effects) do not smear into it.
+ void switchKit(const Values& v) {
+  allSoundOff();
+  character.clear();
+  mutilator.clear();
+  airL.reset(); airR.reset();
+  target = v; smoothed = v; derive();
+ }
  // The library and pad samples are owned by the caller and must outlive their use.
  // Changing them silences the hits that may be reading the old memory.
  void setLibrary(const SampleLibrary* lib) { if (lib != library) { for (auto& h : hits) h.stop(); library = lib; } }

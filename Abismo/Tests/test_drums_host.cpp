@@ -38,6 +38,13 @@ static float groove(InversoAbismoDrumsProcessor& p,int sr,int blockSize){
  return static_cast<float>(std::sqrt(sum/static_cast<double>(count)));
 }
 
+// Records what the plugin tells its host.
+struct HostSpy final : juce::AudioProcessorListener {
+ int programChanges=0;
+ void audioProcessorParameterChanged(juce::AudioProcessor*,int,float) override {}
+ void audioProcessorChanged(juce::AudioProcessor*,const ChangeDetails& d) override { if(d.programChanged) ++programChanges; }
+};
+
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
  InversoAbismoDrumsProcessor p;
@@ -53,6 +60,35 @@ int main(){
    for(int size:{1,64,1024}) verify(groove(p,sr,size)>1e-3f,"groove produced no audio");
   }
  }
+ // Choosing a kit in the plugin window tells the host (otherwise Cubase keeps
+ // the old program and switches back to it); the host re-sending the current
+ // kit must not wipe the user's edits.
+ {
+  HostSpy spy;
+  p.addListener(&spy);
+  p.setCurrentProgram(7);
+  verify(spy.programChanges>=1 && p.getCurrentProgram()==7,"kit change not reported to the host");
+  verify(std::lround(p.apvts.getRawParameterValue("P01_OBJECT")->load())==24,"kit values not applied");
+  param(p,"P01_TUNE",5.f);
+  p.setCurrentProgram(7);
+  verify(std::abs(p.apvts.getRawParameterValue("P01_TUNE")->load()-5.f)<.05f,"re-sent program wiped an edit");
+  p.removeListener(&spy);
+  // The switch fades the old kit out and starts clean: no tail, no clicks over 1.
+  p.prepareToPlay(48000,256);
+  juce::AudioBuffer<float> b(2,256);
+  for(int i=0;i<40;++i){ b.clear(); juce::MidiBuffer m; if(i%8==0) m.addEvent(juce::MidiMessage::noteOn(10,36+i%16,1.f),0); p.processBlock(b,m); }
+  p.setCurrentProgram(9);
+  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); }
+  verify(std::abs(b.getSample(0,255))<1e-3f,"old kit not faded out at the switch");
+  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); }
+  verify(b.getMagnitude(0,256)<1e-3f,"old kit still sounding after the switch");
+  // A note played right at the switch is not lost: it sounds on the new kit.
+  p.setCurrentProgram(3);
+  b.clear(); { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,36,1.f),10); p.processBlock(b,m); }
+  float after=0.f; // the kit may stumble the hit by up to 80 ms
+  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); after=std::max(after,b.getMagnitude(0,256)); }
+  verify(after>1e-2f,"note at the kit switch was lost");
+ }
  // Audition from the editor path, and pad lights.
  p.prepareToPlay(48000,512);
  p.setCurrentProgram(0);
@@ -61,6 +97,8 @@ int main(){
  p.auditionPad(4);
  juce::AudioBuffer<float> block(2,512);block.clear();
  juce::MidiBuffer none;
+ p.processBlock(block,none); // fades out the previous kit; the audition waits for the next block
+ block.clear();
  p.processBlock(block,none);
  verify(block.getMagnitude(0,512)>1e-3f,"audition produced no audio");
  verify(p.takePadLights()==(1u<<4),"pad light missing");

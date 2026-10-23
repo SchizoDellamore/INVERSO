@@ -19,6 +19,12 @@ public:
   write = 0; holdCount = 0; heldL = heldR = 0.f; gain = 1.f; lastStep = -1; beat = 0.0;
  }
 
+ // Forget the recorded history and any gate in progress (no reallocation).
+ void clear() {
+  std::fill(history.begin(), history.end(), 0.f);
+  holdCount = 0; heldL = heldR = 0.f; gain = 1.f; lastStep = -1;
+ }
+
  // division in beats (0 = stutter off), depth/chaos/crush/downsample in 0..1.
  void configure(double divisionBeats, float depth, float chaosAmount, float crushAmount, float downsampleAmount) {
   division = divisionBeats;
