@@ -1,8 +1,11 @@
-# INVERSO ABISMO v0.3.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.4.0: instrumentos de tensão para trilha (VST3i)
 
-Este pacote instala dois instrumentos VST3 para Windows x64:
+Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
-- **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular (veja a seção própria mais adiante).
+- **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular.
+- **INVERSO ABISMO DRUMS**: percussão de ferro-velho sintetizada e serrote melódico.
+
+O SAMPLER e o DRUMS têm seções próprias mais adiante.
 
 Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifônico (16 vozes) voltado para trilha de terror e suspense: clusters dissonantes, metal friccionado, vidro, sinos, drones, glissandos e afinação instável. É um instrumento independente; os outros plugins INVERSO não são alterados.
 
@@ -39,8 +42,19 @@ Toca qualquer áudio seu (WAV, AIFF, FLAC, OGG ou MP3, de até 10 minutos, mono 
 - **Presets** (receitas aplicadas ao sample carregado): Init, Congelado, Nuvem de Vozes, Rasgo Reverso, Gagueira, Respiração Esticada, Monstro Grave, Fita Derretida, Enxame e Boca Fechada.
 - **Sessões**: o projeto guarda o **caminho** do arquivo, não o áudio em si. Se você mover ou apagar o arquivo, o plugin avisa "ARQUIVO NAO ENCONTRADO", toca a voz interna e continua lembrando o caminho original. Guarde seus samples numa pasta fixa.
 
+## ABISMO DRUMS
+Percussão de ferro-velho na linha de Tom Waits (*Swordfishtrombones*, *Rain Dogs*, *Bone Machine*). Não usa nenhum sample: cada batida é sintetizada por modelagem física, então nenhuma batida é igual à anterior.
+- **16 objetos**: Lata de Lixo, Tambor de Fanfarra, Mala-Bumbo, Freio de Carro, Cano, Bigorna, Tampa de Panela, Corrente, Garrafa, Caixote, Ossos, Engrenagem, Máquina de Escrever, Mola, Porta Batendo e Chocalho de Tampinhas.
+- **Notas**: os pads ficam em C1 a D#2 (MIDI 36–51), no layout General MIDI. C1 é o bumbo (Lata de Lixo), D1 a caixa (Tambor de Fanfarra) e F#1 o "chimbal" (Corrente), então mapas de bateria e grooves MIDI prontos já caem em lugares que fazem sentido.
+- **Por pad**: OBJECT (qualquer pad aceita qualquer objeto), TUNE, DECAY, TONE (dureza da baqueta e brilho), RATTLE (peças soltas vibrando junto), RUST (desvia os modos de vibração das proporções limpas, de um jeito fixo e próprio de cada pad), VARIATION (afinação, decay, volume e espaçamento dos modos mudam a cada batida), LEVEL e PAN. Clicar num pad toca o objeto e mostra os controles dele.
+- **Serrote**: do C3 (MIDI 60) para cima, um serrote melódico tocado com arco. É monofônico e desliza entre as notas quando tocado legato, com vibrato que se firma conforme o arco assenta, ruído de arco e WOBBLE (a lâmina flexionando).
+- **MÁQUINA QUEBRADA**: STUMBLE atrasa batidas ao acaso, em até 80 ms; o stutter repete trechos como disco arranhado; CRUSH reduz a resolução.
+- **CARÁTER**: MEGAPHONE coloca o kit dentro de um alto-falante saturado; GRAMOPHONE dá banda estreita, wow e flutter, chiado e estalos. **SALA** é um reverb curto, de banheiro a galpão.
+- **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina Quebrada e Rádio de Válvula.
+- O sequenciamento fica com a DAW. Para padrões internos, use o INVERSO DRUM.
+
 ## Instalação
-No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.3.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.3.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os dois aparecem como instrumentos da Inverso Studios: ABISMO em *Synth* e ABISMO SAMPLER em *Sampler*. A versão portátil traz as duas pastas `.vst3`.
+No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.4.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.4.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
@@ -75,4 +89,11 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
   - confere a afinação e troca o sample no meio de uma nota;
   - testa o modo granular, salvar/restaurar a sessão com o caminho do arquivo e o arquivo apagado (que volta para a voz interna e continua lembrando o caminho);
   - abre o editor.
+- `abismo_drums` verifica:
+  - que os 16 objetos são audíveis, terminam sozinhos e chegam ao silêncio;
+  - que batidas consecutivas variam e que STUMBLE atrasa em até 80 ms;
+  - que o serrote afina (A4 = 440 Hz), desliza e para no release, e que as notas dele não disparam pads;
+  - que os kits num groove 6/8 com serrote ficam abaixo de 0 dBFS;
+  - a automação aleatória em 44,1 e 96 kHz.
+- `InversoAbismoDrumsHostSmoke` (JUCE): groove em blocos de 1 a 1024 amostras com todos os kits, audição e luz de pad vindas do editor, serrote, restauração de sessão com pad reatribuído e abertura do editor.
 - `InversoAbismoHostSmoke` (JUCE) toca MIDI em blocos de 1 a 2048 amostras, troca programas, automatiza o cutoff dentro da nota, testa pedal, All Sound Off, salvar/restaurar sessão e a abertura do editor. Com `ABISMO_SNAPSHOT=arquivo.png`, também salva uma imagem da interface.

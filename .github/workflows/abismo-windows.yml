@@ -35,16 +35,17 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Abismo'
           $bundle = Join-Path $root 'build\InversoAbismo_artefacts\Release\VST3\INVERSO ABISMO.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.3.0'
+          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.4.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoAbismoSampler_artefacts\Release\VST3\INVERSO ABISMO SAMPLER.vst3') -Destination $portable -Recurse -Force
+          Copy-Item -LiteralPath (Join-Path $root 'build\InversoAbismoDrums_artefacts\Release\VST3\INVERSO ABISMO DRUMS.vst3') -Destination $portable -Recurse -Force
           $instructions = @'
-          INVERSO ABISMO v0.3.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
+          INVERSO ABISMO v0.4.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
           PORTABLE INSTALL (no EXE required)
           1. Close your DAW.
           2. Extract this GitHub artifact ZIP.
-          3. Copy both folders, INVERSO ABISMO.vst3 and INVERSO ABISMO SAMPLER.vst3, into:
+          3. Copy all three folders (INVERSO ABISMO.vst3, INVERSO ABISMO SAMPLER.vst3, INVERSO ABISMO DRUMS.vst3) into:
              C:\Program Files\Common Files\VST3
           4. Reopen the DAW and rescan VST3 plugins if it does not appear (Instruments / Synth).
           Do not rename the .vst3 folder, or move only its internal binary.
@@ -63,14 +64,14 @@ jobs:
       - name: Publish installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_Setup_0.3.0_x64
-          path: Abismo/dist/INVERSO_ABISMO_Setup_0.3.0_x64.exe
+          name: INVERSO_ABISMO_Setup_0.4.0_x64
+          path: Abismo/dist/INVERSO_ABISMO_Setup_0.4.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_PORTABLE_VST3_0.3.0_NO_EXE
-          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.3.0/
+          name: INVERSO_ABISMO_PORTABLE_VST3_0.4.0_NO_EXE
+          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.4.0/
           if-no-files-found: error
       - name: Publish raw VST3 bundle
         uses: actions/upload-artifact@v4
@@ -83,4 +84,10 @@ jobs:
         with:
           name: INVERSO_ABISMO_SAMPLER_VST3_x64
           path: Abismo/build/InversoAbismoSampler_artefacts/Release/VST3/INVERSO ABISMO SAMPLER.vst3/**
+          if-no-files-found: error
+      - name: Publish raw ABISMO DRUMS VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ABISMO_DRUMS_VST3_x64
+          path: Abismo/build/InversoAbismoDrums_artefacts/Release/VST3/INVERSO ABISMO DRUMS.vst3/**
           if-no-files-found: error

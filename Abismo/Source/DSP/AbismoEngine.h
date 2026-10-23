@@ -21,27 +21,6 @@ constexpr int maxUnison = 7;
 constexpr int maxStacks = 3;  // root + two cluster intervals
 constexpr int numModes = 6;
 
-struct Resonator {
- float y1 = 0.f, y2 = 0.f, a1 = 0.f, a2 = 0.f, gain = 0.f;
- void set(float freq, float t60, double sr) {
-  const float w = twoPi * freq / static_cast<float>(sr);
-  if (w >= 2.9f || w <= 0.f) { gain = 0.f; return; }
-  const float r = static_cast<float>(std::exp(-6.9078 / (std::max(.01, static_cast<double>(t60)) * sr)));
-  a1 = 2.f * r * std::cos(w);
-  a2 = -r * r;
-  // Equal-power normalisation for noise/impulse excitation of an AR(2) system.
-  const float r2 = r * r;
-  const float variance = (1.f + r2) / ((1.f - r2) * ((1.f + r2) * (1.f + r2) - a1 * a1));
-  gain = variance > 0.f ? 1.f / std::sqrt(variance) : 0.f;
- }
- float process(float x) {
-  const float y = gain * x + a1 * y1 + a2 * y2;
-  y2 = y1; y1 = y;
-  return y;
- }
- void reset() { y1 = y2 = 0.f; }
-};
-
 struct Oscillator {
  float phase = 0.f, inc = 0.f;
  float next(float shape) {
