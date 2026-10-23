@@ -1,0 +1,55 @@
+INVERSO CABS 1.0  |  98 impulse responses de caixas de guitarra e baixo
+====================================================================
+
+COMO USAR
+Carregue um arquivo .wav num carregador de IR (IR loader) depois de um amp
+ou pedal de distorção SEM simulação de caixa (desligue o "cab" do amp).
+Use a pasta "48 kHz" se o projeto estiver em 48 kHz, "44.1 kHz" se estiver
+em 44,1 kHz. São mono, 24 bits. Todas têm o mesmo volume percebido, então
+dá para comparar trocando de arquivo sem o nível pular.
+
+NOMES:  <caixa> - <microfone> <posição>.wav
+
+Caixas de guitarra (nomes descritivos, no espírito de tipos conhecidos):
+  Brit 4x12 V      britânica fechada, agressiva, médio-agudos fortes
+  Brit 4x12 G      britânica fechada, mais escura e suave (anos 60/70)
+  Brit 2x12 Blue   britânica, brilho "chime" de ímã de alnico
+  Brit 1x12 Open   combo britânico aberto atrás (ex.: amp classe A)
+  Amer 2x12 Open   combo americano aberto, limpo e brilhante
+  Amer 1x12 Open   combo americano pequeno
+  Amer 4x10 Open   combo americano de 4 falantes de 10"
+  Modern 4x12      moderna fechada, graves firmes, médios cavados
+
+Caixas de baixo:
+  Bass 8x10        a geladeira de rock, médios fortes
+  Bass 1x15 Flip   15" antigo e redondo, pouco agudo (estúdio, anos 60)
+  Bass 4x10 Horn   4x10 com corneta (tweeter) para os agudos
+  Bass 2x12 Modern moderna com tweeter, grave profundo e definição
+  Bass 1x18 Sub    só grave; misture com outra IR
+
+Microfones (estilo):
+  Dyn57   dinâmico clássico de caixa, presença em 5-6 kHz
+  Dyn421  dinâmico mais largo, bom em baixo
+  Cond87  condensador, aberto e plano
+  Rib121  ribbon (fita), escuro e macio
+
+Posições:
+  Cap      no centro do cone: mais brilho e ataque
+  CapEdge  na borda do centro: equilíbrio (bom ponto de partida)
+  Cone     no meio do cone: mais escuro e gordo
+  OffAxis  inclinado: agudos amaciados
+  Back     atrás de caixa aberta (fase invertida; misture com uma frontal)
+  Room     microfone a ~1 m, com chão e sala
+
+DICAS
+- Duas IRs juntas (ex.: Dyn57 Cap + Rib121 CapEdge da mesma caixa) soam
+  como dois microfones reais. As de microfone próximo começam no mesmo
+  instante, então somam sem cancelar (exceto Back, de propósito).
+- Para baixo, é comum misturar a IR com o sinal direto (DI) do baixo.
+- "Back" sozinha soa estranha: ela é feita para somar com uma frontal.
+
+SOBRE
+São IRs sintéticas, projetadas a partir do comportamento de falantes,
+caixas e microfones reais, não medições de caixas reais. Livres para
+qualquer uso, inclusive comercial (CC0).
+Gerador: IRs/tools/make_cab_irs.py no repositório SchizoDellamore/INVERSO.
