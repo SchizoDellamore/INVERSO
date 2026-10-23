@@ -102,7 +102,7 @@ public:
     void restartMotion() { ordinal=0; motion.reset(); }
     MotionState motionSnapshot() const { return motion.snapshot(); }
     void restoreMotion(const MotionState& s) { ordinal=0;motion.restore(s); }
-    void setSample(const Sample* data) { stop(); sample=data; }
+    void setSample(const Sample* data) { if(sample==data)return;sample=data;for(auto& v:voices){v.play=0;v.grainClock=0;v.resonance1.fill(0);v.resonance2.fill(0);v.formant1.fill(0);v.formant2.fill(0);} }
     bool hasSample() const { return sample && sample->left.size()>1; }
     void noteOn(int note, float velocity, int channel, const Settings& s) {
         Voice* chosen=nullptr;
@@ -168,7 +168,8 @@ public:
                     material+=osc*static_cast<float>(std::exp(-static_cast<double>(j)*(.85-.6*bright)))/(1.0f+.4f*static_cast<float>(j));
                     if(useSample&&s.sampleRoute==1&&pf<sr*.45){
                         const float pole=.996f+bright*.003f;
-                        for(size_t c=0;c<2;++c){const auto at=j+c*6;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)+2*pole*static_cast<float>(std::cos(pf/sr*2*pi))*v.resonance1[at]-pole*pole*v.resonance2[at];v.resonance2[at]=v.resonance1[at];v.resonance1[at]=ring;if(c==0)sampleMatter.l+=ring/(1+.4f*static_cast<float>(j));else sampleMatter.r+=ring/(1+.4f*static_cast<float>(j));}
+                        const double omega=pf/sr*2*pi;
+                        for(size_t c=0;c<2;++c){const auto at=j+c*6;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)*2*static_cast<float>(std::sin(omega))+2*pole*static_cast<float>(std::cos(omega))*v.resonance1[at]-pole*pole*v.resonance2[at];v.resonance2[at]=v.resonance1[at];v.resonance1[at]=ring;if(c==0)sampleMatter.l+=ring/(1+.4f*static_cast<float>(j));else sampleMatter.r+=ring/(1+.4f*static_cast<float>(j));}
                     }
                 }
                 else {
@@ -187,15 +188,15 @@ public:
                 const double formantWeight=std::exp(-std::pow((hf-formant)/(130+vowel*380),2.0)*.5);
                 throat+=static_cast<float>(std::sin(v.phase*h*2*pi + rough*.55*fundamental)*(formantWeight+.15/h));
             }
-            throat=throat*.3f + v.noise*rough*.1f;
+            throat=throat*.15f + v.noise*rough*.1f;
             v.pulse=std::fmod(v.pulse+(0.2+12*pulseRate)/sr,1.0);
             const float beat=static_cast<float>(std::exp(-v.pulse*(14+rough*34)));
             const float pulse=(fundamental*.7f+v.noise*rough*.5f)*beat;
             Stereo outMaterial{material,material},outThroat{throat,throat},outPulse{pulse,pulse};
-            if(useSample&&s.sampleRoute==1){outMaterial.l=material*(1-unit(s.sampleMix))+sampleMatter.l*3*unit(s.sampleMix);outMaterial.r=material*(1-unit(s.sampleMix))+sampleMatter.r*3*unit(s.sampleMix);}
+            if(useSample&&s.sampleRoute==1){outMaterial.l=material*(1-unit(s.sampleMix))+sampleMatter.l*unit(s.sampleMix);outMaterial.r=material*(1-unit(s.sampleMix))+sampleMatter.r*unit(s.sampleMix);}
             if(useSample&&s.sampleRoute==2){
                 Stereo filtered;
-                for(size_t k=0;k<3;++k){const double hz=(350+vowel*1400)*(1+static_cast<double>(k)*.72);const float pole=.975f;for(size_t c=0;c<2;++c){const auto at=k+c*3;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)+2*pole*static_cast<float>(std::cos(std::min(hz,sr*.42)/sr*2*pi))*v.formant1[at]-pole*pole*v.formant2[at];v.formant2[at]=v.formant1[at];v.formant1[at]=ring;if(c==0)filtered.l+=ring;else filtered.r+=ring;}}
+                for(size_t k=0;k<3;++k){const double hz=(350+vowel*1400)*(1+static_cast<double>(k)*.72);const double omega=std::min(hz,sr*.42)/sr*2*pi;const float pole=.975f;for(size_t c=0;c<2;++c){const auto at=k+c*3;const float input=c==0?sampled.l:sampled.r;const float ring=input*(1-pole)*2*static_cast<float>(std::sin(omega))+2*pole*static_cast<float>(std::cos(omega))*v.formant1[at]-pole*pole*v.formant2[at];v.formant2[at]=v.formant1[at];v.formant1[at]=ring;if(c==0)filtered.l+=ring;else filtered.r+=ring;}}
                 outThroat.l=throat*(1-unit(s.sampleMix))+filtered.l*unit(s.sampleMix);outThroat.r=throat*(1-unit(s.sampleMix))+filtered.r*unit(s.sampleMix);
             }
             if(useSample&&s.sampleRoute==3){swarmL=swarmL*(1-unit(s.sampleMix))+sampled.l*(1+fundamental*dense)*3*unit(s.sampleMix);swarmR=swarmR*(1-unit(s.sampleMix))+sampled.r*(1-fundamental*dense)*3*unit(s.sampleMix);}

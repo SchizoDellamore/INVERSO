@@ -27,12 +27,13 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
-    juce::UndoManager undoManager{128000, 40};
+    juce::UndoManager undoManager{8*1024*1024, 2};
     juce::AudioProcessorValueTreeState state;
     juce::MidiKeyboardState keyboard;
     std::array<std::atomic<float>,odd::dimensions> live{};
     std::atomic<float> peak{0};
     std::atomic<int> voices{0};
+    std::atomic<bool> hasLiveValues{false};
     static const std::array<juce::String,odd::dimensions> ids;
     static const std::array<juce::String,odd::dimensions> names;
     static juce::AudioProcessorValueTreeState::ParameterLayout layout();
