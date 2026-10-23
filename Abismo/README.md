@@ -1,14 +1,15 @@
-# INVERSO ABISMO v0.10.1: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.11.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
 - **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular.
 - **INVERSO ABISMO DRUMS**: sampler de percussão de ferro-velho (gravações reais em domínio público, ou as suas) e serrote melódico.
 - **INVERSO RELICÁRIO** (0.10): quatro máquinas esquecidas num instrumento só: loops de fita, harmônio de fole elétrico, diapasão eletromagnético e órgão transistorizado soviético.
+- **INVERSO ENKI** (0.11): gerador de ideias sonoras. Inventa sons musicais ou não, a partir de síntese, das gravações do DRUMS e das suas próprias bibliotecas de samples.
 
-O SAMPLER, o DRUMS e o RELICÁRIO têm seções próprias mais adiante.
+O SAMPLER, o DRUMS, o RELICÁRIO e o ENKI têm seções próprias mais adiante.
 
-**Knob como aftertouch (0.10.1):** teclados sem aftertouch (Alesis V49, por exemplo) podem usar um knob no lugar. No ABISMO, no SAMPLER e no RELICÁRIO, clique em **LEARN** no MASTER (embaixo, em AFTERTOUCH KNOB) e gire o knob: ele passa a fazer tudo o que o aftertouch faz (arco e filtro no ABISMO, fole e faísca no RELICÁRIO). O knob escolhido fica salvo no projeto e não muda quando você troca de preset; o X ao lado desliga. O mod wheel e o pedal de sustain não podem ser escolhidos.
+**Knob como aftertouch (0.10.1):** teclados sem aftertouch (Alesis V49, por exemplo) podem usar um knob no lugar. No ABISMO, no SAMPLER, no RELICÁRIO e no ENKI, clique em **LEARN** no MASTER (embaixo, em AFTERTOUCH KNOB) e gire o knob: ele passa a fazer tudo o que o aftertouch faz (arco e filtro no ABISMO, fole e faísca no RELICÁRIO). O knob escolhido fica salvo no projeto e não muda quando você troca de preset; o X ao lado desliga. O mod wheel e o pedal de sustain não podem ser escolhidos.
 
 **Idioma (0.10):** a interface dos quatro instrumentos está em inglês: controles, módulos, presets, kits e objetos. Este manual continua em português; onde ele cita um controle pelo nome antigo em português, procure o equivalente em inglês na mesma seção da tela (por exemplo RESSONADOR → RESONATOR, MUTILAÇÃO → MUTILATION, SERROTE → MUSICAL SAW, Ferro-Velho → Scrapyard). Projetos salvos abrem iguais: só os nomes mudaram.
 
@@ -114,7 +115,7 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 - **TUNING FORK** (à la Spark Gap): garfo mantido por eletroímã. CLANG é a pancada inicial; DRIVE é quanto o circuito mantém o garfo soando (em 0% ele morre como um diapasão batido); SPARK é o estalo do contato; BEAT é um segundo garfo desafinado.
 - **SOVIET ORGAN** (à la Junost/Lel): ondas quadradas divididas de um oscilador só. Registros 16', 8', 4' e UPPER (Octave, Fifth ou Third). Em SOUND: TONE, TREMOLO e RATE do próprio órgão, SPEAKER (o falante rasgado) e HUM (50 Hz da rede).
 - **KEYS**: envelope ADSR das quatro máquinas, velocity, oitava, afinação fina, glide e bend.
-- **AGE** (KEYS › Age, 0.10.1): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
+- **AGE** (KEYS › Age, 0.11.0): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
 
 **O rack de efeitos** (0.10; o som passa por eles nesta ordem)
 1. **DESTROY**: DRIVE com cinco tipos (Tape, Fuzz, Fold, Rectify, Shatter), CRUSH (bits) e DOWNSAMPLE. Na página RING, um modulador em anel com frequência fixa (20 Hz a 3 kHz).
@@ -128,8 +129,23 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 ### Presets do RELICÁRIO (29)
 Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
 
+## ENKI
+Um gerador de ideias: em vez de presets, um botão que inventa sons.
+
+- **GENERATE** cria um som novo na categoria escolhida: *Musical* (tocável, afinado), *Textures* (camadas longas), *Hits* (golpes e impactos), *Rhythmic* (pulsado, segue o andamento da DAW) ou *Weird* (qualquer coisa). O volume é nivelado sozinho.
+- **MUTATE** altera o som atual; o knob AMOUNT diz quanto (pouco = variação, muito = parente distante).
+- **LOCK** (nas seções SOURCE A, SOURCE B, SHAPE, MOTION e SPACE) protege essa parte do GENERATE e do MUTATE.
+- **< e >** andam pelo histórico (até 100 sons). **SAVE** guarda o som em *Documentos/INVERSO ENKI/Favorites*; **FAVORITES** abre de volta.
+- **WHAT ENKI MADE** descreve em palavras de que o som é feito.
+
+Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (granular sobre a gravação), Resonator (24 materiais, percutido ou friccionado) e Reed. Depois: filtro (passa-baixa, passa-banda, passa-alta ou comb afinado na nota), drive (5 tipos), crush, ring modulation, dois envelopes, LFO, gate rítmico, glitch e fatias invertidas, eco e reverb.
+
+**Suas bibliotecas de samples.** No painel SOUNDS, aba MY SOUNDS: **IMPORT FOLDER** copia uma pasta inteira (uma biblioteca, com subpastas) para *Documentos/INVERSO ENKI/Sounds*; **IMPORT FILES** copia arquivos soltos para *Sounds/Imported*. Os originais não são movidos nem alterados. Lê WAV, AIFF, FLAC, OGG e MP3. Arquivos já copiados (mesmo nome e tamanho) são pulados. **DRAW FROM** escolhe de onde o GENERATE sorteia gravações (todas, só as do ENKI, ou uma biblioteca). TO A / TO B (ou duplo clique) põe o arquivo numa fonte. Gravações longas são cortadas em 45 s.
+
+**Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
+
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.10.1** e baixe `INVERSO_ABISMO_Setup_0.10.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.10.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os quatro aparecem como instrumentos da Inverso Studios: ABISMO e RELICÁRIO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as quatro pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.11.0** e baixe `INVERSO_ABISMO_Setup_0.11.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.11.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os cinco aparecem como instrumentos da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as cinco pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 

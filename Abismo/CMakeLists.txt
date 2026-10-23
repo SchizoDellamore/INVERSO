@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.10.1 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.11.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -221,3 +221,54 @@ target_link_libraries(InversoRelicarioHostSmoke PRIVATE
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags)
 add_test(NAME relicario_host_smoke COMMAND InversoRelicarioHostSmoke)
+
+# ENKI: a sound idea generator (two sources, shaping, motion, space; GENERATE and MUTATE).
+set(ENKI_SOURCES
+ Source/EnkiProcessor.cpp Source/EnkiProcessor.h
+ Source/EnkiEditor.cpp Source/EnkiEditor.h
+ Source/EnkiLibrary.cpp Source/EnkiLibrary.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/AbismoCommon.h Source/DSP/AbismoReverb.h Source/DSP/DrumsEngine.h
+ Source/DSP/EnkiParams.h Source/DSP/EnkiEngine.h Source/DSP/EnkiGenerator.h Source/DSP/RelicarioFx.h)
+set(ENKI_DEFINITIONS JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_USE_MP3AUDIOFORMAT=1)
+juce_add_plugin(InversoEnki
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.enki"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvEn
+ PRODUCT_NAME "INVERSO ENKI"
+ FORMATS VST3
+ VST3_CATEGORIES Instrument Synth
+ IS_SYNTH TRUE
+ NEEDS_MIDI_INPUT TRUE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoEnki)
+target_sources(InversoEnki PRIVATE ${ENKI_SOURCES})
+target_compile_definitions(InversoEnki PUBLIC ${ENKI_DEFINITIONS})
+target_link_libraries(InversoEnki PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoEnkiHostSmoke PRODUCT_NAME "INVERSO Enki Host Smoke")
+juce_generate_juce_header(InversoEnkiHostSmoke)
+target_sources(InversoEnkiHostSmoke PRIVATE Tests/test_enki_host.cpp ${ENKI_SOURCES})
+target_compile_definitions(InversoEnkiHostSmoke PRIVATE ${ENKI_DEFINITIONS})
+target_link_libraries(InversoEnkiHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME enki_host_smoke COMMAND InversoEnkiHostSmoke)
+# ENKI plays the drum recordings too: they ship in its bundle as well.
+get_target_property(enki_bundle InversoEnki_VST3 JUCE_PLUGIN_ARTEFACT_FILE)
+add_custom_command(TARGET InversoEnki_VST3 POST_BUILD
+ COMMAND ${CMAKE_COMMAND} -E make_directory "${enki_bundle}/Contents/Resources"
+ COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin" "${enki_bundle}/Contents/Resources/drums.bin"
+ VERBATIM)
+target_compile_definitions(InversoEnki PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
+target_compile_definitions(InversoEnkiHostSmoke PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")

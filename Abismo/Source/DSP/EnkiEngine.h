@@ -419,6 +419,7 @@ public:
  void allSoundOff() {
   for (auto& v : voices) { v.amp.reset(); v.modEnv.reset(); }
   reverb.clear(); echoL.clear(); echoR.clear(); chop.clear();
+  echoLpL = echoLpR = echoTail = 0.f;
  }
  int activeVoices() const { int n = 0; for (const auto& v : voices) n += v.active() ? 1 : 0; return n; }
  float lfoValue() const { return controls.lfo; }

@@ -34,18 +34,19 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Abismo'
           $bundle = Join-Path $root 'build\InversoAbismo_artefacts\Release\VST3\INVERSO ABISMO.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.10.1'
+          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.11.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoAbismoSampler_artefacts\Release\VST3\INVERSO ABISMO SAMPLER.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoAbismoDrums_artefacts\Release\VST3\INVERSO ABISMO DRUMS.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoRelicario_artefacts\Release\VST3\INVERSO RELICARIO.vst3') -Destination $portable -Recurse -Force
+          Copy-Item -LiteralPath (Join-Path $root 'build\InversoEnki_artefacts\Release\VST3\INVERSO ENKI.vst3') -Destination $portable -Recurse -Force
           $instructions = @'
-          INVERSO ABISMO v0.10.1  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
+          INVERSO ABISMO v0.11.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
           PORTABLE INSTALL (no EXE required)
           1. Close your DAW.
           2. Extract this GitHub artifact ZIP.
-          3. Copy all four folders (INVERSO ABISMO.vst3, INVERSO ABISMO SAMPLER.vst3, INVERSO ABISMO DRUMS.vst3, INVERSO RELICARIO.vst3) into:
+          3. Copy all five folders (INVERSO ABISMO.vst3, INVERSO ABISMO SAMPLER.vst3, INVERSO ABISMO DRUMS.vst3, INVERSO RELICARIO.vst3, INVERSO ENKI.vst3) into:
              C:\Program Files\Common Files\VST3
           4. Reopen the DAW and rescan VST3 plugins if it does not appear (Instruments / Synth).
           Do not rename the .vst3 folder, or move only its internal binary.
@@ -64,14 +65,14 @@ jobs:
       - name: Publish installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_Setup_0.10.1_x64
-          path: Abismo/dist/INVERSO_ABISMO_Setup_0.10.1_x64.exe
+          name: INVERSO_ABISMO_Setup_0.11.0_x64
+          path: Abismo/dist/INVERSO_ABISMO_Setup_0.11.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_PORTABLE_VST3_0.10.1_NO_EXE
-          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.10.1/
+          name: INVERSO_ABISMO_PORTABLE_VST3_0.11.0_NO_EXE
+          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.11.0/
           if-no-files-found: error
       - name: Publish raw VST3 bundle
         uses: actions/upload-artifact@v4
@@ -97,33 +98,41 @@ jobs:
           name: INVERSO_RELICARIO_VST3_x64
           path: Abismo/build/InversoRelicario_artefacts/Release/VST3/INVERSO RELICARIO.vst3/**
           if-no-files-found: error
+      - name: Publish raw ENKI VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ENKI_VST3_x64
+          path: Abismo/build/InversoEnki_artefacts/Release/VST3/INVERSO ENKI.vst3/**
+          if-no-files-found: error
       - name: Publish GitHub Release (direct, permanent download links)
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'abismo-v0.10.1'
+          $tag = 'abismo-v0.11.0'
           $dist = Join-Path $env:GITHUB_WORKSPACE 'Abismo\dist'
-          $portableZip = Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.10.1.zip'
-          Compress-Archive -Path (Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.10.1\*') -DestinationPath $portableZip -Force
+          $portableZip = Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.11.0.zip'
+          Compress-Archive -Path (Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.11.0\*') -DestinationPath $portableZip -Force
           $notes = Join-Path $env:RUNNER_TEMP 'notes.md'
           @'
-          INVERSO ABISMO 0.10.1: ABISMO (sintetizador), ABISMO SAMPLER, ABISMO DRUMS e RELICÁRIO (novo: fita, harmônio, diapasão e órgão soviético), VST3 para Windows x64.
+          INVERSO ABISMO 0.11.0: ABISMO (sintetizador), ABISMO SAMPLER, ABISMO DRUMS, RELICÁRIO e ENKI (novo), VST3 para Windows x64.
 
-          Novo na 0.10.1: RELICÁRIO mais orgânico (knob AGE: afinação própria por tecla, deriva, fita por tecla, segunda palheta, órgão imperfeito, sala e largura estéreo); botão LEARN para usar um knob do teclado como aftertouch (ABISMO, SAMPLER, RELICÁRIO); ABISMO DRUMS não chia nem estala mais em silêncio nos kits com gramofone (Valve Radio, Drunk Marching Band).
+          Novo na 0.11.0: ENKI, um gerador de ideias sonoras. GENERATE inventa um som (musical, textura, golpe, rítmico ou estranho), MUTATE o altera pouco ou muito, LOCK protege o que você quer manter, < e > voltam e avançam no histórico, SAVE guarda nos favoritos. Duas fontes (onda, FM, ruído, gravação, grãos, ressonador, palheta), suas próprias bibliotecas de samples (IMPORT copia para Documentos/INVERSO ENKI/Sounds, sem mexer nos originais) e busca de sons livres (CC0) no Freesound, com uma chave gratuita.
 
-          - **INVERSO_ABISMO_Setup_0.10.1_x64.exe**: instala os quatro. Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
-          - **INVERSO_ABISMO_PORTABLE_VST3_0.10.1.zip**: os quatro plugins sem instalador; copie as pastas .vst3 para C:\Program Files\Common Files\VST3.
+          Da 0.11.0: RELICÁRIO orgânico (knob AGE), LEARN para usar um knob como aftertouch, DRUMS sem chiado nos kits com gramofone.
+
+          - **INVERSO_ABISMO_Setup_0.11.0_x64.exe**: instala os cinco. Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
+          - **INVERSO_ABISMO_PORTABLE_VST3_0.11.0.zip**: os cinco plugins sem instalador; copie as pastas .vst3 para C:\Program Files\Common Files\VST3.
           - **Gravações do DRUMS em WAV** (CC0, para qualquer sampler): https://github.com/SchizoDellamore/INVERSO/releases/download/abismo-v0.7.0/ABISMO_DRUMS_WAV_0.7.0.zip
           '@ | Set-Content -LiteralPath $notes -Encoding utf8
           # The WAV workflow may create the release first; either way it ends up existing once.
           gh release view $tag 2>$null | Out-Null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target $env:GITHUB_SHA --title 'INVERSO ABISMO 0.10.1' --notes-file $notes --latest
+            gh release create $tag --target $env:GITHUB_SHA --title 'INVERSO ABISMO 0.11.0' --notes-file $notes --latest
             if ($LASTEXITCODE -ne 0) { gh release view $tag | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'release create failed' } }
           }
-          gh release edit $tag --notes-file $notes --title 'INVERSO ABISMO 0.10.1' --latest
+          gh release edit $tag --notes-file $notes --title 'INVERSO ABISMO 0.11.0' --latest
           if ($LASTEXITCODE -ne 0) { throw 'release edit failed' }
-          gh release upload $tag (Join-Path $dist 'INVERSO_ABISMO_Setup_0.10.1_x64.exe') $portableZip --clobber
+          gh release upload $tag (Join-Path $dist 'INVERSO_ABISMO_Setup_0.11.0_x64.exe') $portableZip --clobber
           if ($LASTEXITCODE -ne 0) { throw 'release upload failed' }

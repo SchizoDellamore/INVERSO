@@ -48,7 +48,7 @@ public:
     if (s.centre > 0.f && s.min > 0.f) x = std::exp(std::clamp(std::log(x) + amount * 1.5f * rng.next(), std::log(s.min), std::log(s.max)));
     else x = std::clamp(x + amount * .5f * (s.max - s.min) * rng.next(), s.min, s.max);
    } else if (u() < amount * .35f) {
-    if (p == P::ASample || p == P::BSample) x = static_cast<float>(pickSample());
+    if (p == P::ASample || p == P::BSample) x = static_cast<float>(pickSample(p == P::ASample ? 0 : 1));
     else if (s.kind == Kind::Int) x = std::clamp(std::round(x + amount * .3f * (s.max - s.min) * rng.next()), s.min, s.max);
     else x = std::round(s.min + u() * (s.max - s.min));
    }
@@ -113,11 +113,10 @@ private:
  template <int N> float pickf(const float (&items)[N]) { return items[std::min(N - 1, static_cast<int>(u() * N))]; }
  bool chance(float p) { return u() < p; }
 
- // Library recordings, or the user's own (loaded or downloaded) about a third of the time.
- int pickSample() {
-  int used[numUserSlots]; int n = 0;
-  for (int i = 0; i < numUserSlots; ++i) if (slots & (1u << i)) used[n++] = numLibrarySamples + i;
-  if (n > 0 && chance(.4f)) return used[std::min(n - 1, static_cast<int>(u() * static_cast<float>(n)))];
+ // Library recordings, or (about 45% of the time) the user's own file for this
+ // source when one is ready (bit k of `slots`; it plays from slot 48 + k).
+ int pickSample(int k) {
+  if ((slots & (1u << k)) && chance(.45f)) return numLibrarySamples + k;
   return std::min(numLibrarySamples - 1, static_cast<int>(u() * numLibrarySamples));
  }
 
@@ -129,7 +128,7 @@ private:
   v[static_cast<std::size_t>(P::AFine + b)] = chance(.5f) ? range(-12.f, 12.f) : 0.f;
   v[static_cast<std::size_t>(P::AChar + b)] = range(0.f, 100.f);
   v[static_cast<std::size_t>(P::AMotion + b)] = range(0.f, 100.f);
-  v[static_cast<std::size_t>(P::ASample + b)] = static_cast<float>(pickSample());
+  v[static_cast<std::size_t>(P::ASample + b)] = static_cast<float>(pickSample(k));
  }
  void set(Values& v, int p, float x) { v[static_cast<std::size_t>(p)] = x; }
 
