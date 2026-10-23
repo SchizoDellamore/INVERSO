@@ -34,6 +34,10 @@ public:
   downsample = std::clamp(downsampleAmount, 0.f, 1.f);
  }
 
+ // Probability (0..1) that a step plays the previous step backwards. With the
+ // stutter off, reversing still runs on its own 1/8 grid, without the gate.
+ void setReverse(float amount) { reverse = std::clamp(amount, 0.f, 1.f); }
+
  // Percussion: a repeated step is layered over the live signal instead of
  // replacing it, so a hit that lands on a repeat is never swallowed.
  void setLayeredRepeats(bool layered) { layeredRepeats = layered; }
@@ -50,17 +54,32 @@ public:
   if (frames == 0) return;
   history[write * 2] = l;
   history[write * 2 + 1] = r;
-  if (division > 0.0) {
-   const double stepBeats = division;
+  const bool reverseOnly = division <= 0.0 && reverse > 0.f;
+  if (division > 0.0 || reverseOnly) {
+   const double stepBeats = reverseOnly ? .5 : division;
    const auto step = static_cast<long long>(std::floor(beat / stepBeats));
    const double stepSamples = stepBeats * 60.0 / tempo * sr;
    const double phase = beat / stepBeats - static_cast<double>(step);
    if (step != lastStep) {
     lastStep = step;
     const float roll = .5f * (random() + 1.f);
-    mode = roll < chaos * .45f ? Mode::Drop : roll < chaos * .9f ? Mode::Repeat : Mode::Pass;
+    const float chaosNow = reverseOnly ? 0.f : chaos;
+    mode = roll < chaosNow * .45f ? Mode::Drop : roll < chaosNow * .9f ? Mode::Repeat : Mode::Pass;
+    if (reverse > 0.f && .5f * (random() + 1.f) < reverse) mode = Mode::Reverse;
     repeatOffset = std::min(static_cast<std::size_t>(stepSamples), frames - 1);
+    stepStart = write;
+    stepPos = 0;
    }
+   if (mode == Mode::Reverse && repeatOffset > 0) {
+    // The previous step, read from its end back to its start.
+    const std::size_t back = 1 + std::min(stepPos, repeatOffset - 1);
+    const std::size_t read = (stepStart + frames - back) % frames;
+    // The start is continuous with the live signal; the end jumps, so fade it out.
+    const float tail = std::min(1.f, static_cast<float>(repeatOffset - std::min(stepPos, repeatOffset)) / 96.f);
+    l = history[read * 2] * tail;
+    r = history[read * 2 + 1] * tail;
+   }
+   ++stepPos;
    if (mode == Mode::Repeat && repeatOffset > 0) {
     const std::size_t read = (write + frames - repeatOffset) % frames;
     if (layeredRepeats) {
@@ -72,7 +91,7 @@ public:
     }
    }
    // Gate: open for the first part of each step; depth shortens the open part.
-   const double open = 1.0 - .85 * static_cast<double>(stutterDepth);
+   const double open = reverseOnly ? 1.0 : 1.0 - .85 * static_cast<double>(stutterDepth);
    float target = phase < open ? 1.f : 0.f;
    if (mode == Mode::Drop) target = 1.f - stutterDepth;
    gain += ramp * (target - gain);
@@ -97,7 +116,7 @@ public:
  }
 
 private:
- enum class Mode { Pass, Drop, Repeat };
+ enum class Mode { Pass, Drop, Repeat, Reverse };
  float random() {
   state ^= state << 13; state ^= state >> 17; state ^= state << 5;
   return static_cast<float>(state) * (2.f / 4294967296.f) - 1.f;
@@ -105,9 +124,10 @@ private:
  double sr = 48000.0, tempo = 120.0, beat = 0.0, division = 0.0;
  float ramp = .01f, stutterDepth = .6f, chaos = .3f, crush = 0.f, downsample = 0.f, gain = 1.f, heldL = 0.f, heldR = 0.f;
  std::vector<float> history;
- std::size_t write = 0, repeatOffset = 0;
+ std::size_t write = 0, repeatOffset = 0, stepStart = 0, stepPos = 0;
  long long lastStep = -1;
  bool layeredRepeats = false;
+ float reverse = 0.f;
  int holdCount = 0;
  Mode mode = Mode::Pass;
  std::uint32_t state = 0x1234567u;

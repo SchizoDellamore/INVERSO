@@ -75,8 +75,10 @@ const juce::String InversoAbismoProcessor::getProgramName(int index) {
  if (index<0 || index>=getNumPrograms()) return {};
  return juce::String::fromUTF8(presets()[static_cast<std::size_t>(index)].name);
 }
+// Hosts re-send the current program (Cubase does on load and while playing);
+// re-applying it would wipe the user's edits, so only a different preset is applied.
 void InversoAbismoProcessor::setCurrentProgram(int index) {
- if (index<0 || index>=getNumPrograms()) return;
+ if (index<0 || index>=getNumPrograms() || index==currentProgram) return;
  currentProgram=index;
  const auto values=presetValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {
@@ -86,6 +88,9 @@ void InversoAbismoProcessor::setCurrentProgram(int index) {
    param->endChangeGesture();
   }
  }
+ // Tell the host which program is now active; otherwise its program parameter
+ // keeps the old preset and the host switches back to it.
+ updateHostDisplay(ChangeDetails().withProgramChanged(true));
 }
 
 void InversoAbismoProcessor::getStateInformation(juce::MemoryBlock& dest) {

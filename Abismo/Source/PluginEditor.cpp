@@ -18,19 +18,23 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   "GLISSANDO","GLISS TIME","DRIFT","GLIDE","BEND",
   "RATE","PITCH","FILTER","AMP",
   "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
-  "VOICE","VOWEL","FORMANT","CRUSH","DOWNSAMPLE","STUTTER","DEPTH","CHAOS"};
+  "VOICE","VOWEL","FORMANT","CRUSH","DOWNSAMPLE","STUTTER","DEPTH","CHAOS",
+  "MATERIAL B","MORPH","TUNE","KEYTRACK","STRETCH","BRIGHT","STEREO","OSC INPUT","RATTLE",
+  "DRIVE TYPE","RING","RING PITCH","REVERSE","REV REVERSE","WARP"};
  panel=std::make_unique<ParameterPanel>(p.apvts,specs().data(),std::vector<ParameterPanel::Section>{
   {"OSCILADOR",{P::OscShape,P::OscLevel,P::Octave,P::Unison,P::Detune,P::Spread,P::SubLevel}},
   {"DISSONANCIA",{P::ClusterMode,P::ClusterLevel,P::NoiseLevel,P::Tension}},
-  {"RESSONADOR",{P::ResMaterial,P::ResLevel,P::ResDecay,P::Bow,P::Scrape,P::Strike,P::NoiseTone}},
-  {"FILTRO",{P::FilterMode,P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack,P::Drive}},
+  {"RESSONADOR",{P::ResMaterial,P::ResMaterialB,P::ResMorph,P::ResLevel,P::ResDecay,P::ResTune,P::ResKeytrack}},
+  {"CORPO DO RESSONADOR",{P::Bow,P::Scrape,P::Strike,P::NoiseTone,P::ResInput,P::ResStretch,P::ResBright,P::ResStereo,P::ResRattle}},
+  {"FILTRO",{P::FilterMode,P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack}},
+  {"DESTRUICAO",{P::DriveMode,P::Drive,P::RingMix,P::RingPitch,P::Warp}},
   {"AMPLITUDE",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
   {"ENVELOPE DO FILTRO",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}},
   {"AFINACAO / MOVIMENTO",{P::PitchEnv,P::PitchTime,P::Drift,P::Glide,P::BendRange}},
   {"VOZ",{P::VoiceMix,P::Vowel,P::FormantShift}},
-  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterDiv,P::StutterDepth,P::Chaos}},
+  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterDiv,P::StutterDepth,P::Chaos,P::Reverse}},
   {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}},
-  {"ESPACO",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze,P::Width,P::Output}},
+  {"ESPACO",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::RevReverse,P::Freeze,P::Width,P::Output}},
  },shortNames);
  addAndMakeVisible(*panel);
  for(int i=0;i<processor.getNumPrograms();++i) presetBox.addItem(processor.getProgramName(i),i+1);

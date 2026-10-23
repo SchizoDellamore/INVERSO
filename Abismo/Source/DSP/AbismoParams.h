@@ -21,6 +21,9 @@ struct ParamSpec {
  const char* unit;
 };
 
+constexpr int numMaterials = 24;
+constexpr const char* materialChoices = "Corda|Madeira|Metal|Vidro|Sino|Abismo|Marimba|Cano|Membrana|Gongo|Tigela tibetana|Mola|Corda de piano|Gamelao|Prato|Osso|Acorde menor|Cluster|Tritono|Ferrugem|Corpo de madeira|Chapa de trovao|Subterraneo|Sino rachado";
+
 namespace P {
 enum : int {
  OscShape, OscLevel, Octave, Unison, Detune, Spread, SubLevel,
@@ -34,6 +37,9 @@ enum : int {
  RevMix, RevSize, RevDecay, RevDamp, Freeze, Width, Output,
  VoiceMix, Vowel, FormantShift,
  Crush, Downsample, StutterDiv, StutterDepth, Chaos,
+ // 0.8: a deeper resonator and more ways to break the sound.
+ ResMaterialB, ResMorph, ResTune, ResKeytrack, ResStretch, ResBright, ResStereo, ResInput, ResRattle,
+ DriveMode, RingMix, RingPitch, Reverse, RevReverse, Warp,
  Count
 };
 }
@@ -53,7 +59,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"CLUSTER_LEVEL","Cluster level",0,100,50,0,.01f,Kind::Float,nullptr,"%"},
   {"NOISE_LEVEL","Breath noise",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"TENSION","Tension",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
-  {"RES_MATERIAL","Material",0,5,2,0,1,Kind::Choice,"String|Wood|Metal|Glass|Bell|Abyss",""},
+  {"RES_MATERIAL","Material",0,numMaterials - 1,2,0,1,Kind::Choice,materialChoices,""},
   {"RES_LEVEL","Resonator level",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"RES_DECAY","Resonator decay",.05f,15,2,1.5f,.001f,Kind::Float,nullptr,"s"},
   {"BOW","Bow pressure",0,100,40,0,.01f,Kind::Float,nullptr,"%"},
@@ -99,6 +105,21 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"STUTTER_DIV","Stutter",0,6,0,0,1,Kind::Choice,"Off|1/4|1/8|1/16|1/32|1/8T|1/16T",""},
   {"STUTTER_DEPTH","Stutter depth",0,100,60,0,.01f,Kind::Float,nullptr,"%"},
   {"CHAOS","Stutter chaos",0,100,30,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_MATERIAL_B","Material B",0,numMaterials - 1,5,0,1,Kind::Choice,materialChoices,""},
+  {"RES_MORPH","Material morph",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_TUNE","Resonator tune",-24,24,0,0,.01f,Kind::Float,nullptr,"st"},
+  {"RES_KEYTRACK","Resonator keytrack",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_STRETCH","Partial stretch",-100,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_BRIGHT","Resonator brightness",0,100,50,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_STEREO","Resonator stereo",0,100,40,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_INPUT","Osc into resonator",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RES_RATTLE","Rattle",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"DRIVE_MODE","Drive type",0,4,0,0,1,Kind::Choice,"Fita|Fuzz|Dobra|Retificador|Estilhaco",""},
+  {"RING_MIX","Ring mod",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RING_PITCH","Ring pitch",-24,48,7,0,.01f,Kind::Float,nullptr,"st"},
+  {"REVERSE","Reverse slices",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"REV_REVERSE","Reverse reverb",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"WARP","Tape warp",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -118,14 +139,14 @@ inline int indexOf(const char* id) {
 }
 
 struct PresetValue { int param; float value; };
-struct Preset { const char* name; PresetValue values[32]; };
+struct Preset { const char* name; PresetValue values[48]; };
 
 // Each preset starts from the defaults and overrides only what it lists.
 // Value lists end at the first entry with param == -1 (zero-initialised tail
 // entries have param 0, so every list is explicitly terminated).
-inline const std::array<Preset, 16>& presets() {
+inline const std::array<Preset, 40>& presets() {
  using namespace P;
- static const std::array<Preset, 16> table{{
+ static const std::array<Preset, 40> table{{
   {"Init", {{-1, 0}}},
   {"Cordas Mortas", {{OscShape,62},{Unison,4},{Detune,30},{Spread,85},{ClusterMode,1},{ClusterLevel,45},
    {Cutoff,1400},{Resonance,10},{FilterEnv,15},{Attack,2200},{Release,4500},{Sustain,90},
@@ -179,6 +200,80 @@ inline const std::array<Preset, 16>& presets() {
    {VoiceMix,90},{Vowel,90},{FormantShift,4},{Cutoff,5000},{FilterEnv,0},{PitchEnv,-5},{PitchTime,4000},
    {Crush,55},{Downsample,40},{StutterDiv,6},{StutterDepth,50},{Chaos,35},{LfoRate,5},{LfoPitch,15},
    {Attack,400},{Sustain,100},{Release,2500},{Drift,45},{RevMix,40},{RevDecay,7},{Output,0},{-1,0}}},
+  // 0.8: the deeper resonator, more destruction, things played backwards.
+  {"Tigela do Exorcismo", {{OscLevel,0},{ResLevel,90},{ResMaterial,10},{ResDecay,9},{Bow,70},{Strike,30},{NoiseTone,30},
+   {ResStereo,85},{ResBright,40},{Cutoff,12000},{FilterEnv,0},{Attack,600},{Sustain,100},{Release,6000},{Drift,15},
+   {RevMix,50},{RevDecay,12},{RevDamp,40},{Output,-12.3f},{-1,0}}},
+  {"Gongo ao Contrario", {{OscLevel,0},{ResLevel,95},{ResMaterial,9},{ResDecay,8},{Bow,0},{Strike,100},{NoiseTone,60},
+   {ResStereo,60},{Cutoff,14000},{FilterEnv,0},{Attack,1},{Decay,8000},{Sustain,0},{Release,8000},{RevMix,70},
+   {RevReverse,100},{RevSize,85},{RevDecay,10},{RevDamp,30},{Output,2},{-1,0}}},
+  {"Piano Enterrado", {{OscShape,10},{OscLevel,25},{ResLevel,85},{ResMaterial,12},{ResMaterialB,22},{ResMorph,35},
+   {ResInput,40},{Strike,70},{Bow,0},{ResDecay,6},{Cutoff,2500},{Resonance,10},{FilterEnv,0},{Attack,2},{Decay,5000},
+   {Sustain,0},{Release,4000},{Warp,35},{Drift,20},{RevMix,45},{RevDecay,8},{RevDamp,70},{Output,4},{-1,0}}},
+  {"Corda Enferrujada", {{OscLevel,0},{ResLevel,90},{ResMaterial,19},{ResDecay,3},{Bow,80},{Scrape,30},{Strike,10},
+   {NoiseTone,40},{ResRattle,30},{Drive,25},{DriveMode,1},{Cutoff,3500},{FilterEnv,0},{Attack,400},{Sustain,100},
+   {Release,2500},{Drift,30},{RevMix,35},{RevDecay,5},{Output,-16},{-1,0}}},
+  {"Mola do Porao", {{OscLevel,0},{ResLevel,90},{ResMaterial,11},{ResDecay,4},{ResStretch,40},{ResRattle,60},{Strike,90},
+   {Bow,0},{Scrape,20},{Cutoff,9000},{FilterEnv,0},{Attack,1},{Decay,3500},{Sustain,0},{Release,3500},{Reverse,30},
+   {RevMix,45},{RevSize,80},{RevDecay,6},{RevDamp,55},{Output,-5},{-1,0}}},
+  {"Coral de Ossos", {{OscShape,66},{OscLevel,50},{Unison,3},{Detune,25},{ResLevel,70},{ResMaterial,15},{ResMaterialB,16},
+   {ResMorph,50},{ResInput,60},{Bow,30},{ResDecay,2.5f},{VoiceMix,60},{Vowel,80},{FormantShift,-3},{Cutoff,5000},
+   {FilterEnv,0},{Attack,900},{Sustain,100},{Release,3500},{Drift,35},{RevMix,50},{RevDecay,9},{Output,-11},{-1,0}}},
+  {"Trovao de Chapa", {{OscLevel,0},{ResLevel,95},{ResMaterial,21},{ResDecay,6},{ResKeytrack,30},{ResTune,-12},
+   {Strike,100},{Scrape,40},{Bow,30},{NoiseTone,40},{Drive,40},{Cutoff,8000},{FilterEnv,0},{Attack,1},{Decay,7000},
+   {Sustain,20},{Release,6000},{RevMix,50},{RevSize,90},{RevDecay,9},{RevDamp,50},{Output,-8},{-1,0}}},
+  {"Sino Rachado do Campanario", {{OscLevel,0},{ResLevel,95},{ResMaterial,23},{ResDecay,10},{Strike,100},{Bow,0},
+   {NoiseTone,50},{ResRattle,15},{ResStereo,70},{Cutoff,15000},{FilterEnv,0},{Attack,1},{Decay,10000},{Sustain,0},
+   {Release,10000},{RevMix,55},{RevSize,85},{RevDecay,14},{RevDamp,70},{Output,-6},{-1,0}}},
+  {"Cluster Respirando", {{OscShape,40},{OscLevel,40},{Unison,2},{Detune,15},{ResLevel,80},{ResMaterial,17},{ResInput,80},
+   {Bow,30},{ResDecay,4},{NoiseLevel,15},{Cutoff,3000},{FilterEnv,0},{LfoRate,.2f},{LfoFilter,30},{Attack,3000},
+   {Sustain,100},{Release,5000},{Drift,25},{RevMix,50},{RevDecay,10},{Output,-11.5f},{-1,0}}},
+  {"Gamelao Fantasma", {{OscLevel,0},{ResLevel,90},{ResMaterial,13},{ResDecay,5},{Strike,90},{Bow,0},{NoiseTone,65},
+   {ResStereo,60},{Cutoff,12000},{FilterEnv,0},{Attack,1},{Decay,4000},{Sustain,0},{Release,4000},{Warp,25},
+   {RevReverse,60},{RevMix,55},{RevDecay,8},{Output,4},{-1,0}}},
+  {"Radio Morto", {{OscShape,80},{OscLevel,60},{NoiseLevel,30},{VoiceMix,70},{Vowel,40},{RingMix,60},{RingPitch,31},
+   {Drive,60},{DriveMode,4},{Crush,40},{Downsample,30},{Warp,50},{Reverse,30},{StutterDiv,3},{StutterDepth,40},
+   {Chaos,40},{Cutoff,5000},{FilterEnv,0},{Attack,10},{Sustain,100},{Release,500},{RevMix,25},{RevDecay,3},{Output,-2},{-1,0}}},
+  {"Fuzz Infernal", {{OscShape,85},{Unison,4},{Detune,30},{Octave,1},{SubLevel,40},{Drive,90},{DriveMode,1},
+   {Cutoff,1800},{Resonance,40},{FilterEnv,30},{FDecay,1500},{FSustain,30},{Attack,10},{Sustain,100},{Release,700},
+   {Drift,20},{RevMix,20},{RevDecay,3},{Output,-12.6f},{-1,0}}},
+  {"Dobra Cerebral", {{OscShape,0},{OscLevel,90},{Unison,2},{Detune,10},{ClusterMode,1},{ClusterLevel,40},{Drive,80},
+   {DriveMode,2},{Cutoff,7000},{FilterEnv,0},{LfoRate,.13f},{LfoPitch,10},{Tension,20},{Attack,800},{Sustain,100},
+   {Release,2500},{RevMix,35},{RevDecay,6},{Output,-11.8f},{-1,0}}},
+  {"Retificador de Almas", {{OscShape,40},{OscLevel,60},{Drive,70},{DriveMode,3},{ResLevel,40},{ResMaterial,5},
+   {ResInput,50},{ResDecay,3},{Bow,20},{Cutoff,4500},{Resonance,25},{FilterEnv,0},{Attack,300},{Sustain,100},
+   {Release,2000},{Drift,30},{RevMix,35},{RevDecay,6},{Output,-7},{-1,0}}},
+  {"Lembranca Derretida", {{OscShape,66},{Unison,3},{Detune,20},{ClusterMode,4},{ClusterLevel,40},{Warp,80},
+   {RevReverse,40},{Cutoff,2200},{Resonance,15},{FilterEnv,0},{Attack,1500},{Sustain,100},{Release,4000},{Drift,40},
+   {RevMix,50},{RevDecay,9},{RevDamp,60},{Output,-6},{-1,0}}},
+  {"Reverso Sussurrado", {{OscLevel,0},{NoiseLevel,70},{VoiceMix,100},{Vowel,30},{FormantShift,3},{Reverse,100},
+   {RevReverse,70},{Cutoff,9000},{FilterEnv,0},{Keytrack,0},{Attack,200},{Sustain,100},{Release,1500},{RevMix,60},
+   {RevDecay,6},{Output,6},{-1,0}}},
+  {"Picotado ao Contrario", {{OscShape,66},{Unison,2},{Detune,20},{StutterDiv,3},{StutterDepth,50},{Chaos,50},
+   {Reverse,50},{Crush,20},{Cutoff,6000},{FilterEnv,20},{Attack,5},{Sustain,100},{Release,300},{RevMix,25},
+   {RevDecay,3},{Output,-6},{-1,0}}},
+  {"Anel de Fogo", {{OscShape,50},{OscLevel,70},{RingMix,80},{RingPitch,13},{ResLevel,40},{ResMaterial,2},{Bow,50},
+   {ResDecay,3},{Drive,30},{DriveMode,1},{Cutoff,6000},{FilterEnv,0},{Attack,50},{Sustain,100},{Release,1500},
+   {RevMix,30},{RevDecay,5},{Output,-11.3f},{-1,0}}},
+  {"Marimba do Sotao", {{OscLevel,0},{ResLevel,90},{ResMaterial,6},{ResDecay,2.5f},{Strike,85},{Bow,0},{NoiseTone,45},
+   {ResStereo,70},{Cutoff,10000},{FilterEnv,0},{Attack,1},{Decay,2500},{Sustain,0},{Release,2500},{Warp,20},
+   {RevMix,40},{RevDecay,5},{Output,-2},{-1,0}}},
+  {"Corpo Oco", {{OscShape,66},{OscLevel,60},{ResLevel,80},{ResMaterial,20},{ResKeytrack,0},{ResTune,-5},{ResInput,70},
+   {ResDecay,1.5f},{Bow,10},{Cutoff,6000},{FilterEnv,0},{Attack,30},{Sustain,100},{Release,1200},{RevMix,30},
+   {RevDecay,4},{Output,-8},{-1,0}}},
+  {"Subterraneo", {{OscShape,30},{OscLevel,50},{Octave,1},{SubLevel,50},{ResLevel,80},{ResMaterial,22},{ResInput,50},
+   {ResDecay,6},{Bow,20},{Cutoff,900},{Resonance,20},{FilterEnv,0},{Attack,2500},{Sustain,100},{Release,7000},
+   {Drift,30},{RevMix,55},{RevSize,95},{RevDecay,16},{RevDamp,75},{Output,-14.6f},{-1,0}}},
+  {"Tritono Pendular", {{OscLevel,0},{ResLevel,90},{ResMaterial,18},{ResDecay,5},{Bow,60},{Strike,20},{NoiseTone,35},
+   {Cutoff,9000},{FilterEnv,0},{LfoRate,.15f},{LfoPitch,10},{Attack,2000},{Sustain,100},{Release,5000},{RevMix,50},
+   {RevDecay,10},{Output,-10},{-1,0}}},
+  {"Membrana Viva", {{OscLevel,0},{ResLevel,90},{ResMaterial,8},{ResDecay,2},{ResStretch,-30},{ResRattle,30},
+   {ResKeytrack,70},{Strike,80},{Bow,25},{Cutoff,8000},{FilterEnv,0},{Attack,1},{Decay,3000},{Sustain,30},
+   {Release,2000},{RevMix,35},{RevDecay,4},{Output,-6},{-1,0}}},
+  {"Colapso Total", {{OscShape,75},{Unison,6},{Detune,40},{ClusterMode,3},{ClusterLevel,60},{ResLevel,50},
+   {ResMaterial,9},{ResInput,40},{ResRattle,50},{Drive,80},{DriveMode,4},{RingMix,40},{RingPitch,6},{Crush,50},
+   {Downsample,40},{StutterDiv,6},{StutterDepth,60},{Chaos,80},{Reverse,40},{Warp,70},{RevReverse,50},{Cutoff,5000},
+   {FilterEnv,0},{Attack,20},{Sustain,100},{Release,1500},{RevMix,40},{RevDecay,6},{Output,-3},{-1,0}}},
  }};
  return table;
 }

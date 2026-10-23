@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.7.2: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.8.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -12,13 +12,21 @@ Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifôni
 ## Motor sonoro
 - **OSCILADOR**: forma de onda contínua seno → triângulo → dente de serra → quadrada (PolyBLEP, com pouco aliasing), unison de 1 a 7 vozes com desafinação e abertura estéreo, oitava de −2 a +2 e sub-oscilador senoidal.
 - **DISSONÂNCIA**: cada nota pode ganhar intervalos fixos de 2ª menor, trítono, 2ª menor + trítono, quartos de tom, 9ª menor + trítono ou 7ª maior + 2ª menor. Também tem ruído de respiração (BREATH) e a macro **TENSION**.
-- **RESSONADOR**: banco modal de 6 modos afinado pela nota, com materiais *String, Wood, Metal, Glass, Bell, Abyss*. É excitado por ruído contínuo (BOW, o arco), impulsos aleatórios (SCRAPE, a raspagem) e um ataque curto (STRIKE). Funciona sem os osciladores: arco em prato, taça de vidro, corrente arrastada.
-- **FILTRO**: state-variable (TPT) passa-baixa, passa-banda ou passa-alta, com envelope próprio, keytracking e drive antes do filtro.
+- **RESSONADOR** (ampliado na 0.8): banco modal de 12 modos por voz com 24 materiais. São eles: Corda, Madeira, Metal, Vidro, Sino, Abismo, Marimba, Cano (só harmônicos ímpares), Membrana, Gongo, Tigela tibetana (pares de parciais que batem), Mola, Corda de piano, Gamelão, Prato, Osso, Acorde menor, Cluster, Trítono, Ferrugem (cada nota desafina os parciais do seu jeito), Corpo de madeira, Chapa de trovão, Subterrâneo e Sino rachado.
+  - É excitado por ruído contínuo (BOW, o arco), impulsos aleatórios (SCRAPE, a raspagem), um ataque curto (STRIKE) e, com OSC INPUT, pelos próprios osciladores, como uma corda soando num corpo. Funciona sem os osciladores: arco em prato, taça de vidro, corrente arrastada.
+  - MATERIAL B e MORPH passam aos poucos de um material para outro. TUNE afina o ressonador à parte (±24 semitons). KEYTRACK em 100% segue a nota; em 0% ele fica parado perto do dó central, como um corpo fixo que qualquer nota faz soar.
+  - STRETCH estica ou comprime os parciais (mais metálico ou mais oco). BRIGHT decide se os agudos duram tanto quanto os graves. STEREO abre parciais alternados para a esquerda e a direita.
+  - RATTLE é uma peça solta encostando no corpo: passado um certo balanço ela zumbe, e o zumbido faz o corpo soar de novo.
+- **FILTRO**: state-variable (TPT) passa-baixa, passa-banda ou passa-alta, com envelope próprio e keytracking.
+- **DESTRUIÇÃO** (0.8), antes do filtro:
+  - DRIVE com cinco tipos: Fita (saturação suave), Fuzz (corte duro e assimétrico), Dobra (a onda se dobra sobre si mesma, mais dobras com mais drive), Retificador (onda completa, uma oitava acima e zumbindo) e Estilhaço (curva esmagada com quedas aleatórias que estalam).
+  - RING é um modulador em anel com portadora em RING PITCH semitons acima ou abaixo da nota (de −24 a +48): metal, sino quebrado, rádio.
+  - WARP é fita derretendo: wow lento, flutter rápido e, de vez em quando, a fita arrasta e cai de afinação.
 - **AFINAÇÃO / MOVIMENTO**: GLISSANDO de −24 a +24 semitons ao longo de GLISS TIME (queda ou subida lenta), DRIFT (deriva aleatória da afinação, até 60 cents), GLIDE (portamento a partir da nota anterior) e faixa de pitch bend de 1 a 24 semitons.
 - **VOZ**: filtro de 3 formantes que faz morph entre as vogais A-E-I-O-U (VOWEL). FORMANT desloca os formantes ±12 semitons, de demoníaco a infantil, e VOICE mistura com o som original. O LFO→FILTER também move a vogal, como uma boca abrindo e fechando. Com dente de serra + BREATH + DRIVE, dá grunhidos, gemidos e respiração processada no espírito de Cristobal Tapia De Veer (Smile 1 e 2, Utopia).
-- **MUTILAÇÃO**: CRUSH (de 16 a 3 bits), DOWNSAMPLE (redução de taxa de amostragem) e STUTTER sincronizado ao tempo da DAW (1/4 a 1/32 e tercinas). DEPTH encurta o gate. CHAOS sorteia, a cada passo, entre silenciar ou repetir o pedaço anterior. Com a DAW parada, o stutter segue o último tempo conhecido (120 BPM por padrão).
+- **MUTILAÇÃO**: CRUSH (de 16 a 3 bits), DOWNSAMPLE (redução de taxa de amostragem) e STUTTER sincronizado ao tempo da DAW (1/4 a 1/32 e tercinas). DEPTH encurta o gate. CHAOS sorteia, a cada passo, entre silenciar ou repetir o pedaço anterior. REVERSE (0.8) é a chance de cada passo tocar o pedaço anterior de trás para frente; com o STUTTER desligado ele usa uma grade própria de 1/8, sem gate. Com a DAW parada, o stutter segue o último tempo conhecido (120 BPM por padrão).
 - **LFO** para pitch, filtro e amplitude (o tremolo serve para pulso e batimento).
-- **ESPAÇO**: reverb FDN de 8 linhas, com decay de 0,3 a 30 s, DARKNESS (amortecimento), FREEZE, largura estéreo e ganho de saída. Na saída há um teto suave: o sinal é linear até −0,9 dBFS e nunca passa de 0 dBFS.
+- **ESPAÇO**: reverb FDN de 8 linhas, com decay de 0,3 a 30 s, DARKNESS (amortecimento), REV REVERSE (0.8: a cauda toca de trás para frente em janelas de 350 ms e cresce antes do som, à la reverse reverb de trilha de terror), FREEZE, largura estéreo e ganho de saída. Na saída há um teto suave: o sinal é linear até −0,9 dBFS e nunca passa de 0 dBFS.
 
 ## Controle em tempo real
 - **Mod wheel (CC1)** soma à TENSION. Mais tensão significa mais cluster, mais deriva, mais arco no ressonador, mais vibrato, mais ressonância do filtro e mais CHAOS no stutter. Ideal para automação de cena.
@@ -26,7 +34,9 @@ Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifôni
 - **Pedal de sustain (CC64)**, pitch bend, All Notes Off e All Sound Off.
 
 ## Presets de fábrica
-Init, Cordas Mortas, Arco no Metal, Vidro Rachado, Queda Livre, Drone do Abismo, Sussurro no Porão, Caixa de Música Quebrada, Batimento, Tensão Infinita, Coro Afogado e Corrente Arrastada. Na linha de voz processada e picotada: Sorriso Torto, Grunhido, Respiração Picotada e Lamento Mastigado. Ficam no menu do plugin e também aparecem como *programs* do VST3 na DAW. Os níveis foram equilibrados em cerca de −27 dB RMS.
+Init, Cordas Mortas, Arco no Metal, Vidro Rachado, Queda Livre, Drone do Abismo, Sussurro no Porão, Caixa de Música Quebrada, Batimento, Tensão Infinita, Coro Afogado e Corrente Arrastada. Na linha de voz processada e picotada: Sorriso Torto, Grunhido, Respiração Picotada e Lamento Mastigado.
+- Novos na 0.8, com o ressonador ampliado: Tigela do Exorcismo, Gongo ao Contrário, Piano Enterrado, Corda Enferrujada, Mola do Porão, Coral de Ossos, Trovão de Chapa, Sino Rachado do Campanário, Cluster Respirando, Gamelão Fantasma, Marimba do Sótão, Corpo Oco, Subterrâneo, Tritono Pendular e Membrana Viva.
+- Novos na 0.8, destrutivos e ao contrário: Rádio Morto, Fuzz Infernal, Dobra Cerebral, Retificador de Almas, Lembrança Derretida, Reverso Sussurrado, Picotado ao Contrário, Anel de Fogo e Colapso Total. Ficam no menu do plugin e também aparecem como *programs* do VST3 na DAW. Os níveis foram equilibrados em cerca de −27 dB RMS.
 
 ## ABISMO SAMPLER
 Toca qualquer áudio seu (WAV, AIFF, FLAC, OGG ou MP3, de até 10 minutos, mono ou estéreo, em qualquer taxa de amostragem) pelo teclado. O áudio passa pelos mesmos filtro, VOZ, MUTILAÇÃO, reverb e TENSION do ABISMO.
@@ -60,12 +70,13 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Serrote**: do C3 (MIDI 60) para cima, monofônico, desliza no legato.
 - **MÁQUINA QUEBRADA** (STUMBLE de até 80 ms, stutter de disco arranhado, CRUSH), **CARÁTER** (MEGAPHONE, GRAMOPHONE) e **SALA**.
 - **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina de Graxa, Chain Gang (só corpo: pisão, palma, peito, estalo, calcanhar), Rádio de Válvula, Bateria Enferrujada (no layout General MIDI, com sucata no lugar dos pratos), Fábrica, Porão e Ferro-Velho Sintético (os 16 objetos sintetizados).
-- **Correção da 0.7.2**: no Cubase, trocar de kit pelo menu do plugin podia não funcionar, voltar sozinho para o kit anterior ou fazer ruído. O plugin não avisava a DAW da troca, e a DAW reimpunha o kit antigo. Agora a DAW é avisada, um kit reenviado pela DAW não apaga suas edições, e a troca abafa o kit anterior em poucos milissegundos e começa limpa (sem cauda de sala nem resto de efeito); uma nota tocada no instante da troca soa no kit novo.
+- **Correção da 0.7.2** (na 0.8 também no ABISMO e no SAMPLER, para presets): no Cubase, trocar de kit pelo menu do plugin podia não funcionar, voltar sozinho para o kit anterior ou fazer ruído. O plugin não avisava a DAW da troca, e a DAW reimpunha o kit antigo. Agora a DAW é avisada, um kit reenviado pela DAW não apaga suas edições, e a troca abafa o kit anterior em poucos milissegundos e começa limpa (sem cauda de sala nem resto de efeito); uma nota tocada no instante da troca soa no kit novo.
 - **Correção da 0.7.1**: com CHAOS ligado, o stutter podia trocar uma batida pelo trecho anterior (silêncio) e o pad parecia não tocar, principalmente nos kits Oficina de Graxa e Fábrica. Agora a repetição se soma à batida, e um teste verifica que todos os pads de todos os kits soam.
+- **Mudança da 0.8 no ABISMO**: o ressonador passou de 6 para 12 modos. Os materiais antigos mantêm os mesmos 6 primeiros parciais e o mesmo volume, mas ganham brilho nos agudos.
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.7.2** e baixe `INVERSO_ABISMO_Setup_0.7.2_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.7.2.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.8.0** e baixe `INVERSO_ABISMO_Setup_0.8.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.8.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
