@@ -1,0 +1,79 @@
+name: Build INVERSO ABISMO Windows VST3
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'Abismo/**'
+      - '.github/workflows/abismo-windows.yml'
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout INVERSO repository
+        uses: actions/checkout@v4
+      - name: Checkout JUCE 8
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: JUCE
+      - name: Install Inno Setup if necessary
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+      - name: Build VST3 and installer and run DSP tests
+        shell: pwsh
+        run: |
+          .\Abismo\BUILD_ABISMO.ps1 -JucePath "${{ github.workspace }}\JUCE"
+      - name: Create portable VST3 distribution and file checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'Abismo'
+          $bundle = Join-Path $root 'build\InversoAbismo_artefacts\Release\VST3\INVERSO ABISMO.vst3'
+          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.1.0'
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
+          $instructions = @'
+          INVERSO ABISMO v0.1.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
+          PORTABLE INSTALL (no EXE required)
+          1. Close your DAW.
+          2. Extract this GitHub artifact ZIP.
+          3. Copy the entire folder INVERSO ABISMO.vst3 into:
+             C:\Program Files\Common Files\VST3
+          4. Reopen the DAW and rescan VST3 plugins if it does not appear (Instruments / Synth).
+          Do not rename the .vst3 folder, or move only its internal binary.
+          This package is NOT digitally signed. Checksums verify file integrity, not malware safety.
+          '@
+          [IO.File]::WriteAllText((Join-Path $portable 'INSTALL.txt'),$instructions,[Text.Encoding]::UTF8)
+          $hashes = Get-ChildItem -LiteralPath $portable -Recurse -File |
+            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $rel = $_.FullName.Substring($portable.Length+1).Replace('\','/')
+              "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant())  $rel"
+            }
+          $hashes | Set-Content -LiteralPath (Join-Path $portable 'SHA256SUMS.txt') -Encoding ascii
+          if (-not (Get-ChildItem -LiteralPath $portable -Recurse -File | Where-Object Extension -eq '.vst3')) { throw 'Portable bundle missing VST3 binary' }
+      - name: Publish installer ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ABISMO_Setup_0.1.0_x64
+          path: Abismo/dist/INVERSO_ABISMO_Setup_0.1.0_x64.exe
+          if-no-files-found: error
+      - name: Publish portable VST3 ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ABISMO_PORTABLE_VST3_0.1.0_NO_EXE
+          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.1.0/
+          if-no-files-found: error
+      - name: Publish raw VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ABISMO_VST3_x64
+          path: Abismo/build/InversoAbismo_artefacts/Release/VST3/INVERSO ABISMO.vst3/**
+          if-no-files-found: error

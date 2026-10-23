@@ -1,0 +1,125 @@
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+#include <algorithm>
+#include <cmath>
+
+using namespace inverso_abismo;
+
+juce::AudioProcessorValueTreeState::ParameterLayout InversoAbismoProcessor::makeParameters() {
+ using namespace juce;
+ std::vector<std::unique_ptr<RangedAudioParameter>> p;
+ for (const auto& s : specs()) {
+  switch (s.kind) {
+   case Kind::Choice:
+    p.push_back(std::make_unique<AudioParameterChoice>(ParameterID{s.id,1},s.name,
+     StringArray::fromTokens(s.choices,"|",""),static_cast<int>(s.def)));
+    break;
+   case Kind::Bool:
+    p.push_back(std::make_unique<AudioParameterBool>(ParameterID{s.id,1},s.name,s.def>=.5f));
+    break;
+   case Kind::Int:
+    p.push_back(std::make_unique<AudioParameterInt>(ParameterID{s.id,1},s.name,
+     static_cast<int>(s.min),static_cast<int>(s.max),static_cast<int>(s.def)));
+    break;
+   case Kind::Float: {
+    NormalisableRange<float> range(s.min,s.max,s.interval);
+    if (s.centre>0.f) range.setSkewForCentre(s.centre);
+    p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{s.id,1},s.name,range,s.def,
+     AudioParameterFloatAttributes().withLabel(s.unit)));
+    break;
+   }
+  }
+ }
+ return {p.begin(),p.end()};
+}
+
+InversoAbismoProcessor::InversoAbismoProcessor()
+ : AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),
+   apvts(*this,nullptr,"PARAMETERS",makeParameters()) {
+ for (std::size_t i=0;i<raw.size();++i) raw[i]=apvts.getRawParameterValue(specs()[i].id);
+}
+
+bool InversoAbismoProcessor::isBusesLayoutSupported(const BusesLayout& layout) const {
+ return layout.getMainOutputChannelSet()==juce::AudioChannelSet::stereo()
+     && layout.getMainInputChannelSet().isDisabled();
+}
+
+void InversoAbismoProcessor::prepareToPlay(double sampleRate,int) {
+ Values v{};
+ for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
+ engine.setValues(v);
+ engine.prepare(sampleRate);
+ prepared=true;
+ outputPeak.store(0.f);
+}
+
+void InversoAbismoProcessor::releaseResources() { prepared=false; }
+
+void InversoAbismoProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
+ juce::ScopedNoDenormals noDenormals;
+ const int samples=audio.getNumSamples();
+ if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
+ Values v{};
+ for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
+ engine.setValues(v);
+ auto* left=audio.getWritePointer(0);
+ auto* right=audio.getWritePointer(1);
+ // Split the block at each MIDI event so notes start sample-accurately.
+ int position=0;
+ for (const auto metadata : midi) {
+  const int at=std::clamp(metadata.samplePosition,0,samples);
+  if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
+  const auto m=metadata.getMessage();
+  if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
+  else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
+  else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
+  else if (m.isControllerOfType(1)) engine.setModWheel(static_cast<float>(m.getControllerValue())/127.f);
+  else if (m.isSustainPedalOn()) engine.setSustain(true);
+  else if (m.isSustainPedalOff()) engine.setSustain(false);
+  else if (m.isChannelPressure()) engine.setPressure(static_cast<float>(m.getChannelPressureValue())/127.f);
+  else if (m.isAftertouch()) engine.setPressure(static_cast<float>(m.getAfterTouchValue())/127.f);
+  else if (m.isAllNotesOff()) engine.allNotesOff();
+  else if (m.isAllSoundOff()) engine.allSoundOff();
+ }
+ if (position<samples) engine.render(left+position,right+position,samples-position);
+ for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
+ float peak=0.f;
+ for (int i=0;i<samples;++i) peak=std::max({peak,std::abs(left[i]),std::abs(right[i])});
+ outputPeak.store(std::max(peak,outputPeak.load(std::memory_order_relaxed)*.9f),std::memory_order_relaxed);
+ voicesSounding.store(engine.activeVoices(),std::memory_order_relaxed);
+}
+
+int InversoAbismoProcessor::getNumPrograms() { return static_cast<int>(presets().size()); }
+const juce::String InversoAbismoProcessor::getProgramName(int index) {
+ if (index<0 || index>=getNumPrograms()) return {};
+ return juce::String::fromUTF8(presets()[static_cast<std::size_t>(index)].name);
+}
+void InversoAbismoProcessor::setCurrentProgram(int index) {
+ if (index<0 || index>=getNumPrograms()) return;
+ currentProgram=index;
+ const auto values=presetValues(static_cast<std::size_t>(index));
+ for (std::size_t i=0;i<values.size();++i) {
+  if (auto* param=apvts.getParameter(specs()[i].id)) {
+   param->beginChangeGesture();
+   param->setValueNotifyingHost(param->convertTo0to1(values[i]));
+   param->endChangeGesture();
+  }
+ }
+}
+
+void InversoAbismoProcessor::getStateInformation(juce::MemoryBlock& dest) {
+ auto state=apvts.copyState();
+ state.setProperty("program",currentProgram,nullptr);
+ if (auto xml=state.createXml()) copyXmlToBinary(*xml,dest);
+}
+void InversoAbismoProcessor::setStateInformation(const void* data,int size) {
+ auto xml=getXmlFromBinary(data,size);
+ if (xml && xml->hasTagName(apvts.state.getType())) {
+  auto state=juce::ValueTree::fromXml(*xml);
+  currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
+  apvts.replaceState(state);
+ }
+}
+
+juce::AudioProcessorEditor* InversoAbismoProcessor::createEditor(){return new InversoAbismoEditor(*this);}
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new InversoAbismoProcessor();}
