@@ -144,15 +144,20 @@ static bool writeWav(const juce::File& file,const juce::AudioBuffer<float>& audi
     if(!writer)return false;stream.release();if(!writer->writeFromAudioSampleBuffer(audio,0,audio.getNumSamples()))return false;writer.reset();return temp.overwriteTargetFileWithTemporary();
 }
 bool OddProcessor::exportSample(const juce::File& file){auto s=sampleCopy();if(!s||s->left.empty())return false;juce::AudioBuffer<float> b(2,static_cast<int>(s->left.size()));b.copyFrom(0,0,s->left.data(),b.getNumSamples());b.copyFrom(1,0,s->right.empty()?s->left.data():s->right.data(),b.getNumSamples());return writeWav(file,b,s->sampleRate);}
-bool OddProcessor::exportCapture(const juce::File& file){
+std::shared_ptr<const odd::Sample> OddProcessor::captureSnapshot() const{
     // Read atomics, leaving ten seconds of overwrite headroom for the copy.
     std::shared_ptr<CaptureBuffer> source;{const juce::ScopedLock lock(getCallbackLock());source=capture;}
-    if(!source||!source->frames)return false;
-    const auto end=source->written.load(std::memory_order_acquire);const auto count=static_cast<size_t>(std::min<uint64_t>(end,static_cast<uint64_t>(source->sampleRate*15)));if(!count)return false;
-    juce::AudioBuffer<float> b(2,static_cast<int>(count));for(size_t i=0;i<count;++i){const auto at=static_cast<size_t>((end-count+i)%source->frames);b.setSample(0,static_cast<int>(i),source->audio[at*2].load(std::memory_order_relaxed));b.setSample(1,static_cast<int>(i),source->audio[at*2+1].load(std::memory_order_relaxed));}
-    if(source->written.load(std::memory_order_acquire)-end>source->frames-count)return false;
-    return writeWav(file,b,source->sampleRate);
+    if(!source||!source->frames)return {};
+    const auto end=source->written.load(std::memory_order_acquire);const auto count=static_cast<size_t>(std::min<uint64_t>(end,static_cast<uint64_t>(source->sampleRate*15)));if(!count)return {};
+    auto result=std::make_shared<odd::Sample>();result->sampleRate=source->sampleRate;result->left.resize(count);result->right.resize(count);
+    for(size_t i=0;i<count;++i){const auto at=static_cast<size_t>((end-count+i)%source->frames);result->left[i]=source->audio[at*2].load(std::memory_order_relaxed);result->right[i]=source->audio[at*2+1].load(std::memory_order_relaxed);}
+    if(source->written.load(std::memory_order_acquire)-end>source->frames-count)return {};
+    return result;
 }
+bool OddProcessor::exportCapturedAudio(const juce::File& file,const odd::Sample& source){
+    if(source.left.empty())return false;juce::AudioBuffer<float> b(2,static_cast<int>(source.left.size()));b.copyFrom(0,0,source.left.data(),b.getNumSamples());b.copyFrom(1,0,source.right.empty()?source.left.data():source.right.data(),b.getNumSamples());return writeWav(file,b,source.sampleRate);
+}
+bool OddProcessor::exportCapture(const juce::File& file){auto audio=captureSnapshot();return audio&&exportCapturedAudio(file,*audio);}
 juce::String OddProcessor::encodeSample(const odd::Sample& s){
     juce::MemoryBlock data;{juce::MemoryOutputStream out(data,false);out.writeDouble(s.sampleRate);out.writeInt(static_cast<int>(s.left.size()));for(float x:s.left)out.writeFloat(x);for(size_t i=0;i<s.left.size();++i)out.writeFloat(s.right.empty()?s.left[i]:s.right[i]);}
     juce::MemoryBlock compressed;{juce::MemoryOutputStream out(compressed,false);juce::GZIPCompressorOutputStream zip(out,6);zip.write(data.getData(),data.getSize());}return compressed.toBase64Encoding();

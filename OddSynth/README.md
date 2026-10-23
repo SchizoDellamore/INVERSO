@@ -27,7 +27,7 @@ Seis controles: Atrito, Instabilidade, Densidade, Brilho, Garganta e Pulso. Cada
 
 Guardar A e Guardar B conservam duas alternativas completas, incluindo audio do sample. Ouvir A/B recupera a alternativa. Morph interpola os seis controles e os niveis dos quatro motores e do sample, preservando controles travados; nao interpola arquivos, efeitos, sementes ou faixas de variacao. As alternativas sao salvas com o preset e com o projeto da DAW, incluindo a posicao do movimento para recuperar controles congelados.
 
-**Guardar audio recente** exporta ate os ultimos 15 segundos ouvidos em WAV estereo de 24 bits. A captura ocorre continuamente, incluindo efeitos. E preciso tocar audio antes de exportar.
+**Guardar audio recente** exporta ate os ultimos 15 segundos ouvidos em WAV estereo de 24 bits. A captura ocorre continuamente, incluindo efeitos. Ao clicar no botao, o trecho e guardado imediatamente, antes de escolher o destino do arquivo. E preciso tocar audio antes de exportar.
 
 ## Aba Samples
 

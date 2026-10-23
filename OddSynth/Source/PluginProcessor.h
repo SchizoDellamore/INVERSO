@@ -53,6 +53,8 @@ public:
     juce::String sampleName() const;
     bool exportSample(const juce::File&);
     bool exportCapture(const juce::File&);
+    std::shared_ptr<const odd::Sample> captureSnapshot() const;
+    static bool exportCapturedAudio(const juce::File&, const odd::Sample&);
     bool savePreset(const juce::File&);
     bool loadPreset(const juce::File&);
 private:

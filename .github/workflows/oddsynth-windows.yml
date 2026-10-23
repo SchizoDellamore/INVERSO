@@ -19,13 +19,33 @@ jobs:
           repository: juce-framework/JUCE
           ref: ea77444750de45e036e0279bb0291144bf8e3688
           path: external/JUCE
+      - name: Restore compiled dependencies
+        id: compiled-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            OddSynth/build
+            external/JUCE/modules
+            external/JUCE/extras
+          key: oddsynth-win2022-ea7744-v1-${{ github.sha }}
+          restore-keys: oddsynth-win2022-ea7744-v1-
       - name: Configure and build x64
+        id: compile
         shell: pwsh
         run: |
           cmake -S OddSynth -B OddSynth/build -A x64 -DJUCE_ROOT="$env:GITHUB_WORKSPACE/external/JUCE"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build OddSynth/build --config Release --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve compiled dependencies
+        if: steps.compile.outcome == 'success' && steps.compiled-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            OddSynth/build
+            external/JUCE/modules
+            external/JUCE/extras
+          key: ${{ steps.compiled-cache.outputs.cache-primary-key }}
       - name: Test controls, DSP, sample state and actual VST3
         shell: pwsh
         run: |
