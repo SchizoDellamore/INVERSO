@@ -208,6 +208,20 @@ int main(int argc, char** argv) {
  variationAndStumble();
  saw();
  const int sr = 48000;
+ // Silence means silence: after switching from any kit to any other and
+ // letting the hits ring out, nothing (no record crackle, no hiss) may sound.
+ for (std::size_t from = 0; from < D::kits().size(); ++from)
+  for (std::size_t to = 0; to < D::kits().size(); ++to) {
+   if (from == to) continue;
+   D::Engine e; e.setValues(D::kitValues(from)); e.prepare(sr); e.setLibrary(&library);
+   for (int pad = 0; pad < 8; ++pad) e.noteOn(D::firstPadNote + pad, .9f);
+   play(e, sr / 2);
+   e.switchKit(D::kitValues(to));
+   play(e, sr * 3);
+   const auto quiet = play(e, sr);
+   verify(rms(quiet.l, 0, quiet.l.size()) < 1e-5f, "a kit makes noise in silence after a kit change");
+  }
+ std::puts("kit changes leave silence: pass");
  // Every pad of every kit must sound on its own: broken-machine effects may
  // mangle a hit, never swallow it.
  for (std::size_t k = 0; k < D::kits().size(); ++k) {

@@ -448,6 +448,7 @@ public:
  // Silence the delay line and filters without reallocating (audio thread safe).
  void clear() {
   std::fill(delay.begin(), delay.end(), 0.f);
+  surfaceEnv = 0.f; crackle = 0.f;
   for (auto* f : {&megaL, &megaR, &megaHL, &megaHR, &gramL, &gramR}) f->reset();
   hpL = hpR = gHpL = gHpR = 0.f;
  }
@@ -484,9 +485,14 @@ public:
    gHpR += .04f * (gr - gHpR); gr -= gHpR;
    gl = gramL.process(gl, gramLp.a1, gramLp.a2, gramLp.a3, gramLp.k, 0);
    gr = gramR.process(gr, gramLp.a1, gramLp.a2, gramLp.a3, gramLp.k, 0);
-   float surface = rng.next() * .004f; // hiss
-   if ((rng.next() + 1.f) * .5f < 12.f / static_cast<float>(sr)) crackle = rng.next() * .25f;
+   // Surface noise follows the playing, like a record that only crackles
+   // while it turns under the needle: it fades a couple of seconds after the last hit.
+   const float level = std::min(1.f, (std::abs(l) + std::abs(r)) * 25.f);
+   surfaceEnv += (level > surfaceEnv ? .01f : 1.f / (1.2f * static_cast<float>(sr))) * (level - surfaceEnv);
+   float surface = rng.next() * .003f; // hiss
+   if ((rng.next() + 1.f) * .5f < 6.f / static_cast<float>(sr)) crackle = rng.next() * .1f;
    surface += crackle; crackle *= .6f;
+   surface *= surfaceEnv;
    gl += surface; gr += surface;
    l += gramophone * (gl * 1.3f - l);
    r += gramophone * (gr * 1.3f - r);
@@ -494,6 +500,7 @@ public:
  }
 private:
  struct Coeffs { float a1 = 1.f, a2 = 0.f, a3 = 0.f, k = 1.f; };
+ float surfaceEnv = 0.f;
  void setFilter(Coeffs& c, float f, float k) {
   const float g = std::tan(3.14159265f * std::min(f, .45f * static_cast<float>(sr)) / static_cast<float>(sr));
   c.k = k; c.a1 = 1.f / (1.f + g * (g + k)); c.a2 = g * c.a1; c.a3 = g * c.a2;

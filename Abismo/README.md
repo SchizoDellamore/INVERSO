@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.10.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.10.1: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -129,7 +129,7 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.10.0** e baixe `INVERSO_ABISMO_Setup_0.10.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.10.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os quatro aparecem como instrumentos da Inverso Studios: ABISMO e RELICÁRIO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as quatro pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.10.1** e baixe `INVERSO_ABISMO_Setup_0.10.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.10.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os quatro aparecem como instrumentos da Inverso Studios: ABISMO e RELICÁRIO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as quatro pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 

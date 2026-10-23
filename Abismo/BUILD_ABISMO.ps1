@@ -34,5 +34,5 @@ if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyCont
 if(-not $iscc){throw 'Inno Setup 6 ISCC.exe not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_ABISMO.iss')
 Assert-Status 'Inno Setup'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_ABISMO_Setup_0.10.0_x64.exe'))){throw 'Installer missing'}
+if(-not (Test-Path (Join-Path $root 'dist\INVERSO_ABISMO_Setup_0.10.1_x64.exe'))){throw 'Installer missing'}
 Write-Host 'SUCCESS: INVERSO ABISMO installer compiled.'
