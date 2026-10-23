@@ -1,0 +1,95 @@
+name: Build and verify INVERSO OddSynth Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [oddsynth-instrument]
+    paths: ['OddSynth/**', '.github/workflows/oddsynth-windows.yml']
+concurrency:
+  group: inverso-oddsynth-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: ea77444750de45e036e0279bb0291144bf8e3688
+          path: external/JUCE
+      - name: Configure and build x64
+        shell: pwsh
+        run: |
+          cmake -S OddSynth -B OddSynth/build -A x64 -DJUCE_ROOT="$env:GITHUB_WORKSPACE/external/JUCE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build OddSynth/build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test controls, DSP, sample state and actual VST3
+        shell: pwsh
+        run: |
+          ctest --test-dir OddSynth/build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Stage tested binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dest = 'OddSynth/Installer/payload'
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Copy-Item -LiteralPath 'OddSynth/build/InversoOddSynth_artefacts/Release/VST3/INVERSO OddSynth.vst3' -Destination $dest -Recurse
+          Copy-Item -LiteralPath 'OddSynth/build/InversoOddSynth_artefacts/Release/Standalone/INVERSO OddSynth.exe' -Destination $dest
+          Copy-Item OddSynth/README.md "$dest/LEIA-ME.md"
+          Copy-Item external/JUCE/LICENSE.md "$dest/JUCE-LICENSE.md"
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          & $iscc 'OddSynth/Installer/Setup.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify install and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path 'OddSynth/Installer/dist/INVERSO_OddSynth_Setup_0.1.0_x64.exe').Path
+          $vstRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonProgramFiles)) 'VST3'
+          $bundle = Join-Path $vstRoot 'INVERSO OddSynth.vst3'
+          if (Test-Path -LiteralPath $bundle) { throw 'Plugin already installed on test runner' }
+          New-Item -ItemType Directory -Force $vstRoot | Out-Null
+          $sentinel = Join-Path $vstRoot 'OddSynth-neighbor-test.txt'
+          Set-Content -LiteralPath $sentinel 'Preserve other plugins'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Setup exit $($p.ExitCode)" }
+          $source = (Resolve-Path 'OddSynth/Installer/payload/INVERSO OddSynth.vst3').Path
+          foreach ($file in Get-ChildItem -LiteralPath $source -File -Recurse) {
+            $target = Join-Path $bundle $file.FullName.Substring($source.Length+1)
+            if ((Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $target).Hash) { throw 'Installed bytes differ' }
+          }
+          $uninstall = Join-Path $env:ProgramW6432 'INVERSO\OddSynth\unins000.exe'
+          $p = Start-Process -FilePath $uninstall -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or (Test-Path -LiteralPath $bundle)) { throw 'Uninstall failed' }
+          if (-not (Test-Path -LiteralPath $sentinel)) { throw 'Neighbor plugin removed' }
+          Remove-Item -LiteralPath $sentinel
+          @('DSP/control tests passed.', 'Native VST3 loaded and produced MIDI audio.', 'Embedded edited sample and A/B state roundtrip passed.', 'Installer/uninstaller bytes and neighbor preservation passed.') | Set-Content 'OddSynth/Installer/dist/VERIFICACAO.txt'
+          Copy-Item OddSynth/README.md 'OddSynth/Installer/dist/LEIA-ME.md'
+          Copy-Item OddSynth/build/test-output/OddSynth_*.png 'OddSynth/Installer/dist/'
+          Get-ChildItem 'OddSynth/Installer/dist' -File | ForEach-Object { $h = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content 'OddSynth/Installer/dist/SHA256SUMS.txt'
+      - name: Upload verified installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_OddSynth_0.1.0_Windows_x64
+          path: OddSynth/Installer/dist/
+          if-no-files-found: error
+      - name: Upload validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OddSynth-validation
+          path: |
+            OddSynth/build/test-output/
+            OddSynth/build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
