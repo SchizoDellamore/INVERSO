@@ -11,15 +11,15 @@ juce::String noteName(int note){ return juce::MidiMessage::getMidiNoteName(note,
 const char* const* shortNames(){
  static std::array<const char*,P::Count> names=[]{
   std::array<const char*,P::Count> n{};
-  static const char* padNames[P::PadCount]={"OBJETO","AFINA\xc3\x87\xc3\x83O","DURA\xc3\x87\xc3\x83O","TIMBRE","CHOCALHO","FERRUGEM",
-                                            "VARIA\xc3\x87\xc3\x83O","N\xc3\x8dVEL","PAN"};
+  static const char* padNames[P::PadCount]={"OBJECT","TUNE","DECAY","TONE","RATTLE","RUST",
+                                            "VARIATION","LEVEL","PAN"};
   for(int pad=0;pad<numPads;++pad) for(int k=0;k<P::PadCount;++k) n[static_cast<std::size_t>(P::padBase(pad)+k)]=padNames[k];
   const std::pair<int,const char*> rest[]={
-   {P::Stumble,"TROPE\xc3\x87O"},{P::StutterDiv,"DIVIS\xc3\x83O"},{P::StutterDepth,"PROFUNDIDADE"},{P::Chaos,"CAOS"},{P::Crush,"BITS"},
-   {P::Megaphone,"MEGAFONE"},{P::Gramophone,"GRAMOFONE"},{P::RoomMix,"MIX"},{P::RoomSize,"TAMANHO"},{P::RoomDecay,"DURA\xc3\x87\xc3\x83O"},
-   {P::RoomDamp,"ESCURO"},{P::SawLevel,"N\xc3\x8dVEL"},{P::SawAttack,"ARCO"},{P::SawRelease,"SOLTURA"},{P::SawVibrato,"VIBRATO"},
-   {P::SawVibRate,"VELOCIDADE"},{P::SawGlide,"GLIDE"},{P::SawTone,"RU\xc3\x8d" "DO"},{P::SawWobble,"BALAN\xc3\x87O"},{P::VelSens,"VELOCITY"},
-   {P::Output,"SA\xc3\x8d" "DA"},{P::StutterSync,"TEMPO"},{P::StutterMs,"DURA\xc3\x87\xc3\x83O"}};
+   {P::Stumble,"STUMBLE"},{P::StutterDiv,"DIVISION"},{P::StutterDepth,"DEPTH"},{P::Chaos,"CHAOS"},{P::Crush,"BITS"},
+   {P::Megaphone,"MEGAPHONE"},{P::Gramophone,"GRAMOPHONE"},{P::RoomMix,"MIX"},{P::RoomSize,"SIZE"},{P::RoomDecay,"DECAY"},
+   {P::RoomDamp,"DARKNESS"},{P::SawLevel,"LEVEL"},{P::SawAttack,"BOW"},{P::SawRelease,"RELEASE"},{P::SawVibrato,"VIBRATO"},
+   {P::SawVibRate,"RATE"},{P::SawGlide,"GLIDE"},{P::SawTone,"NOISE"},{P::SawWobble,"WOBBLE"},{P::VelSens,"VELOCITY"},
+   {P::Output,"OUTPUT"},{P::StutterSync,"TIMING"},{P::StutterMs,"TIME"}};
   for(const auto& [i,s]:rest) n[static_cast<std::size_t>(i)]=s;
   return n;
  }();
@@ -99,7 +99,7 @@ void PadGrid::paint(juce::Graphics& g){
  g.drawText("PADS",inner.getX()+16,inner.getY(),200,20,juce::Justification::centredLeft);
  g.setColour(c::muted);
  g.setFont(soft::uiFont(10.f));
- g.drawText(juce::String::fromUTF8("CLIQUE PARA OUVIR  \xc2\xb7  ARRASTE ARQUIVOS PARA UM PAD"),inner.withHeight(20),juce::Justification::centredRight);
+ g.drawText(juce::String::fromUTF8("CLICK TO HEAR  \xc2\xb7  DROP FILES ON A PAD"),inner.withHeight(20),juce::Justification::centredRight);
  for(int i=0;i<numPads;++i){
   const auto r=keyBounds(i);
   const auto& k=keys[static_cast<std::size_t>(i)];
@@ -139,7 +139,7 @@ float InversoAbismoDrumsEditor::value(int param) const {
 InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&look);
  body.title="ABISMO DRUMS";
- body.subtitle=juce::String::fromUTF8("FERRO-VELHO GRAVADO   \xc2\xb7   PADS C1 A D#2   \xc2\xb7   SERROTE DO C3 PARA CIMA (LEGATO DESLIZA)");
+ body.subtitle=juce::String::fromUTF8("RECORDED SCRAPYARD   \xc2\xb7   PADS C1 TO D#2   \xc2\xb7   SAW FROM C3 UP (LEGATO SLIDES)");
  addAndMakeVisible(body);
  kits.getCount=[this]{return processor.getNumPrograms();};
  kits.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -154,8 +154,8 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
   const int b=P::padBase(i);
   auto m=std::make_unique<soft::Module>(processor.apvts,specs().data(),shortNames(),
    "PAD "+juce::String(i+1)+juce::String::fromUTF8("  \xc2\xb7  ")+noteName(firstPadNote+i),c::blood,
-   std::vector<Page>{{"Som",{b+P::Tune,b+P::Decay,b+P::Tone,b+P::Level,b+P::Pan},{b+P::Tune}},
-                     {"Sujeira",{b+P::Rattle,b+P::Rust,b+P::Variation}}},270,std::vector<int>{b+P::Object});
+   std::vector<Page>{{"Sound",{b+P::Tune,b+P::Decay,b+P::Tone,b+P::Level,b+P::Pan},{b+P::Tune}},
+                     {"Dirt",{b+P::Rattle,b+P::Rust,b+P::Variation}}},270,std::vector<int>{b+P::Object});
   m->screen.draw=[this,i](juce::Graphics& g,juce::Rectangle<float> r,int){ drawPadScreen(g,r,i); };
   body.addChildComponent(*m);
   padModules.push_back(std::move(m));
@@ -165,15 +165,15 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
   body.addAndMakeVisible(*modules.back());
   return *modules.back();
  };
- add(juce::String::fromUTF8("M\xc3\x81QUINA QUEBRADA"),c::orange,{{"Picote",{P::Stumble,P::StutterMs,P::StutterDepth,P::Chaos,P::Crush}}},166,{P::StutterSync,P::StutterDiv});
- add(juce::String::fromUTF8("CAR\xc3\x81TER"),c::pink,{{"Alto-falante",{P::Megaphone,P::Gramophone}}},166,{});
- add("SALA",c::blue.interpolatedWith(c::violet,.5f),{{"Sala",{P::RoomMix,P::RoomSize,P::RoomDecay,P::RoomDamp},{P::RoomMix}}},166,{});
- add("SERROTE",c::amber,{{"Arco",{P::SawLevel,P::SawAttack,P::SawRelease,P::SawTone}},{"Vibrato",{P::SawVibrato,P::SawVibRate,P::SawGlide,P::SawWobble}}},166,{});
+ add("BROKEN MACHINE",c::orange,{{"Chop",{P::Stumble,P::StutterMs,P::StutterDepth,P::Chaos,P::Crush}}},166,{P::StutterSync,P::StutterDiv});
+ add("CHARACTER",c::pink,{{"Speaker",{P::Megaphone,P::Gramophone}}},166,{});
+ add("ROOM",c::blue.interpolatedWith(c::violet,.5f),{{"Room",{P::RoomMix,P::RoomSize,P::RoomDecay,P::RoomDamp},{P::RoomMix}}},166,{});
+ add("MUSICAL SAW",c::amber,{{"Bow",{P::SawLevel,P::SawAttack,P::SawRelease,P::SawTone}},{"Vibrato",{P::SawVibrato,P::SawVibRate,P::SawGlide,P::SawWobble}}},166,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::VelSens],juce::String("VELOCITY"),c::ink);
  body.addAndMakeVisible(*master);
 
- loadButton.setTooltip("Um arquivo, ou varios (viram tomadas de dinamica)");
- clearButton.setTooltip("Tirar o seu sample e voltar ao OBJETO do pad");
+ loadButton.setTooltip("One file, or several (they become dynamic layers)");
+ clearButton.setTooltip("Remove your sample and go back to the pad's OBJECT");
  loadButton.onClick=[this]{ chooseFiles(); };
  clearButton.onClick=[this]{ loadError.clear(); processor.clearPadSample(selected); };
  body.addAndMakeVisible(loadButton);
@@ -185,8 +185,8 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
   const int div=juce::roundToInt(value(P::StutterDiv));
   const bool free=juce::roundToInt(value(P::StutterSync))==1;
   const float depth=value(P::StutterDepth)*.01f,chaos=value(P::Chaos)*.01f,stumble=value(P::Stumble)*.01f;
-  caption(g,area,juce::String::fromUTF8("TROPE\xc3\x87O ")+juce::String(juce::roundToInt(stumble*80.f))+" ms",
-          div==0?juce::String("STUTTER DESLIGADO"):free?abismo_ui::formatValue(specs()[P::StutterMs],value(P::StutterMs))
+  caption(g,area,juce::String("STUMBLE ")+juce::String(juce::roundToInt(stumble*80.f))+" ms",
+          div==0?juce::String("STUTTER OFF"):free?abismo_ui::formatValue(specs()[P::StutterMs],value(P::StutterMs))
           :juce::String(juce::StringArray{"","1/4","1/8","1/16","1/32","1/8T","1/16T"}[div]));
   auto steps=area.withTrimmedTop(18.f);
   const float w=steps.getWidth()/16.f;
@@ -206,7 +206,7 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
  };
  m[1]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float mega=value(P::Megaphone)*.01f,gram=value(P::Gramophone)*.01f;
-  caption(g,r,"MEGAFONE "+juce::String(juce::roundToInt(mega*100.f))+"%","78 RPM "+juce::String(juce::roundToInt(gram*100.f))+"%");
+  caption(g,r,"MEGAPHONE "+juce::String(juce::roundToInt(mega*100.f))+"%","78 RPM "+juce::String(juce::roundToInt(gram*100.f))+"%");
   auto plot=r.withTrimmedTop(16.f);
   // The speaker's band: narrower and more nasal with the megaphone, duller with the record.
   soft::glowStroke(g,curve(plot,160,[&](float t){
@@ -255,11 +255,11 @@ void InversoAbismoDrumsEditor::drawPadScreen(juce::Graphics& g,juce::Rectangle<f
  const auto lost=processor.getPadMissing(pad);
  juce::String left,right;
  if(loadError.isNotEmpty()) left=loadError;
- else if(lost.isNotEmpty()) left=juce::String::fromUTF8("ARQUIVO N\xc3\x83O ENCONTRADO: ")+lost.upToFirstOccurrenceOf("\n",false,false);
- else if(own) left=juce::String::fromUTF8("SEU SAMPLE  \xc2\xb7  ")+processor.getPadSampleName(pad);
- else left=isSampleObject(object)?juce::String::fromUTF8("GRAVA\xc3\x87\xc3\x83O"):juce::String("OBJETO SINTETIZADO");
+ else if(lost.isNotEmpty()) left=juce::String("FILE NOT FOUND: ")+lost.upToFirstOccurrenceOf("\n",false,false);
+ else if(own) left=juce::String::fromUTF8("YOUR SAMPLE  \xc2\xb7  ")+processor.getPadSampleName(pad);
+ else left=isSampleObject(object)?juce::String("RECORDING"):juce::String("SYNTHESISED OBJECT");
  if(set && !set->layers.empty())
-  right=juce::String(static_cast<int>(set->layers.size()))+(set->layers.size()==1?" TOMADA":" TOMADAS")+"   "+
+  right=juce::String(static_cast<int>(set->layers.size()))+(set->layers.size()==1?" TAKE":" TAKES")+"   "+
         juce::String(static_cast<double>(set->layers.back().size())/set->sampleRate,2)+" s";
  g.setFont(soft::monoFont(10.f));
  g.setColour(loadError.isNotEmpty()||lost.isNotEmpty()?c::red:c::screenMuted);
@@ -327,10 +327,10 @@ void InversoAbismoDrumsEditor::loadFiles(int pad,const juce::StringArray& paths)
  }
  selectPad(pad);
  if(files.isEmpty() || !processor.loadPadFiles(pad,files))
-  loadError=juce::String::fromUTF8("N\xc3\x83O CONSEGUI LER ESSE ARQUIVO DE \xc3\x81UDIO");
+  loadError=juce::String("COULD NOT READ THAT AUDIO FILE");
 }
 void InversoAbismoDrumsEditor::chooseFiles(){
- chooser=std::make_unique<juce::FileChooser>("Sample(s) para o pad "+juce::String(selected+1),juce::File(),"*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
+ chooser=std::make_unique<juce::FileChooser>("Sample(s) for pad "+juce::String(selected+1),juce::File(),"*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
  const int pad=selected;
  chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::canSelectMultipleItems,
   [this,pad](const juce::FileChooser& fc){
@@ -375,8 +375,8 @@ void InversoAbismoDrumsEditor::timerCallback(){
  padModules[static_cast<std::size_t>(selected)]->screen.repaint();
  clearButton.setEnabled(processor.getPadSampleName(selected).isNotEmpty() || processor.getPadMissing(selected).isNotEmpty());
  if(InversoAbismoDrumsProcessor::library().objects.empty())
-  body.subtitle=juce::String::fromUTF8("BIBLIOTECA DE GRAVA\xc3\x87\xc3\x95" "ES N\xc3\x83O ENCONTRADA: REINSTALE  \xc2\xb7  TOCANDO OS OBJETOS SINTETIZADOS");
- master->setReadout(processor.outputPeak.load(),"SOANDO "+juce::String(processor.hitsSounding.load()));
+  body.subtitle=juce::String::fromUTF8("RECORDING LIBRARY NOT FOUND: REINSTALL  \xc2\xb7  PLAYING THE SYNTHESISED OBJECTS");
+ master->setReadout(processor.outputPeak.load(),"SOUNDING "+juce::String(processor.hitsSounding.load()));
 }
 
 void InversoAbismoDrumsEditor::resized(){

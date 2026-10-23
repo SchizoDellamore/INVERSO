@@ -9,17 +9,17 @@ constexpr int designW=1320, designH=1000;
 
 const char* const* shortNames(){
  static const char* names[P::Count]={
-  "MODO","NOTA BASE","AFINA\xc3\x87\xc3\x83O","IN\xc3\x8d" "CIO","AO CONTR\xc3\x81RIO","LOOP","IN\xc3\x8d" "CIO","FIM","CROSSFADE",
-  "POSI\xc3\x87\xc3\x83O","VARREDURA","TAMANHO","DENSIDADE","ESPALHA","TOM ALEAT.","AO CONTR\xc3\x81RIO","EST\xc3\x89REO",
-  "TIPO","CORTE","RESSON\xc3\x82NCIA","ENVELOPE","SEGUE NOTA","DRIVE",
-  "VOZ","VOGAL","FORMANTE",
-  "ATAQUE","QUEDA","SUSTENTA","SOLTURA","VELOCITY",
-  "ATAQUE","QUEDA","SUSTENTA","SOLTURA",
-  "GLISSANDO","TEMPO","DERIVA","BEND",
-  "VELOCIDADE","AFINA\xc3\x87\xc3\x83O","FILTRO","VOLUME","POSI\xc3\x87\xc3\x83O",
-  "TENS\xc3\x83O","BITS","TAXA","DIVIS\xc3\x83O","PROFUNDIDADE","CAOS",
-  "MIX","TAMANHO","DURA\xc3\x87\xc3\x83O","ESCURO","CONGELA","LARGURA","SA\xc3\x8d" "DA",
-  "TEMPO","DURA\xc3\x87\xc3\x83O"};
+  "MODE","ROOT NOTE","TUNE","START","REVERSE","LOOP","START","END","CROSSFADE",
+  "POSITION","SCAN","SIZE","DENSITY","SPRAY","PITCH RAND.","REVERSE","STEREO",
+  "TYPE","CUTOFF","RESONANCE","ENVELOPE","KEYTRACK","DRIVE",
+  "VOICE","VOWEL","FORMANT",
+  "ATTACK","DECAY","SUSTAIN","RELEASE","VELOCITY",
+  "ATTACK","DECAY","SUSTAIN","RELEASE",
+  "GLISSANDO","TIME","DRIFT","BEND",
+  "RATE","PITCH","FILTER","VOLUME","POSITION",
+  "TENSION","BITS","RATE","DIVISION","DEPTH","CHAOS",
+  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
+  "TIMING","TIME"};
  return names;
 }
 
@@ -101,7 +101,7 @@ void SampleView::paint(juce::Graphics& g){
  if(peaks.empty()){
   g.setFont(soft::uiFont(12.f,true));
   g.setColour(c::screenMuted);
-  g.drawText(juce::String::fromUTF8("SEM SAMPLE  \xc2\xb7  ARRASTE UM ARQUIVO PARA C\xc3\x81"),wave,juce::Justification::centred);
+  g.drawText(juce::String::fromUTF8("NO SAMPLE  \xc2\xb7  DROP A FILE HERE"),wave,juce::Justification::centred);
   return;
  }
  juce::Path shape;
@@ -157,7 +157,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  :AudioProcessorEditor(&p),processor(p),view(p){
  setLookAndFeel(&look);
  body.title="ABISMO SAMPLER";
- body.subtitle=juce::String::fromUTF8("SEUS SONS, CL\xc3\x81SSICO OU GRANULAR   \xc2\xb7   ARRASTE UM ARQUIVO DE \xc3\x81UDIO PARA A JANELA   \xc2\xb7   MOD WHEEL = TENS\xc3\x83O");
+ body.subtitle=juce::String::fromUTF8("YOUR SOUNDS, CLASSIC OR GRANULAR   \xc2\xb7   DROP AN AUDIO FILE ON THE WINDOW   \xc2\xb7   MOD WHEEL = TENSION");
  addAndMakeVisible(body);
  presets.getCount=[this]{return processor.getNumPrograms();};
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -171,31 +171,31 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   body.addAndMakeVisible(*modules.back());
   return *modules.back();
  };
- auto& sample=add("SAMPLE",c::amber,{{"Tocar",{P::Tune,P::RootNote,P::Start,P::Reverse}},
+ auto& sample=add("SAMPLE",c::amber,{{"Play",{P::Tune,P::RootNote,P::Start,P::Reverse}},
                                      {"Loop",{P::LoopStart,P::LoopEnd,P::Xfade}}},176,{P::Mode,P::LoopMode});
- add("GRANULAR",c::cyan,{{"Nuvem",{P::Position,P::Scan,P::GrainSize,P::Density,P::Spray},{P::Position}},
-                         {juce::String::fromUTF8("GR\xc3\x83OS"),{P::GrainPitch,P::GrainReverse,P::GrainSpread,P::LfoPosition}}},176,{});
- add("FILTRO",c::violet,{{"Filtro",{P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack,P::Drive},{P::Cutoff}},
+ add("GRANULAR",c::cyan,{{"Cloud",{P::Position,P::Scan,P::GrainSize,P::Density,P::Spray},{P::Position}},
+                         {"Grains",{P::GrainPitch,P::GrainReverse,P::GrainSpread,P::LfoPosition}}},176,{});
+ add("FILTER",c::violet,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack,P::Drive},{P::Cutoff}},
                          {"Envelope",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}}},120,{P::FilterMode});
  add("ENVELOPE",c::green,{{"Volume",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}}},96,{});
- add("VOZ",c::pink,{{"Voz",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
- add("MOVIMENTO",c::blue,{{juce::String::fromUTF8("AFINA\xc3\x87\xc3\x83O"),{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
+ add("VOICE",c::pink,{{"Voice",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
+ add("MOVEMENT",c::blue,{{"Pitch",{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
                           {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}}},96,{});
- add(juce::String::fromUTF8("MUTILA\xc3\x87\xc3\x83O"),c::orange,{{"Picote",{P::StutterMs,P::StutterDepth,P::Chaos}},
+ add("MUTILATION",c::orange,{{"Chop",{P::StutterMs,P::StutterDepth,P::Chaos}},
                                                               {"Digital",{P::Crush,P::Downsample}}},104,{P::StutterSync,P::StutterDiv});
- add(juce::String::fromUTF8("ESPA\xc3\x87O"),c::blue.interpolatedWith(c::violet,.5f),
+ add("SPACE",c::blue.interpolatedWith(c::violet,.5f),
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze},{P::RevMix}}},104,{});
- master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("LARGURA"),c::ink);
+ master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
  // The waveform lies over the SAMPLE screen; the load buttons sit in its header.
  sample.addAndMakeVisible(view);
  sample.addHeaderComponent(builtInButton,118);
  sample.addHeaderComponent(loadButton,104);
- loadButton.setTooltip("Escolher um arquivo (WAV, AIFF, FLAC, OGG, MP3)");
- builtInButton.setTooltip("Voltar para a voz interna do ABISMO");
+ loadButton.setTooltip("Choose a file (WAV, AIFF, FLAC, OGG, MP3)");
+ builtInButton.setTooltip("Go back to the built-in ABISMO voice");
  loadButton.onClick=[this]{
-  chooser=std::make_unique<juce::FileChooser>("Escolha um sample",juce::File(),"*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
+  chooser=std::make_unique<juce::FileChooser>("Choose a sample",juce::File(),"*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
   chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
    [this](const juce::FileChooser& fc){ if(fc.getResult()!=juce::File()) load(fc.getResult()); });
  };
@@ -207,7 +207,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   const float pos=value(P::Position)*.01f,spray=value(P::Spray)*.01f,size=value(P::GrainSize),density=value(P::Density);
   caption(g,r,abismo_ui::formatValue(specs()[P::GrainSize],size),abismo_ui::formatValue(specs()[P::Density],density));
   auto plot=r.withTrimmedTop(14.f);
-  if(!granular){ notice(g,plot,juce::String::fromUTF8("MODO CL\xc3\x81SSICO  \xc2\xb7  MUDE O MODO NA TELA DO SAMPLE")); return; }
+  if(!granular){ notice(g,plot,juce::String::fromUTF8("CLASSIC MODE  \xc2\xb7  SWITCH MODE ON THE SAMPLE SCREEN")); return; }
   juce::Random rnd(77);
   const int grains=juce::jlimit(6,90,juce::roundToInt(density*1.2f));
   const float drift=std::fmod(animation*.15f*value(P::Scan)*.01f,1.f);
@@ -225,7 +225,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  m[2]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
   if(page==1){
-   caption(g,area,"ENVELOPE DO FILTRO",juce::String(juce::roundToInt(value(P::FilterEnv)))+"%");
+   caption(g,area,"FILTER ENVELOPE",juce::String(juce::roundToInt(value(P::FilterEnv)))+"%");
    soft::glowStroke(g,adsr(area.withTrimmedTop(16.f).reduced(2.f,2.f),value(P::FAttack),value(P::FDecay),value(P::FSustain)*.01f,value(P::FRelease)),c::violet);
    return;
   }
@@ -247,7 +247,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   const float mix=value(P::VoiceMix)*.01f,vowel=value(P::Vowel)*.01f,shift=value(P::FormantShift);
   const char* letters[5]={"A","E","I","O","U"};
   auto row=r.withTrimmedTop(12.f);
-  caption(g,r,"FORMANTE "+juce::String(shift>0?"+":"")+juce::String(shift,1)+" st");
+  caption(g,r,"FORMANT "+juce::String(shift>0?"+":"")+juce::String(shift,1)+" st");
   for(int i=0;i<5;++i){
    const float x=row.getX()+row.getWidth()*(static_cast<float>(i)+.5f)/5.f;
    const float near=1.f-juce::jlimit(0.f,1.f,std::abs(vowel*4.f-static_cast<float>(i)));
@@ -255,7 +255,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
    g.setColour(near>0.f && mix>0.f?c::pink.withAlpha(.35f+.65f*near):c::screenMuted.withAlpha(.6f));
    g.drawText(letters[i],juce::Rectangle<float>(40.f,row.getHeight()).withCentre({x,row.getCentreY()}),juce::Justification::centred);
   }
-  if(mix<=0.f) notice(g,row.withTrimmedTop(row.getHeight()*.62f),"VOZ EM 0%");
+  if(mix<=0.f) notice(g,row.withTrimmedTop(row.getHeight()*.62f),"VOICE AT 0%");
  };
  m[5]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   if(page==1){
@@ -266,7 +266,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
    return;
   }
   const float gl=value(P::PitchEnv),drift=value(P::Drift)*.01f;
-  caption(g,r,juce::String::fromUTF8("GLISSANDO ")+(gl>0?"+":"")+juce::String(gl,1)+" st","DERIVA "+juce::String(juce::roundToInt(drift*100.f))+"%");
+  caption(g,r,juce::String::fromUTF8("GLISSANDO ")+(gl>0?"+":"")+juce::String(gl,1)+" st","DRIFT "+juce::String(juce::roundToInt(drift*100.f))+"%");
   const float timeShare=juce::jlimit(.1f,1.f,std::log10(1.f+value(P::PitchTime)/10.f)/3.4f);
   soft::glowStroke(g,curve(r.withTrimmedTop(12.f),160,[&](float t){
    return juce::jlimit(0.f,1.f,t/timeShare)*gl/24.f+drift*.12f*std::sin(t*23.f+std::sin(t*7.f)*2.f);
@@ -286,7 +286,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   const int div=juce::roundToInt(value(P::StutterDiv));
   const bool free=juce::roundToInt(value(P::StutterSync))==1;
   const float depth=value(P::StutterDepth)*.01f,chaos=value(P::Chaos)*.01f;
-  if(div==0){ notice(g,area,"STUTTER DESLIGADO"); return; }
+  if(div==0){ notice(g,area,"STUTTER OFF"); return; }
   static const char* divs[7]={"","1/4","1/8","1/16","1/32","1/8T","1/16T"};
   caption(g,area,free?abismo_ui::formatValue(specs()[P::StutterMs],value(P::StutterMs)):juce::String(divs[div]));
   auto grid=area.withTrimmedTop(16.f);
@@ -305,7 +305,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  m[7]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay),dark=value(P::RevDamp)*.01f;
   const bool frozen=value(P::Freeze)>=.5f;
-  caption(g,r,frozen?juce::String("CONGELADO"):abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
+  caption(g,r,frozen?juce::String("FROZEN"):abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
   const auto colour=c::blue.interpolatedWith(c::violet,.5f).interpolatedWith(c::screenMuted,dark*.5f);
   const float span=juce::jlimit(.05f,1.f,std::log10(1.f+decay)/1.5f);
   soft::glowStroke(g,curve(r.withTrimmedTop(14.f),160,[&](float t){
@@ -324,7 +324,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
 InversoAbismoSamplerEditor::~InversoAbismoSamplerEditor(){ setLookAndFeel(nullptr); }
 
 void InversoAbismoSamplerEditor::load(const juce::File& file){
- if(!processor.loadSampleFile(file)) loadError=juce::String::fromUTF8("N\xc3\x83O FOI POSS\xc3\x8d" "VEL LER: ")+file.getFileName();
+ if(!processor.loadSampleFile(file)) loadError=juce::String("COULD NOT READ: ")+file.getFileName();
  else loadError.clear();
  shownVersion=-1;
 }
@@ -374,14 +374,14 @@ void InversoAbismoSamplerEditor::refreshFromProcessor(){
   const auto missing=processor.getMissingPath();
   view.statusIsError=missing.isNotEmpty() || loadError.isNotEmpty();
   if(loadError.isNotEmpty()) view.status=loadError;
-  else if(missing.isNotEmpty()) view.status=juce::String::fromUTF8("ARQUIVO N\xc3\x83O ENCONTRADO: ")+missing+"  (tocando a voz interna)";
+  else if(missing.isNotEmpty()) view.status=juce::String("FILE NOT FOUND: ")+missing+"  (playing the built-in voice)";
   else if(const auto s=processor.getDisplaySample())
    view.status=juce::String::fromUTF8(s->name.c_str())+"   "+juce::String(s->length()/s->sampleRate,2)+" s   "+
-               juce::String(s->sampleRate/1000.,1)+" kHz   "+(s->right.empty()?"mono":juce::String::fromUTF8("est\xc3\xa9reo"));
+               juce::String(s->sampleRate/1000.,1)+" kHz   "+(s->right.empty()?"mono":"stereo");
   view.refresh();
  }
  view.repaint();
- master->setReadout(processor.outputPeak.load(),juce::String("VOZES ")+juce::String(processor.voicesSounding.load())+" / 16");
+ master->setReadout(processor.outputPeak.load(),juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 16");
 }
 
 void InversoAbismoSamplerEditor::paintOverChildren(juce::Graphics& g){

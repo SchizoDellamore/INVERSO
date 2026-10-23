@@ -11,23 +11,31 @@
 
 namespace soft {
 
+// The palette. Each plugin is its own binary, so an editor may switch the whole
+// look to vintage (useVintage) before it builds any component.
 namespace colour {
-inline const juce::Colour bodyTop{0xffeef1f5}, bodyBottom{0xffe2e6ec};
-inline const juce::Colour card{0xfff4f6f9}, cardEdge{0xffffffff};
-inline const juce::Colour shadow{0xff9aa6b8};
-inline const juce::Colour ink{0xff343b48}, muted{0xff8b94a4}, faint{0xffc9d0da};
-inline const juce::Colour track{0xffdde2e9};
-inline const juce::Colour screenTop{0xff1d2129}, screenBottom{0xff111318};
-inline const juce::Colour screenInk{0xffe9edf3}, screenMuted{0xff7b8496};
+inline juce::Colour bodyTop{0xffeef1f5}, bodyBottom{0xffe2e6ec};
+inline juce::Colour card{0xfff4f6f9}, cardEdge{0xffffffff};
+inline juce::Colour shadow{0xff9aa6b8};
+inline juce::Colour ink{0xff343b48}, muted{0xff8b94a4}, faint{0xffc9d0da};
+inline juce::Colour track{0xffdde2e9};
+inline juce::Colour screenTop{0xff1d2129}, screenBottom{0xff111318};
+inline juce::Colour screenInk{0xffe9edf3}, screenMuted{0xff7b8496};
 // Module accents.
-inline const juce::Colour amber{0xfff2a541}, cyan{0xff3ccfe0}, violet{0xff9a86ff}, red{0xffef5350};
-inline const juce::Colour orange{0xffff8a3d}, green{0xff52d39a}, pink{0xfff06bb0}, blue{0xff5aa9f5};
-inline const juce::Colour blood{0xffd23a3f};
+inline juce::Colour amber{0xfff2a541}, cyan{0xff3ccfe0}, violet{0xff9a86ff}, red{0xffef5350};
+inline juce::Colour orange{0xffff8a3d}, green{0xff52d39a}, pink{0xfff06bb0}, blue{0xff5aa9f5};
+inline juce::Colour blood{0xffd23a3f};
 }
 
-// Embedded typefaces (Poppins, IBM Plex Mono; OFL).
+// Vintage look: walnut body, cream enamel panels with screws, bakelite knobs
+// over a printed scale, phosphor screens, a VU meter. Call before building the UI.
+inline bool vintage = false;
+void useVintage();
+
+// Embedded typefaces (OFL): Poppins / IBM Plex Mono, or Oswald / Courier Prime when vintage.
 juce::Font uiFont(float height, bool bold = false);
 juce::Font monoFont(float height);
+juce::Font titleFont(float height); // module and instrument titles (Bebas Neue when vintage)
 
 class Look final : public juce::LookAndFeel_V4 {
 public:
@@ -149,12 +157,13 @@ private:
 };
 
 // Vertical stereo peak meter.
+// Vintage: an analogue VU meter with a needle (0 VU = -18 dBFS).
 class Meter final : public juce::Component {
 public:
  void setLevel(float peak);
  void paint(juce::Graphics&) override;
 private:
- float shown = 0.f;
+ float shown = 0.f, needle = -20.f;
 };
 
 // Preset browser:  ‹  NAME  ›  in a raised pill; clicking the name opens the list.
@@ -181,6 +190,8 @@ class Body final : public juce::Component {
 public:
  juce::String title, subtitle;
  void paint(juce::Graphics&) override;
+private:
+ juce::Image woodCache;
 };
 
 } // namespace soft

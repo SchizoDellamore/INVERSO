@@ -49,7 +49,7 @@ private:
  PadGrid grid;
  std::vector<std::unique_ptr<soft::Module>> padModules,modules;
  std::unique_ptr<soft::Master> master;
- juce::TextButton loadButton{"CARREGAR SAMPLE"},clearButton{"VOLTAR AO OBJETO"};
+ juce::TextButton loadButton{"LOAD SAMPLE"},clearButton{"BACK TO OBJECT"};
  juce::TooltipWindow tooltips{this,600};
  std::unique_ptr<juce::FileChooser> chooser;
  juce::String loadError;

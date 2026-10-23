@@ -11,6 +11,8 @@ public:
 private:
  void timerCallback() override;
  float value(int param) const;
+ // Switches the shared UI to its vintage look before any component is built.
+ struct Vintage { Vintage(){ soft::useVintage(); } } vintage;
  InversoRelicarioProcessor& processor;
  soft::Look look;
  soft::Body body;

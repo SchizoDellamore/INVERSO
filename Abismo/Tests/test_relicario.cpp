@@ -159,6 +159,87 @@ static void mechanisms() {
  }
 }
 
+// The effects rack: every effect does something audible and stays safe.
+static Stereo fxRender(R::Values v, int sr, int seconds = 2) {
+ R::Engine e; e.setValues(v); e.prepare(sr);
+ e.setTransport(120.0, 0.0, true);
+ e.noteOn(57, .9f);
+ return render(e, sr * seconds);
+}
+static float difference(const Stereo& a, const Stereo& b) {
+ double sum = 0; for (std::size_t i = 0; i < a.l.size(); ++i) { const double d = a.l[i] - b.l[i]; sum += d * d; }
+ return static_cast<float>(std::sqrt(sum / static_cast<double>(a.l.size())));
+}
+static void effects() {
+ using namespace R::P;
+ const int sr = 48000;
+ R::Values dry = R::defaults();
+ dry[RevMix] = 0; dry[Dust] = 0; dry[Wow] = 0; dry[Wear] = 0;
+ const auto base = fxRender(dry, sr);
+ const float level = rms(base.l, 0, base.l.size());
+ struct Case { const char* name; std::vector<std::pair<int, float>> set; };
+ const std::vector<Case> cases = {
+  {"drive tape", {{Drive, 100}}}, {"drive fuzz", {{Drive, 100}, {DriveType, 1}}}, {"drive fold", {{Drive, 100}, {DriveType, 2}}},
+  {"drive rectify", {{Drive, 100}, {DriveType, 3}}}, {"drive shatter", {{Drive, 100}, {DriveType, 4}}},
+  {"crush", {{Crush, 100}}}, {"downsample", {{Downsample, 100}}},
+  {"chop", {{ChopDiv, 3}, {ChopDepth, 100}}}, {"chop free", {{ChopDiv, 3}, {ChopSync, 1}, {ChopMs, 50}, {ChopDepth, 100}}},
+  {"chop reverse", {{ChopReverse, 100}}},
+  {"low pass", {{FilterMode, 1}, {Cutoff, 400}}}, {"band pass", {{FilterMode, 2}, {Cutoff, 1000}, {Resonance, 60}}},
+  {"high pass", {{FilterMode, 3}, {Cutoff, 2000}}}, {"filter env", {{FilterMode, 1}, {Cutoff, 200}, {FilterEnv, 100}, {Resonance, 80}}},
+  {"filter lfo", {{FilterMode, 1}, {Cutoff, 500}, {FilterLfo, 100}, {FilterLfoRate, 3}}},
+  {"ring", {{RingMix, 100}, {RingFreq, 330}}},
+  {"chorus", {{Ensemble, 100}, {ChorusRate, 2}, {ChorusDepth, 100}}},
+  {"flanger", {{FlangerMix, 100}, {FlangerFeedback, 90}}}, {"flanger negative", {{FlangerMix, 100}, {FlangerFeedback, -90}}},
+  {"phaser", {{PhaserMix, 100}, {PhaserFeedback, 90}}},
+  {"tremolo", {{TremoloDepth, 100}}}, {"tremolo square", {{TremoloDepth, 100}, {TremoloShape, 1}}}, {"tremolo pan", {{TremoloDepth, 100}, {TremoloShape, 2}}},
+  {"vibrato", {{VibratoDepth, 100}}},
+  {"echo synced", {{EchoMix, 60}, {EchoSync, 1}}}, {"echo dark", {{EchoMix, 60}, {EchoTone, 0}}},
+  {"reverb dark", {{RevMix, 50}, {RevDamp, 100}}},
+ };
+ for (const auto& c : cases) {
+  auto v = dry;
+  for (const auto& [p, value] : c.set) v[static_cast<std::size_t>(p)] = value;
+  const auto out = fxRender(v, sr);
+  const float d = difference(out, base);
+  verify(finite(out) && peak(out) <= 1.f, "effect output invalid");
+  if (d < level * .05f) { std::fprintf(stderr, "%s changed nothing (%.5f vs %.5f)\n", c.name, d, level); std::exit(1); }
+ }
+ // Resonant extremes at every cutoff stay finite and under the ceiling.
+ for (float hz : {20.f, 200.f, 2000.f, 12000.f, 20000.f})
+  for (int mode : {1, 2, 3}) {
+   auto v = dry; v[FilterMode] = static_cast<float>(mode); v[Cutoff] = hz; v[Resonance] = 100; v[FilterEnv] = 100; v[Drive] = 100;
+   const auto out = fxRender(v, sr, 1);
+   verify(finite(out) && peak(out) <= 1.f, "resonant filter blew up");
+  }
+ // The low pass really darkens: 3.5 kHz band drops by more than 20 dB.
+ {
+  auto v = dry; v[FilterMode] = 1; v[Cutoff] = 300;
+  const auto out = fxRender(v, sr);
+  const double open = goertzel(base.l, sr, 3520.0, static_cast<std::size_t>(sr / 2), static_cast<std::size_t>(sr * 3 / 2));
+  const double shut = goertzel(out.l, sr, 3520.0, static_cast<std::size_t>(sr / 2), static_cast<std::size_t>(sr * 3 / 2));
+  verify(shut < open * .1, "low pass does not cut");
+ }
+ // Chop at 1/16 and 120 BPM (125 ms steps) gates: many quiet stretches.
+ {
+  auto v = dry; v[ChopDiv] = 3; v[ChopDepth] = 100;
+  const auto out = fxRender(v, sr);
+  int quiet = 0, windows = 0;
+  for (std::size_t i = static_cast<std::size_t>(sr / 2); i + 96 < out.l.size(); i += 96, ++windows)
+   if (rms(out.l, i, i + 96) < level * .1f) ++quiet;
+  verify(quiet > windows / 4, "chop does not gate");
+ }
+ // Synced echo at 120 BPM, 1/4: the repeat lands 500 ms after a short note.
+ {
+  auto v = dry; v[EchoMix] = 80; v[EchoSync] = 1; v[EchoFeedback] = 0; v[Release] = 5; v[Attack] = 1;
+  R::Engine e; e.setValues(v); e.prepare(sr); e.setTransport(120.0, 0.0, true);
+  e.noteOn(57, 1.f); auto a = render(e, sr / 20); e.noteOff(57); auto b = render(e, sr);
+  const float early = rms(b.l, static_cast<std::size_t>(sr * .2), static_cast<std::size_t>(sr * .4));
+  const float echo = rms(b.l, static_cast<std::size_t>(sr * .45), static_cast<std::size_t>(sr * .5));
+  verify(echo > early * 5.f && echo > 1e-3f, "synced echo not at 1/4");
+ }
+ std::puts("effects rack: pass");
+}
+
 static void stress() {
  for (int sr : {44100, 96000}) {
   R::Engine e; e.setValues(R::defaults()); e.prepare(sr);
@@ -213,6 +294,7 @@ static void presetDemos(const std::string& dir) {
 int main(int argc, char** argv) {
  tuning();
  mechanisms();
+ effects();
  presetDemos(argc > 1 ? argv[1] : "");
  stress();
  std::puts("Relicario tests passed");

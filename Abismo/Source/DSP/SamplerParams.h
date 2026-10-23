@@ -81,7 +81,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"FREEZE","Reverb freeze",0,1,0,0,1,Kind::Bool,nullptr,""},
   {"WIDTH","Width",0,200,100,0,.01f,Kind::Float,nullptr,"%"},
   {"OUTPUT","Output",-36,12,0,0,.01f,Kind::Float,nullptr,"dB"},
-  {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Livre",""},
+  {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Free",""},
   {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
  }};
  return table;
@@ -100,25 +100,25 @@ inline const std::array<Preset, 10>& presets() {
  using namespace P;
  static const std::array<Preset, 10> table{{
   {"Init", {{-1, 0}}},
-  {"Congelado", {{Mode,1},{Position,40},{Scan,0},{GrainSize,180},{Density,40},{Spray,4},{GrainSpread,80},
+  {"Frozen", {{Mode,1},{Position,40},{Scan,0},{GrainSize,180},{Density,40},{Spray,4},{GrainSpread,80},
    {Attack,800},{Release,3000},{RevMix,45},{RevDecay,10},{Output,-3},{-1,0}}},
-  {"Nuvem de Vozes", {{Mode,1},{Position,20},{Scan,8},{GrainSize,260},{Density,60},{Spray,35},{GrainPitch,18},
+  {"Cloud of Voices", {{Mode,1},{Position,20},{Scan,8},{GrainSize,260},{Density,60},{Spray,35},{GrainPitch,18},
    {GrainSpread,100},{Drift,30},{Attack,1500},{Release,5000},{RevMix,55},{RevSize,90},{RevDecay,14},{Output,9},{-1,0}}},
-  {"Rasgo Reverso", {{Reverse,1},{Start,10},{Cutoff,6000},{Resonance,25},{FilterEnv,-40},{FDecay,1500},{FSustain,0},
+  {"Reverse Tear", {{Reverse,1},{Start,10},{Cutoff,6000},{Resonance,25},{FilterEnv,-40},{FDecay,1500},{FSustain,0},
    {PitchEnv,-7},{PitchTime,2500},{Attack,10},{Release,1500},{RevMix,40},{RevDecay,6},{-1,0}}},
-  {"Gagueira", {{Mode,1},{Position,30},{Scan,100},{GrainSize,60},{Density,25},{Spray,5},{StutterDiv,3},
+  {"Stammer", {{Mode,1},{Position,30},{Scan,100},{GrainSize,60},{Density,25},{Spray,5},{StutterDiv,3},
    {StutterDepth,75},{Chaos,60},{Crush,25},{Attack,3},{Release,300},{RevMix,15},{RevDecay,2},{Output,4},{-1,0}}},
-  {"Respiracao Esticada", {{Mode,1},{Position,0},{Scan,12},{GrainSize,400},{Density,25},{Spray,6},{GrainSpread,70},
+  {"Stretched Breath", {{Mode,1},{Position,0},{Scan,12},{GrainSize,400},{Density,25},{Spray,6},{GrainSpread,70},
    {FilterMode,1},{Cutoff,1500},{Resonance,8},{LfoRate,.15f},{LfoFilter,30},{Attack,1200},{Release,4000},
    {RevMix,50},{RevDecay,9},{Output,12},{-1,0}}},
-  {"Monstro Grave", {{Tune,-12},{VoiceMix,80},{Vowel,80},{FormantShift,-9},{Drive,60},{Cutoff,3500},
+  {"Low Monster", {{Tune,-12},{VoiceMix,80},{Vowel,80},{FormantShift,-9},{Drive,60},{Cutoff,3500},
    {LoopMode,1},{Attack,20},{Release,1200},{Drift,35},{RevMix,30},{RevDecay,4},{RevDamp,70},{Output,-1},{-1,0}}},
-  {"Fita Derretida", {{LoopMode,2},{LoopStart,30},{LoopEnd,60},{Xfade,40},{Drift,60},{LfoRate,.35f},{LfoPitch,25},
+  {"Melted Tape", {{LoopMode,2},{LoopStart,30},{LoopEnd,60},{Xfade,40},{Drift,60},{LfoRate,.35f},{LfoPitch,25},
    {Downsample,20},{Crush,30},{Cutoff,4500},{Attack,200},{Release,2500},{RevMix,35},{RevDecay,6},{-1,0}}},
-  {"Enxame", {{Mode,1},{Position,50},{Scan,-30},{GrainSize,25},{Density,180},{Spray,60},{GrainPitch,45},
+  {"Swarm", {{Mode,1},{Position,50},{Scan,-30},{GrainSize,25},{Density,180},{Spray,60},{GrainPitch,45},
    {GrainReverse,50},{GrainSpread,100},{FilterMode,2},{Cutoff,400},{Attack,600},{Release,2500},{RevMix,40},
    {RevDecay,7},{Output,9},{-1,0}}},
-  {"Boca Fechada", {{Mode,1},{Position,25},{Scan,20},{GrainSize,90},{Density,45},{VoiceMix,100},{Vowel,95},
+  {"Closed Mouth", {{Mode,1},{Position,25},{Scan,20},{GrainSize,90},{Density,45},{VoiceMix,100},{Vowel,95},
    {LfoRate,.5f},{LfoFilter,60},{LfoPosition,25},{Attack,300},{Release,2000},{RevMix,35},{RevDecay,5},{Output,0},{-1,0}}},
  }};
  return table;

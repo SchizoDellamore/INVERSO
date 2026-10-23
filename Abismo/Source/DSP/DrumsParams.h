@@ -42,32 +42,46 @@ inline const std::array<ObjectModel, 16>& objects() {
  using S = Shape;
  static const std::array<ObjectModel, 16> table{{
   //  name                 shape        f0   modes t60  damp tilt contact pcs imp rate decel bnc bMs  memb base start drop decay looseF rattle gain
-  {"Tambor de Oleo",       S::Shell,    95,  24, .45f,.9f, .8f, 3.5f, 1, 1, 0,  1,    0, 0,   1.f, 48, 2.2f, 35, .4f,  900, 15, 0.63f},
-  {"Colheres",             S::Bar,    1300,  16, .25f,1.f, .6f, .6f,  2, 2, 22, 1,    0, 0,   0,   1,  1,    1,  0,  2600,  0, 5.1f},
-  {"Caixa de Fanfarra",    S::Membrane,190,  20, .2f, .8f, .5f, 1.2f, 1, 1, 0,  1,    0, 0,  .5f, 190, 1.3f, 12, .12f,3200, 75, 0.67f},
-  {"Porta de Garagem",     S::Plate,    70,  30, .5f, 1.1f,1.f, 6.f,  1, 1, 0,  1,    0, 0,  .6f,  50, 1.4f, 30, .15f, 600, 50, 0.74f},
-  {"Tampa de Lixo",        S::Plate,   260,  36, .9f, .9f, .7f, 1.5f, 1, 1, 0,  1,    1, 40,  0,   1,  1,    1,  0,  1500, 45, 6.25f},
-  {"Caixote",              S::Wood,    110,  14, .22f,1.3f,.9f, 3.f,  1, 1, 0,  1,    0, 0,  .4f,  85, 1.3f, 20, .12f, 800, 15, 0.9f},
-  {"Talheres",             S::Bar,    1900,  24, .3f, 1.1f,.75f,.6f,  3, 3, 60, 1,    0, 0,   0,   1,  1,    1,  0,  3000,  0, 7.f},
-  {"Panela",               S::Plate,   210,  28, .7f, .9f, .8f, 2.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1200, 20, 7.1f},
-  {"Corrente",             S::Irregular,1400,24, .12f,1.2f,.7f, .4f,  3, 9, 70, 1.1f, 0, 0,   0,   1,  1,    1,  0,  2200, 10, 1.42f},
-  {"Cano de Ferro",        S::Bar,     280,  18, 1.1f,.8f, .7f, 1.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1800,  0, 8.8f},
-  {"Mola de Cama",         S::Irregular,300, 16, .5f, 1.f, .8f, 1.5f, 1, 1, 0,  1,    0, 0,  .7f, 120, 5.f,  90, .5f, 1800, 50, 0.59f},
-  {"Lata de Lixo",         S::Shell,   160,  30, .6f, .9f, .8f, 2.5f, 1, 1, 0,  1,    0, 0,  .5f,  70, 1.8f, 25, .25f,1400, 30, 0.77f},
-  {"Chapa de Metal",       S::Plate,    45,  40, 1.8f,.7f, .9f, 8.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,   700, 20, 5.8f},
-  {"Prato Rachado",        S::Plate,   420,  44, 1.6f,.75f,.55f,.8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2500, 70, 6.5f},
-  {"Bigorna",              S::Bar,     900,  16, .9f, 1.1f,.8f, .4f,  1, 1, 0,  1,    2, 70,  0,   1,  1,    1,  0,  2000,  0, 6.8f},
-  {"Garrafa",              S::Shell,   700,  12, .5f, 1.1f,1.f, .8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2000,  0, 6.7f},
+  {"Oil Drum",       S::Shell,    95,  24, .45f,.9f, .8f, 3.5f, 1, 1, 0,  1,    0, 0,   1.f, 48, 2.2f, 35, .4f,  900, 15, 0.63f},
+  {"Spoons",             S::Bar,    1300,  16, .25f,1.f, .6f, .6f,  2, 2, 22, 1,    0, 0,   0,   1,  1,    1,  0,  2600,  0, 5.1f},
+  {"Marching Snare",    S::Membrane,190,  20, .2f, .8f, .5f, 1.2f, 1, 1, 0,  1,    0, 0,  .5f, 190, 1.3f, 12, .12f,3200, 75, 0.67f},
+  {"Garage Door",     S::Plate,    70,  30, .5f, 1.1f,1.f, 6.f,  1, 1, 0,  1,    0, 0,  .6f,  50, 1.4f, 30, .15f, 600, 50, 0.74f},
+  {"Trash Can Lid",        S::Plate,   260,  36, .9f, .9f, .7f, 1.5f, 1, 1, 0,  1,    1, 40,  0,   1,  1,    1,  0,  1500, 45, 6.25f},
+  {"Crate",              S::Wood,    110,  14, .22f,1.3f,.9f, 3.f,  1, 1, 0,  1,    0, 0,  .4f,  85, 1.3f, 20, .12f, 800, 15, 0.9f},
+  {"Cutlery",             S::Bar,    1900,  24, .3f, 1.1f,.75f,.6f,  3, 3, 60, 1,    0, 0,   0,   1,  1,    1,  0,  3000,  0, 7.f},
+  {"Pot",               S::Plate,   210,  28, .7f, .9f, .8f, 2.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1200, 20, 7.1f},
+  {"Chain",             S::Irregular,1400,24, .12f,1.2f,.7f, .4f,  3, 9, 70, 1.1f, 0, 0,   0,   1,  1,    1,  0,  2200, 10, 1.42f},
+  {"Iron Pipe",        S::Bar,     280,  18, 1.1f,.8f, .7f, 1.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1800,  0, 8.8f},
+  {"Bed Spring",         S::Irregular,300, 16, .5f, 1.f, .8f, 1.5f, 1, 1, 0,  1,    0, 0,  .7f, 120, 5.f,  90, .5f, 1800, 50, 0.59f},
+  {"Trash Can",         S::Shell,   160,  30, .6f, .9f, .8f, 2.5f, 1, 1, 0,  1,    0, 0,  .5f,  70, 1.8f, 25, .25f,1400, 30, 0.77f},
+  {"Metal Sheet",       S::Plate,    45,  40, 1.8f,.7f, .9f, 8.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,   700, 20, 5.8f},
+  {"Cracked Cymbal",        S::Plate,   420,  44, 1.6f,.75f,.55f,.8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2500, 70, 6.5f},
+  {"Anvil",              S::Bar,     900,  16, .9f, 1.1f,.8f, .4f,  1, 1, 0,  1,    2, 70,  0,   1,  1,    1,  0,  2000,  0, 6.8f},
+  {"Bottle",              S::Shell,   700,  12, .5f, 1.1f,1.f, .8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2000,  0, 6.7f},
  }};
  return table;
 }
 
 // Recorded objects in the embedded library (Library/drums.bin, CC0 sources),
 // in the library's order. OBJECT indices 0-47 play these recordings; indices
-// 48-63 play the synthesised models above, labelled "(sint)".
+// 48-63 play the synthesised models above, labelled "(synth)".
 constexpr int numSampleObjects = 48;
 constexpr int numObjects = numSampleObjects + 16;
 inline const char* sampleObjectName(int i) {
+ static const char* names[numSampleObjects] = {
+  "Oil Drum", "Bones", "Marching Snare", "Clap", "Trash Can Lid", "Crate", "Old Hi-Hat",
+  "Trash Can", "Stomp", "Log", "Ratchet", "Brake Drum", "Metal Sheet", "Cracked Cymbal", "Anvil",
+  "Spring", "Scraper", "Spring Rattle", "Rusty Bell", "Tin Tambourine", "Slapping Board", "Chest",
+  "Snap", "Heel",
+  "Rusty Kick", "Hollow Kick", "Rusty Snare", "Rim", "Shell", "Loose Snares", "Cymbal Stack",
+  "Old China", "Rivet Cymbal", "Riveted Ride", "Rusty Hi-Hat", "Squeaky Pedal", "Old Floor Tom",
+  "Tank", "Iron Pipe", "Cutlery", "Chain", "Bent Agogo", "Clay Jug", "Tin Shaker", "Sand",
+  "Moaning Glass", "Scraped Gong", "Hand Bell"};
+ return names[std::clamp(i, 0, numSampleObjects - 1)];
+}
+// The names stored inside drums.bin (the library predates the English UI and
+// stays byte-identical); used only to check that the file matches this list.
+inline const char* libraryObjectName(int i) {
  static const char* names[numSampleObjects] = {
   "Tambor de Oleo", "Ossos", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
   "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Prato Rachado", "Bigorna",
@@ -89,7 +103,7 @@ inline int synthStandIn(int sampleObject) {
 inline int synthObject(int object) { return std::clamp(object - numSampleObjects, 0, 15); }
 inline std::string objectName(int object) {
  return isSampleObject(object) ? std::string(sampleObjectName(object))
-                               : "(sint) " + std::string(objects()[static_cast<std::size_t>(synthObject(object))].name);
+                               : "(synth) " + std::string(objects()[static_cast<std::size_t>(synthObject(object))].name);
 }
 
 // Default object per pad, laid out like General MIDI drums so DAW drum maps
@@ -157,7 +171,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   set(P::SawWobble, {"SAW_WOBBLE","Saw wobble",0,100,30,0,.01f,Kind::Float,nullptr,"%"});
   set(P::VelSens, {"VEL_SENS","Velocity sensitivity",0,100,70,0,.01f,Kind::Float,nullptr,"%"});
   set(P::Output, {"OUTPUT","Output",-36,6,-3,0,.01f,Kind::Float,nullptr,"dB"});
-  set(P::StutterSync, {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Livre",""});
+  set(P::StutterSync, {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Free",""});
   set(P::StutterMs, {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"});
   return t;
  }();
@@ -181,34 +195,34 @@ inline const std::array<Kit, 11>& kits() {
  using namespace P;
  constexpr int sint = numSampleObjects; // first synthesised object
  static const std::array<Kit, 11> table{{
-  {"Ferro-Velho", {{0,Decay,55},{-1, -1, 0}}},
-  {"Galpao Abandonado", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
+  {"Scrapyard", {{0,Decay,55},{-1, -1, 0}}},
+  {"Abandoned Warehouse", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
    {0,Tune,-3},{-1,Output,-3},{-1,-1,0}}},
-  {"Fanfarra Bebada", {{0,Decay,55},{-1,Stumble,60},{-1,Gramophone,35},{-1,RoomMix,25},{2,Tune,2},
+  {"Drunk Marching Band", {{0,Decay,55},{-1,Stumble,60},{-1,Gramophone,35},{-1,RoomMix,25},{2,Tune,2},
    {5,Object,2},{5,Tune,-5},{7,Object,2},{7,Tune,-8},{9,Object,2},{9,Tune,-11},{11,Object,2},{11,Tune,-13},{-1,Output,-2},{-1,-1,0}}},
-  {"Cozinha Assombrada", {{0,Object,5},{0,Tune,-6},{1,Object,sint + 1},{2,Object,4},{2,Tune,3},{4,Object,18},
+  {"Haunted Kitchen", {{0,Object,5},{0,Tune,-6},{1,Object,sint + 1},{2,Object,4},{2,Tune,3},{4,Object,18},
    {6,Object,sint + 6},{7,Object,sint + 7},{9,Object,sint + 15},{9,Tune,-3},{11,Object,sint + 7},{11,Tune,4},
    {-1,RoomMix,28},{-1,RoomSize,25},{-1,Stumble,15},{-1,Output,-3},{-1,-1,0}}},
-  {"Oficina de Graxa", {{0,Decay,55},{-1,StutterDiv,3},{-1,StutterDepth,35},{-1,Chaos,45},{-1,Crush,12},{-1,Stumble,25},
+  {"Grease Workshop", {{0,Decay,55},{-1,StutterDiv,3},{-1,StutterDepth,35},{-1,Chaos,45},{-1,Crush,12},{-1,Stumble,25},
    {3,Object,12},{4,Object,14},{6,Object,10},{10,Object,11},{13,Object,16},{8,Object,20},
    {-1,RoomMix,18},{-1,RoomSize,40},{-1,Output,-3},{-1,-1,0}}},
   {"Chain Gang", {{0,Object,8},{2,Object,3},{3,Object,20},{5,Object,21},{6,Object,22},{7,Object,23},{8,Object,10},
    {-1,RoomMix,30},{-1,RoomSize,55},{-1,Stumble,30},{-1,Output,-2},{-1,-1,0}}},
-  {"Radio de Valvula", {{0,Decay,55},{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
+  {"Valve Radio", {{0,Decay,55},{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
    {-1,SawVibrato,55},{-1,Output,-4},{-1,-1,0}}},
   // A rusty drum kit laid out like General MIDI, with junk where the cymbals were.
-  {"Bateria Enferrujada", {{0,Object,24},{1,Object,27},{2,Object,26},{3,Object,28},{4,Object,29},{5,Object,36},{5,Tune,-4},
+  {"Rusty Drum Kit", {{0,Object,24},{1,Object,27},{2,Object,26},{3,Object,28},{4,Object,29},{5,Object,36},{5,Tune,-4},
    {6,Object,34},{7,Object,36},{8,Object,35},{9,Object,36},{9,Tune,3},{10,Object,30},{11,Object,36},{11,Tune,6},
    {12,Object,25},{13,Object,31},{14,Object,32},{15,Object,33},{-1,RoomMix,20},{-1,RoomSize,45},{-1,Stumble,10},{-1,-1,0}}},
-  {"Fabrica", {{0,Object,37},{1,Object,38},{2,Object,7},{3,Object,40},{4,Object,4},{5,Object,11},{6,Object,39},{7,Object,14},
+  {"Factory", {{0,Object,37},{1,Object,38},{2,Object,7},{3,Object,40},{4,Object,4},{5,Object,11},{6,Object,39},{7,Object,14},
    {8,Object,35},{9,Object,12},{10,Object,10},{11,Object,38},{11,Tune,-5},{12,Object,46},{13,Object,30},{14,Object,29},
    {15,Object,45},{-1,StutterDiv,3},{-1,StutterDepth,25},{-1,Chaos,35},{-1,Crush,8},{-1,Stumble,15},
    {-1,RoomMix,30},{-1,RoomSize,75},{-1,RoomDecay,2.5f},{-1,Output,-3},{-1,-1,0}}},
-  {"Porao", {{0,Object,25},{0,Tune,-5},{1,Object,28},{2,Object,44},{3,Object,35},{4,Object,45},{5,Object,47},{5,Tune,-7},
+  {"Basement", {{0,Object,25},{0,Tune,-5},{1,Object,28},{2,Object,44},{3,Object,35},{4,Object,45},{5,Object,47},{5,Tune,-7},
    {6,Object,43},{7,Object,46},{8,Object,42},{9,Object,40},{10,Object,41},{11,Object,38},{11,Tune,-12},{12,Object,37},
    {13,Object,31},{13,Tune,-5},{14,Object,17},{15,Object,15},{-1,RoomMix,45},{-1,RoomSize,90},{-1,RoomDecay,5.f},
    {-1,RoomDamp,75},{-1,Stumble,35},{-1,Output,-3},{-1,-1,0}}},
-  {"Ferro-Velho Sintetico", {{0,Object,sint + 0},{1,Object,sint + 1},{2,Object,sint + 2},{3,Object,sint + 3},
+  {"Synthetic Scrapyard", {{0,Object,sint + 0},{1,Object,sint + 1},{2,Object,sint + 2},{3,Object,sint + 3},
    {4,Object,sint + 4},{5,Object,sint + 5},{6,Object,sint + 6},{7,Object,sint + 7},{8,Object,sint + 8},
    {9,Object,sint + 9},{10,Object,sint + 10},{11,Object,sint + 11},{12,Object,sint + 12},{13,Object,sint + 13},
    {14,Object,sint + 14},{15,Object,sint + 15},{2,Rattle,75},{3,Rattle,50},{4,Rattle,45},{13,Rattle,70},

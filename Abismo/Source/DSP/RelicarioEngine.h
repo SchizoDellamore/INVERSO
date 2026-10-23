@@ -17,6 +17,8 @@
 #include "AbismoCommon.h"
 #include "AbismoReverb.h"
 #include "RelicarioParams.h"
+#include "RelicarioFx.h"
+#include "AbismoMutilator.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -99,6 +101,7 @@ struct Shared {
  float loop1Amp = 1.f, loop2Amp = 1.f, loop1Tone = 1.f, loop2Tone = 1.f, fitaCents = 0.f;
  float pressure = 1.f, pressureWobble = 0.f;
  float tremPitch = 0.f, tremAmp = 1.f;
+ float vibCents = 0.f; // global vibrato, every machine
 };
 
 class Voice {
@@ -133,7 +136,7 @@ public:
    const float step = std::abs(glideStart) * dt * 1000.f / c.glideMs;
    glideOffset = glideOffset > 0.f ? std::max(0.f, glideOffset - step) : std::min(0.f, glideOffset + step);
   } else glideOffset = 0.f;
-  const float pitch = static_cast<float>(note - 69) + c.octaveSt + c.fineSt + bendSt + glideOffset;
+  const float pitch = static_cast<float>(note - 69) + c.octaveSt + c.fineSt + bendSt + glideOffset + sh.vibCents * .01f;
   const float f = 440.f * detail::semitoneRatio(pitch);
   const float nyq = .45f * static_cast<float>(sr);
   const auto srf = static_cast<float>(sr);
@@ -264,25 +267,6 @@ private:
  float orgPh = 0.f, orgInc = 0.f, clickEnv = 0.f;
 };
 
-// A modulated delay line used for the tape ensemble and the tape echo.
-class DelayLine {
-public:
- void prepare(int frames) { buffer.assign(static_cast<std::size_t>(std::max(4, frames)), 0.f); write = 0; }
- void clear() { std::fill(buffer.begin(), buffer.end(), 0.f); }
- void push(float x) { buffer[static_cast<std::size_t>(write)] = x; write = (write + 1) % static_cast<int>(buffer.size()); }
- float read(float delaySamples) const {
-  const int size = static_cast<int>(buffer.size());
-  const float d = std::clamp(delaySamples, 1.f, static_cast<float>(size - 2));
-  const float pos = static_cast<float>(write) - d + static_cast<float>(size);
-  const int i0 = static_cast<int>(pos) % size, i1 = (i0 + 1) % size;
-  const float f = pos - std::floor(pos);
-  return buffer[static_cast<std::size_t>(i0)] + f * (buffer[static_cast<std::size_t>(i1)] - buffer[static_cast<std::size_t>(i0)]);
- }
-private:
- std::vector<float> buffer;
- int write = 0;
-};
-
 class Engine {
 public:
  void prepare(double sampleRate) {
@@ -295,6 +279,9 @@ public:
   for (auto* b : {&busFitaL, &busFitaR, &busHarm, &busFork, &busOrgan}) b->assign(static_cast<std::size_t>(maxBlock), 0.f);
   chorusL.prepare(static_cast<int>(sr * .04)); chorusR.prepare(static_cast<int>(sr * .04));
   echoL.prepare(static_cast<int>(sr * 1.4)); echoR.prepare(static_cast<int>(sr * 1.4));
+  flangerL.prepare(static_cast<int>(sr * .02)); flangerR.prepare(static_cast<int>(sr * .02));
+  chop.prepare(sr);
+  clearEffects();
   smoothed = target;
   controlCountdown = 0;
   pressure = 1.f;
@@ -318,6 +305,7 @@ public:
   chosen->start(note, velocity, glideFrom, stolen);
   chosen->control(controls, shared, bend * controls.bendRange, sr, ampShape);
   lastNote = note;
+  filterAttack = true; // every note restarts the filter envelope
  }
  void noteOff(int note) {
   for (auto& v : voices) {
@@ -334,6 +322,12 @@ public:
   for (auto& v : voices) v.amp.reset();
   reverb.clear(); chorusL.clear(); chorusR.clear(); echoL.clear(); echoR.clear();
   for (auto& a : activity) a = 0.f; // hum, hiss and dust stop with the sound
+  clearEffects();
+ }
+ // Host tempo and position, once per block: the chop grid and synced echo follow it.
+ void setTransport(double bpm, double ppq, bool playing) {
+  chop.setTransport(bpm, ppq, playing);
+  if (std::isfinite(bpm) && bpm >= 20.0 && bpm <= 999.0) tempo = bpm;
  }
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f); }
  void setModWheel(float v) { modWheel = std::clamp(v, 0.f, 1.f); }
@@ -352,7 +346,7 @@ public:
    for (auto& v : voices) if (v.active()) v.render(controls, shared, busFitaL.data(), busFitaR.data(), busHarm.data(), busFork.data(), busOrgan.data(), n);
    const auto& s = smoothed;
    const float ens = s[P::Ensemble] * .01f, echoMix = s[P::EchoMix] * .01f, fb = s[P::EchoFeedback] * .01f, dust = s[P::Dust] * .01f;
-   const float echoSamples = static_cast<float>(s[P::EchoTime] * .001 * sr);
+   const float echoSamples = fx.echoSamples;
    const float revMix = s[P::RevMix] * .01f;
    const float dryGain = std::cos(revMix * 1.5707963f), wetGain = std::sin(revMix * 1.5707963f) * 1.3f;
    const float width = s[P::Width] * .01f;
@@ -404,11 +398,48 @@ public:
      x = (1.f - sb) * cab + sb * br;
      l += x; r += x;
     }
-    // Tape ensemble: two slowly wandering delays.
+    // ---- effects rack
+    if (fx.drive > 0.f) { l = driveL.process(l, fx.driveType, fx.drive); r = driveR.process(r, fx.driveType, fx.drive); }
+    if (fx.filterMode > 0) {
+     const int mode = fx.filterMode - 1;
+     l = detail::softTanh(filterL.process(l, fa1, fa2, fa3, fk, mode) * 1.4f) / 1.4f;
+     r = detail::softTanh(filterR.process(r, fa1, fa2, fa3, fk, mode) * 1.4f) / 1.4f;
+    }
+    if (fx.ringMix > 0.f) {
+     ringPhase += fx.ringFreq / static_cast<float>(sr); if (ringPhase >= 1.f) ringPhase -= 1.f;
+     const float carrier = detail::sine(ringPhase) * 1.4f;
+     l += fx.ringMix * (l * carrier - l); r += fx.ringMix * (r * carrier - r);
+    }
+    chop.process(l, r);
+    if (fx.tremDepth > 0.f) {
+     tremoloPhase += fx.tremRate / static_cast<float>(sr); if (tremoloPhase >= 1.f) tremoloPhase -= 1.f;
+     float lfo = detail::sine(tremoloPhase);
+     if (fx.tremShape == 1) lfo = detail::softTanh(lfo * 6.f); // square, rounded so it does not click
+     if (fx.tremShape == 2) { l *= 1.f - fx.tremDepth * (.5f + .5f * lfo); r *= 1.f - fx.tremDepth * (.5f - .5f * lfo); }
+     else { const float gain = 1.f - fx.tremDepth * (.5f + .5f * lfo); l *= gain; r *= gain; }
+    }
+    if (fx.phaserMix > 0.f) {
+     phaserPhase += fx.phaserRate / static_cast<float>(sr); if (phaserPhase >= 1.f) phaserPhase -= 1.f;
+     const float sweepL = .5f + .5f * detail::sine(phaserPhase), sweepR = .5f + .5f * detail::sine(dsp::frac(phaserPhase + .25f));
+     const float cl = Phaser::coefFor(250.f * std::exp2(fx.phaserDepth * 4.5f * sweepL), sr);
+     const float cr = Phaser::coefFor(250.f * std::exp2(fx.phaserDepth * 4.5f * sweepR), sr);
+     const float pl = phaserL.process(l, cl, fx.phaserFb), pr = phaserR.process(r, cr, fx.phaserFb);
+     l += .5f * fx.phaserMix * (pl - l); r += .5f * fx.phaserMix * (pr - r);
+    }
+    if (fx.flangerMix > 0.f) {
+     flangerPhase += fx.flangerRate / static_cast<float>(sr); if (flangerPhase >= 1.f) flangerPhase -= 1.f;
+     const float ms = static_cast<float>(sr) * .001f;
+     const float dl = ms * (.3f + fx.flangerDepth * 5.f * (.5f + .5f * detail::sine(flangerPhase)));
+     const float dr = ms * (.3f + fx.flangerDepth * 5.f * (.5f + .5f * detail::sine(dsp::frac(flangerPhase + .5f))));
+     const float wl = flangerL.read(dl), wr = flangerR.read(dr);
+     flangerL.push(detail::softTanh(l + wl * fx.flangerFb)); flangerR.push(detail::softTanh(r + wr * fx.flangerFb));
+     l += .5f * fx.flangerMix * (wl - l); r += .5f * fx.flangerMix * (wr - r);
+    } else { flangerL.push(0.f); flangerR.push(0.f); }
+    // Chorus (tape ensemble): two slowly wandering delays.
     chorusL.push(l); chorusR.push(r);
     if (ens > 0.f) {
-     chorusPhase += static_cast<float>(.55 / sr); if (chorusPhase >= 1.f) chorusPhase -= 1.f;
-     const float base = static_cast<float>(sr * .009), depth = static_cast<float>(sr * .0035);
+     chorusPhase += fx.chorusRate / static_cast<float>(sr); if (chorusPhase >= 1.f) chorusPhase -= 1.f;
+     const float base = static_cast<float>(sr * .009), depth = static_cast<float>(sr * .007) * fx.chorusDepth;
      const float wl = chorusL.read(base + depth * (.5f + .5f * detail::sine(chorusPhase)));
      const float wr = chorusR.read(base + depth * (.5f + .5f * detail::sine(dsp::frac(chorusPhase + .31f))));
      l = l * (1.f - .45f * ens) + wl * ens * .8f;
@@ -418,7 +449,7 @@ public:
     if (echoMix > 0.f || echoTail > 1e-5f) {
      const float wob = wowValue * static_cast<float>(sr * .0012);
      const float el = echoL.read(echoSamples + wob), er = echoR.read(echoSamples * 1.03f + wob);
-     echoLpL += .35f * (el - echoLpL); echoLpR += .35f * (er - echoLpR);
+     echoLpL += fx.echoToneCoef * (el - echoLpL); echoLpR += fx.echoToneCoef * (er - echoLpR);
      echoL.push(detail::softTanh(l * echoMix + echoLpR * fb));
      echoR.push(detail::softTanh(r * echoMix + echoLpL * fb));
      l += echoLpL; r += echoLpR;
@@ -467,6 +498,20 @@ private:
   flutterPhase = dsp::frac(flutterPhase + dt * 7.3f);
   wowValue = detail::sine(wowPhase);
   shared.fitaCents = controls.wow * (14.f * wowValue + 3.f * detail::sine(flutterPhase)) + wear * 9.f * loop1.read(loop1.bend);
+  // Filter: envelope (restarted by every note) and LFO move the cutoff.
+  if (filterAttack) { filterEnv += .35f * (1.f - filterEnv); if (filterEnv > .98f) filterAttack = false; }
+  else filterEnv *= std::exp(-dt / std::max(.005f, smoothed[P::FilterDecay] * .001f / 2.3f));
+  filterLfoPhase = dsp::frac(filterLfoPhase + dt * smoothed[P::FilterLfoRate]);
+  if (fx.filterMode > 0) {
+   const float oct = fx.filterEnvAmt * 6.f * filterEnv + fx.filterLfo * 3.f * detail::sine(filterLfoPhase);
+   const float hz = std::clamp(smoothed[P::Cutoff] * std::exp2(oct), 20.f, static_cast<float>(sr) * .45f);
+   const float g = std::tan(3.14159265f * hz / static_cast<float>(sr));
+   fk = 2.f - 1.95f * fx.resonance;
+   fa1 = 1.f / (1.f + g * (g + fk)); fa2 = g * fa1; fa3 = g * fa2;
+  }
+  // Global vibrato on every machine.
+  vibPhase = dsp::frac(vibPhase + dt * smoothed[P::VibratoRate]);
+  shared.vibCents = smoothed[P::VibratoDepth] * detail::sine(vibPhase);
   // Tremolo for the organ.
   tremPhase = dsp::frac(tremPhase + dt * controls.tremRate);
   const float trem = detail::sine(tremPhase);
@@ -516,7 +561,28 @@ private:
   c.glideMs = s[P::Glide];
   c.bendRange = s[P::BendRange];
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
-  reverb.configure(pct(P::RevSize), s[P::RevDecay], .45f, false);
+  reverb.configure(pct(P::RevSize), s[P::RevDecay], .1f + .8f * pct(P::RevDamp), false);
+  fx.driveType = choice(P::DriveType); fx.drive = pct(P::Drive);
+  fx.filterMode = choice(P::FilterMode); fx.resonance = pct(P::Resonance);
+  fx.filterEnvAmt = pct(P::FilterEnv); fx.filterLfo = pct(P::FilterLfo);
+  fx.ringMix = pct(P::RingMix); fx.ringFreq = s[P::RingFreq];
+  fx.tremDepth = pct(P::TremoloDepth); fx.tremRate = s[P::TremoloRate]; fx.tremShape = choice(P::TremoloShape);
+  fx.phaserMix = pct(P::PhaserMix); fx.phaserRate = s[P::PhaserRate]; fx.phaserDepth = pct(P::PhaserDepth); fx.phaserFb = .95f * pct(P::PhaserFeedback);
+  fx.flangerMix = pct(P::FlangerMix); fx.flangerRate = s[P::FlangerRate]; fx.flangerDepth = pct(P::FlangerDepth); fx.flangerFb = .95f * pct(P::FlangerFeedback);
+  fx.chorusRate = s[P::ChorusRate]; fx.chorusDepth = .15f + .85f * pct(P::ChorusDepth);
+  fx.echoToneCoef = dsp::onePoleCoef(700.f * std::pow(18.f, pct(P::EchoTone)), sr);
+  {
+   static const double beats[7] = {0.0, 1.0, .5, .75, .25, 2.0 / 3.0, 1.0 / 3.0};
+   const int sync = std::clamp(choice(P::EchoSync), 0, 6);
+   const double seconds = sync > 0 ? beats[sync] * 60.0 / tempo : s[P::EchoTime] * .001;
+   fx.echoSamples = static_cast<float>(std::min(seconds, 1.35) * sr);
+  }
+  {
+   static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
+   chop.setReverse(pct(P::ChopReverse));
+   chop.setFreeTime(choice(P::ChopSync) == 1, s[P::ChopMs]);
+   chop.configure(divisions[std::clamp(choice(P::ChopDiv), 0, 6)], pct(P::ChopDepth), pct(P::ChopChaos), pct(P::Crush), pct(P::Downsample));
+  }
   outGain = std::pow(10.f, s[P::Output] / 20.f);
   // Reed cabinet: bakelite boxy and dark, plastic thin and nasal.
   const float era = c.era;
@@ -554,6 +620,28 @@ private:
  float wowValue = 0.f, echoLpL = 0.f, echoLpR = 0.f, echoTail = 0.f, crackle = 0.f, crackleLp = 0.f;
  float pressure = 1.f, outGain = .5f, bend = 0.f, modWheel = 0.f, aftertouch = 0.f;
  std::array<float, 4> activity{};
+ // Effects rack.
+ struct Fx {
+  int driveType = 0, filterMode = 0, tremShape = 0;
+  float drive = 0.f, resonance = 0.f, filterEnvAmt = 0.f, filterLfo = 0.f, ringMix = 0.f, ringFreq = 220.f;
+  float tremDepth = 0.f, tremRate = 5.f, phaserMix = 0.f, phaserRate = .4f, phaserDepth = .7f, phaserFb = .4f;
+  float flangerMix = 0.f, flangerRate = .25f, flangerDepth = .7f, flangerFb = .5f, chorusRate = .55f, chorusDepth = .5f;
+  float echoToneCoef = .35f, echoSamples = 18000.f;
+ } fx;
+ void clearEffects() {
+  driveL.clear(); driveR.clear(); filterL.reset(); filterR.reset(); phaserL.clear(); phaserR.clear();
+  flangerL.clear(); flangerR.clear(); chop.clear();
+  filterEnv = 0.f; filterAttack = false;
+ }
+ Drive driveL, driveR;
+ SVF filterL, filterR;
+ Phaser phaserL, phaserR;
+ DelayLine flangerL, flangerR;
+ Mutilator chop;
+ float fa1 = 1.f, fa2 = 0.f, fa3 = 0.f, fk = 2.f, filterEnv = 0.f, filterLfoPhase = 0.f, vibPhase = 0.f;
+ float ringPhase = 0.f, tremoloPhase = 0.f, phaserPhase = 0.f, flangerPhase = 0.f;
+ double tempo = 120.0;
+ bool filterAttack = false;
  int controlCountdown = 0, lastNote = -1;
  bool sustainPedal = false;
 };

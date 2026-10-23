@@ -19,7 +19,7 @@ static void loadLibrary() {
  verify(library.objects.size() == D::numSampleObjects, "library object count");
  for (int i = 0; i < D::numSampleObjects; ++i) {
   const auto& o = library.objects[static_cast<std::size_t>(i)];
-  verify(o.name == D::sampleObjectName(i), "library object names must match the parameter list");
+  verify(o.name == D::libraryObjectName(i), "library object names must match the parameter list");
   verify(!o.layers.empty(), "object without recordings");
  }
  std::vector<unsigned char> broken(bytes.begin(), bytes.begin() + static_cast<long>(bytes.size() / 2));

@@ -8,6 +8,8 @@ Este pacote instala quatro instrumentos VST3 para Windows x64:
 
 O SAMPLER, o DRUMS e o RELICÁRIO têm seções próprias mais adiante.
 
+**Idioma (0.10):** a interface dos quatro instrumentos está em inglês: controles, módulos, presets, kits e objetos. Este manual continua em português; onde ele cita um controle pelo nome antigo em português, procure o equivalente em inglês na mesma seção da tela (por exemplo RESSONADOR → RESONATOR, MUTILAÇÃO → MUTILATION, SERROTE → MUSICAL SAW, Ferro-Velho → Scrapyard). Projetos salvos abrem iguais: só os nomes mudaram.
+
 Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifônico (16 vozes) voltado para trilha de terror e suspense: clusters dissonantes, metal friccionado, vidro, sinos, drones, glissandos e afinação instável. É um instrumento independente; os outros plugins INVERSO não são alterados.
 
 ## Motor sonoro
@@ -102,18 +104,26 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## RELICÁRIO
-Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da Rhythmic Robot (Loopscape, Magnus, Spark Gap, órgãos soviéticos). Não usa gravações nem copia nada deles: as quatro máquinas são sintetizadas, imitando o mecanismo de cada uma. Cada máquina tem seu próprio NÍVEL; em 0% ela fica desligada e os controles dela aparecem apagados. Dá para tocar uma de cada vez ou as quatro juntas.
+Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da Rhythmic Robot (Loopscape, Magnus, Spark Gap, órgãos soviéticos). Não usa gravações nem copia nada deles: as quatro máquinas são sintetizadas, imitando o mecanismo de cada uma. Cada máquina tem seu próprio LEVEL; em 0% ela fica desligada e os controles dela aparecem apagados. Dá para tocar uma de cada vez ou as quatro juntas. A interface é vintage: madeira, placas creme com parafusos, knobs de baquelite, telas de fósforo verde e um VU de ponteiro.
 
-- **FITA** (à la Loopscape/Mellotron caseiro): duas formas de onda gravadas em loops de fita (Serra, Serra dupla, Triângulo, Quadrada, Seno, Estática). Os dois loops têm comprimentos diferentes (L e L×1,37), então os defeitos nunca se repetem no mesmo ponto. DESGASTE espalha quedas de volume, de brilho e de afinação ao longo da fita (com alguns buracos onde o óxido sumiu). WOW faz a oscilação lenta e o flutter rápido. SATURAÇÃO e TOM dão o caráter da fita, e o chiado acompanha o desgaste. LOOP 2 pode ir uma oitava abaixo ou acima, com DESAFINA 2 em cents. Na tela, as duas fitas passam pelo cabeçote.
-- **HARMÔNIO** (à la Magnus, órgão de palhetas de fole elétrico): BAQUELITE vai do modelo antigo, mais escuro, ao de plástico dos anos 70, mais estridente. SOPRO é o ar passando na palheta, e FALA é quanto tempo a palheta leva para "falar" (entra baixa e sobe à afinação). No FOLE, cada nota a mais segurada puxa ar e o motor não dá conta: o som perde força e cai de afinação (FOLE CANSA). MOTOR é o zumbido do ventilador. A tela mostra a pressão do fole em tempo real.
-- **DIAPASÃO** (à la Spark Gap): um garfo de metal mantido vibrando por eletroímã. GOLPE é a pancada inicial, com o clangor metálico agudo. ELETRICIDADE é quanto o circuito mantém o garfo soando: em 0% ele morre como um diapasão batido. FAÍSCA é o estalo do contato abrindo e fechando a cada ciclo. BATIMENTO é um segundo garfo levemente desafinado.
-- **ÓRGÃO SOVIÉTICO** (à la Junost/Lel/Faemi): ondas quadradas divididas a partir de um oscilador só, como nos órgãos transistorizados. Registros 16', 8' e 4', mais o SUPERIOR em Oitava, Quinta ou Terça. Em SOM ficam TOM, TREMOLO (profundidade e velocidade), FALANTE (o alto-falante rasgado da caixa, que zumbe) e ZUMBIDO (50 Hz da rede).
-- **TECLADO**: envelope ADSR comum às quatro máquinas, velocity, oitava, afinação fina, glide e faixa de pitch bend.
-- **ECOS**: eco de fita (tempo, repetições), ENSEMBLE (chorus de fita) e POEIRA (estalos de vinil). **ESPAÇO**: reverb com mix, tamanho e duração.
+**As máquinas**
+- **TAPE LOOPS** (à la Loopscape): duas formas de onda gravadas em loops de fita (Saw, Double saw, Triangle, Square, Sine, Static), com comprimentos diferentes (L e L×1,37), então os defeitos nunca se repetem no mesmo ponto. WEAR espalha quedas de volume, brilho e afinação pela fita; WOW é a oscilação lenta e o flutter; SATURATION e TONE dão o caráter. LOOP 2 pode ir uma oitava abaixo ou acima, com DETUNE em cents.
+- **REED ORGAN** (à la Magnus): ERA vai do modelo de baquelite, escuro, ao de plástico dos anos 70. BREATH é o ar na palheta e SPEAK o tempo que ela leva para "falar". Em BELLOWS, cada nota a mais segurada puxa ar e o motor não dá conta: o som perde força e cai de afinação (BELLOWS SAG). MOTOR é o zumbido do ventilador.
+- **TUNING FORK** (à la Spark Gap): garfo mantido por eletroímã. CLANG é a pancada inicial; DRIVE é quanto o circuito mantém o garfo soando (em 0% ele morre como um diapasão batido); SPARK é o estalo do contato; BEAT é um segundo garfo desafinado.
+- **SOVIET ORGAN** (à la Junost/Lel): ondas quadradas divididas de um oscilador só. Registros 16', 8', 4' e UPPER (Octave, Fifth ou Third). Em SOUND: TONE, TREMOLO e RATE do próprio órgão, SPEAKER (o falante rasgado) e HUM (50 Hz da rede).
+- **KEYS**: envelope ADSR das quatro máquinas, velocity, oitava, afinação fina, glide e bend.
+
+**O rack de efeitos** (0.10; o som passa por eles nesta ordem)
+1. **DESTROY**: DRIVE com cinco tipos (Tape, Fuzz, Fold, Rectify, Shatter), CRUSH (bits) e DOWNSAMPLE. Na página RING, um modulador em anel com frequência fixa (20 Hz a 3 kHz).
+2. **FILTER**: filtro ressonante Low pass, Band pass ou High pass (Off desliga). CUTOFF, RESONANCE (até quase oscilar; um limitador suave segura o volume), ENVELOPE (positivo abre, negativo fecha; reinicia a cada nota) com ENV DECAY, e um LFO próprio.
+3. **CHOP**: picote no tempo da DAW (BPM) ou em milissegundos (Free). DIVISION, GATE, CHAOS (silencia ou repete passos) e REVERSE (passos tocados de trás para frente).
+4. **MODULATION**, uma página para cada: CHORUS (mix, rate, depth), FLANGER (mix, rate, depth, feedback positivo ou negativo), PHASER (seis estágios, com feedback), TREMOLO (Sine, Square ou Pan, que alterna entre os lados) e VIBRATO (até 100 cents, em todas as máquinas).
+5. **ECHO**: eco de fita com MIX, TIME, REPEATS e TONE (repetições mais escuras ou mais claras). SYNC prende o tempo à DAW (1/4, 1/8, 1/8 pontuada, 1/16, tercinas).
+6. **SPACE**: reverb com MIX, SIZE, DECAY e DARKNESS, mais DUST (estalos de vinil enquanto as máquinas tocam).
 - **Mod wheel** aumenta o desgaste e o wow da fita e o tremolo do órgão. **Aftertouch** enche o fole e aumenta a faísca do diapasão.
 
-### Presets do RELICÁRIO (23)
-Init, Fita de Eno, Loop Gasto, Estática do Porão, Fitas Desencontradas, Baixo de Fita, Baquelite, Plástico 1974, Harmônio da Igreja Vazia, Acordeão Fantasma, Diapasão de Laboratório, Faísca, Dois Garfos Batendo, Boing, Junost no Salão, Case Quebrado, Quinta Soviética, Terça Torta, Baixo do Clube, Órgão e Fita, Garfo sobre Harmônio, Relíquia Inteira e Sótão às 3 da Manhã.
+### Presets do RELICÁRIO (29)
+Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
 
 ## Instalação
 No GitHub, abra **Releases > INVERSO ABISMO 0.10.0** e baixe `INVERSO_ABISMO_Setup_0.10.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.10.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os quatro aparecem como instrumentos da Inverso Studios: ABISMO e RELICÁRIO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as quatro pastas `.vst3`.
@@ -151,7 +161,7 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
   - confere a afinação e troca o sample no meio de uma nota;
   - testa o modo granular, salvar/restaurar a sessão com o caminho do arquivo e o arquivo apagado (que volta para a voz interna e continua lembrando o caminho);
   - abre o editor.
-- `relicario_engine` verifica a afinação das quatro máquinas (440 Hz em 44,1/48/96 kHz), que o desgaste da fita varia ao longo do loop, que o fole cede com muitas notas, que o diapasão sustenta com eletricidade e morre sem ela, a quinta do órgão, o zumbido do falante rasgado e o release até o silêncio. Também grava uma demo WAV de cada preset e faz automação aleatória de todos os parâmetros.
+- `relicario_engine` verifica a afinação das quatro máquinas (440 Hz em 44,1/48/96 kHz), que o desgaste da fita varia ao longo do loop, que o fole cede com muitas notas, que o diapasão sustenta com eletricidade e morre sem ela, a quinta do órgão, o zumbido do falante rasgado e o release até o silêncio. Testa cada efeito do rack (todos mudam o som e ficam abaixo de 0 dBFS, o filtro ressonante no máximo em qualquer frequência, o chop cortando no tempo, o eco sincronizado em 1/4). Também grava uma demo WAV de cada preset e faz automação aleatória de todos os parâmetros.
 - `relicario_host_smoke` (JUCE) toca todos os presets em vários tamanhos de bloco, cada máquina sozinha, o pedal de sustain, o all sound off e o salvamento do estado.
 - `abismo_drums` verifica (lê a biblioteca de `Library/drums.bin`):
   - que a biblioteca é lida, tem os 48 objetos e que um arquivo truncado é recusado;

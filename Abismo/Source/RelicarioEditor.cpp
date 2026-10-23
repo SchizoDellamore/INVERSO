@@ -11,13 +11,23 @@ constexpr int designW=1320, designH=1000;
 
 const char* const* shortNames(){
  static const char* names[P::Count]={
-  "N\xc3\x8dVEL","N\xc3\x8dVEL","N\xc3\x8dVEL","N\xc3\x8dVEL",
-  "LOOP 1","LOOP 2","BALAN\xc3\x87O","OITAVA 2","DESAFINA 2","COMPRIMENTO","DESGASTE","WOW","SATURA\xc3\x87\xc3\x83O","TOM",
-  "BAQUELITE","SOPRO","MOTOR","FOLE CANSA","FALA",
-  "FA\xc3\x8dSCA","GOLPE","ELETRICIDADE","BATIMENTO",
-  "16'","8'","4'","SUPERIOR","INTERVALO","TOM","TREMOLO","VELOCIDADE","FALANTE","ZUMBIDO",
-  "ATAQUE","QUEDA","SUSTENTA","SOLTURA","VELOCITY","OITAVA","AFINA\xc3\x87\xc3\x83O","GLIDE","BEND",
-  "ENSEMBLE","ECO","TEMPO","REPETI\xc3\x87\xc3\x95" "ES","POEIRA","MIX","TAMANHO","DURA\xc3\x87\xc3\x83O","LARGURA","SA\xc3\x8d" "DA"};
+  "LEVEL","LEVEL","LEVEL","LEVEL",
+  "LOOP 1","LOOP 2","BALANCE","LOOP 2","DETUNE","LENGTH","WEAR","WOW","SATURATION","TONE",
+  "ERA","BREATH","MOTOR","BELLOWS SAG","SPEAK",
+  "SPARK","CLANG","DRIVE","BEAT",
+  "16'","8'","4'","UPPER","INTERVAL","TONE","TREMOLO","RATE","SPEAKER","HUM",
+  "ATTACK","DECAY","SUSTAIN","RELEASE","VELOCITY","OCTAVE","FINE","GLIDE","BEND",
+  "CHORUS","MIX","TIME","REPEATS","DUST","MIX","SIZE","DECAY","WIDTH","OUTPUT",
+  "TYPE","DRIVE","CRUSH","DOWNSAMPLE",
+  "DIVISION","TIMING","TIME","GATE","CHAOS","REVERSE",
+  "TYPE","CUTOFF","RESONANCE","ENVELOPE","ENV DECAY","LFO","LFO RATE",
+  "RING","RING FREQ",
+  "RATE","DEPTH",
+  "MIX","RATE","DEPTH","FEEDBACK",
+  "MIX","RATE","DEPTH","FEEDBACK",
+  "DEPTH","RATE","SHAPE",
+  "DEPTH","RATE",
+  "SYNC","TONE","DARKNESS"};
  return names;
 }
 
@@ -85,8 +95,8 @@ float InversoRelicarioEditor::value(int param) const {
 
 InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&look);
- body.title=juce::String::fromUTF8("RELIC\xc3\x81RIO");
- body.subtitle=juce::String::fromUTF8("QUATRO M\xc3\x81QUINAS ESQUECIDAS   \xc2\xb7   MOD WHEEL = DESGASTE + TREMOLO   \xc2\xb7   AFTERTOUCH = FOLE + FA\xc3\x8dSCA");
+ body.title="RELICARIO";
+ body.subtitle=juce::String::fromUTF8("FOUR FORGOTTEN MACHINES   \xc2\xb7   MOD WHEEL: TAPE WEAR + ORGAN TREMOLO\nAFTERTOUCH: BELLOWS + SPARK   \xc2\xb7   EFFECTS RUN TOP TO BOTTOM, LEFT TO RIGHT");
  addAndMakeVisible(body);
  presets.getCount=[this]{return processor.getNumPrograms();};
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -101,35 +111,39 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   body.addAndMakeVisible(*modules.back());
   return *modules.back();
  };
- auto u8=[](const char* s){return juce::String::fromUTF8(s);};
- // 0 TAPE LOOPS
- add("FITA",c::amber,{{"Loops",{P::FitaLevel,P::LoopMix,P::Loop2Detune,P::LoopLength,P::Loop2Octave},{P::FitaLevel}},
-                      {"Fita",{P::Wear,P::Wow,P::TapeSat,P::FitaTone}}},150,{P::Loop1Wave,P::Loop2Wave});
- // 1 REED ORGAN
- add(u8("HARM\xc3\x94NIO"),c::green,{{"Palheta",{P::HarmLevel,P::Era,P::Breath,P::Speak},{P::HarmLevel}},
-                                    {"Fole",{P::Motor,P::Sag}}},150,{});
- // 2 TUNING FORK
- add(u8("DIAPAS\xc3\x83O"),c::cyan,{{"Garfo",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}}},150,{});
- // 3 SOVIET ORGAN
- add(u8("\xc3\x93RG\xc3\x83O SOVI\xc3\x89TICO"),c::red,{{"Registros",{P::OrganLevel,P::Reg16,P::Reg8,P::Reg4,P::Upper},{P::OrganLevel}},
-                                                  {"Som",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}}},150,{P::UpperInterval});
- // 4 KEYBOARD
- add("TECLADO",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
-                          {u8("Afina\xc3\xa7\xc3\xa3o"),{P::Fine,P::Glide,P::BendRange}}},120,{P::Octave});
- // 5 ECHOES
- add("ECOS",c::pink,{{"Eco",{P::EchoMix,P::EchoTime,P::EchoFeedback,P::Ensemble,P::Dust},{P::EchoMix}}},120,{});
- // 6 SPACE
- add(u8("ESPA\xc3\x87O"),c::blue,{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay},{P::RevMix}}},120,{});
- master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("LARGURA"),c::ink);
+ // ---- the four machines
+ add("TAPE LOOPS",c::amber,{{"Loops",{P::FitaLevel,P::LoopMix,P::Loop2Detune,P::LoopLength,P::Loop2Octave},{P::FitaLevel}},
+                            {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone}}},112,{P::Loop1Wave,P::Loop2Wave});
+ add("REED ORGAN",c::green,{{"Reeds",{P::HarmLevel,P::Era,P::Breath,P::Speak},{P::HarmLevel}},
+                            {"Bellows",{P::Motor,P::Sag}}},112,{});
+ add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}}},112,{});
+ add("SOVIET ORGAN",c::red,{{"Stops",{P::OrganLevel,P::Reg16,P::Reg8,P::Reg4,P::Upper},{P::OrganLevel}},
+                            {"Sound",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}}},112,{P::UpperInterval});
+ // ---- keys and the effects rack, in signal order
+ add("KEYS",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
+                       {"Tuning",{P::Fine,P::Glide,P::BendRange}}},96,{P::Octave});
+ add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Crush,P::Downsample},{P::Drive}},
+                         {"Ring",{P::RingMix,P::RingFreq}}},96,{P::DriveType});
+ add("FILTER",c::orange,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::FilterDecay},{P::Cutoff}},
+                         {"LFO",{P::FilterLfo,P::FilterLfoRate}}},96,{P::FilterMode});
+ add("CHOP",c::pink,{{"Chop",{P::ChopMs,P::ChopDepth,P::ChopChaos,P::ChopReverse}}},96,{P::ChopSync,P::ChopDiv});
+ add("MODULATION",c::blue,{{"Chorus",{P::Ensemble,P::ChorusRate,P::ChorusDepth},{P::Ensemble}},
+                           {"Flanger",{P::FlangerMix,P::FlangerRate,P::FlangerDepth,P::FlangerFeedback},{P::FlangerMix}},
+                           {"Phaser",{P::PhaserMix,P::PhaserRate,P::PhaserDepth,P::PhaserFeedback},{P::PhaserMix}},
+                           {"Tremolo",{P::TremoloDepth,P::TremoloRate,P::TremoloShape},{P::TremoloDepth}},
+                           {"Vibrato",{P::VibratoDepth,P::VibratoRate},{P::VibratoDepth}}},96,{});
+ add("ECHO",c::amber.interpolatedWith(c::pink,.5f),{{"Tape echo",{P::EchoMix,P::EchoTime,P::EchoFeedback,P::EchoTone},{P::EchoMix}}},96,{P::EchoSync});
+ add("SPACE",c::blue.interpolatedWith(c::violet,.5f),{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Dust},{P::RevMix}}},96,{});
+ master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
  auto& m=modules;
- // ---- screens
- // FITA: both loops of tape running past the head, their flaws drawn along them.
- m[0]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+ const juce::String off=juce::String::fromUTF8("OFF  \xc2\xb7  TURN UP THE LEVEL");
+ // TAPE: both loops running past the head, their flaws drawn along them.
+ m[0]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   auto area=r.withTrimmedBottom(34.f);
   const float level=value(P::FitaLevel),wear=value(P::Wear)*.01f,mix=value(P::LoopMix)*.01f;
-  caption(g,area,"LOOP "+abismo_ui::formatValue(specs()[P::LoopLength],value(P::LoopLength)),"DESGASTE "+juce::String(juce::roundToInt(wear*100.f))+"%");
+  caption(g,area,"LOOP "+abismo_ui::formatValue(specs()[P::LoopLength],value(P::LoopLength)),"WEAR "+juce::String(juce::roundToInt(wear*100.f))+"%");
   auto lanes=area.withTrimmedTop(16.f);
   const float laneH=lanes.getHeight()/2.f;
   for(int i=0;i<2;++i){
@@ -140,50 +154,46 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    const auto colour=c::amber.withAlpha(level>0.f?.35f+.65f*std::min(1.f,weight*2.f):.3f);
    g.setColour(c::screenMuted.withAlpha(.12f));
    g.fillRoundedRectangle(lane,3.f);
-   // The waveform, its loudness eaten where the oxide is worn.
    soft::glowStroke(g,curve(lane,220,[&](float x){
     const auto k=static_cast<std::size_t>(x*(TapeLoop::points-1));
     const float flaw=std::max(0.f,1.f+.55f*wear*t.amp[k]);
     return .75f*flaw*loopWave(wave,x*9.f);
    }),colour,1.4f);
-   const float head=processor.loop1.load()*(i==0?1.f:0.f)+processor.loop2.load()*(i==1?1.f:0.f);
-   const float hx=lane.getX()+head*lane.getWidth();
+   const float head=i==0?processor.loop1.load():processor.loop2.load();
    g.setColour(c::screenInk.withAlpha(.8f));
-   g.fillRect(hx-1.f,lane.getY(),2.f,lane.getHeight());
+   g.fillRect(lane.getX()+head*lane.getWidth()-1.f,lane.getY(),2.f,lane.getHeight());
   }
-  if(level<=0.f) notice(g,lanes,juce::String::fromUTF8("DESLIGADA  \xc2\xb7  SUBA O N\xc3\x8dVEL"));
+  if(level<=0.f) notice(g,lanes,off);
  };
- // HARMONIO: the bellows gauge and the reed's pulse.
- m[1]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+ // REED ORGAN: the bellows gauge and the reed's pulse.
+ m[1]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float level=value(P::HarmLevel),era=value(P::Era)*.01f;
   const float bellows=juce::jlimit(0.f,1.f,processor.bellows.load());
-  caption(g,r,era<.5f?juce::String("BAQUELITE"):juce::String::fromUTF8("PL\xc3\x81STICO"),"FOLE "+juce::String(juce::roundToInt(bellows*100.f))+"%");
+  caption(g,r,era<.5f?juce::String("BAKELITE"):juce::String("PLASTIC"),"BELLOWS "+juce::String(juce::roundToInt(bellows*100.f))+"%");
   auto area=r.withTrimmedTop(16.f);
   auto gauge=area.removeFromRight(28.f).reduced(6.f,2.f);
   g.setColour(c::screenMuted.withAlpha(.18f));
   g.fillRoundedRectangle(gauge,4.f);
-  auto fill=gauge.withTrimmedTop(gauge.getHeight()*(1.f-bellows));
   g.setColour((bellows<.35f?c::red:c::green).withAlpha(level>0.f?.9f:.3f));
-  g.fillRoundedRectangle(fill,4.f);
+  g.fillRoundedRectangle(gauge.withTrimmedTop(gauge.getHeight()*(1.f-bellows)),4.f);
   const float duty=.12f+.2f*era,smoothness=1.f-.6f*bellows;
   soft::glowStroke(g,curve(area.reduced(2.f,8.f),220,[&](float t){
    const float ph=t*4.f-std::floor(t*4.f);
    const float pulse=ph<duty?1.f:-duty/(1.f-duty);
-   const float smooth=std::sin(ph*6.2831853f);
-   return .8f*bellows*(smoothness*smooth+(1.f-smoothness)*pulse);
+   return .8f*bellows*(smoothness*std::sin(ph*6.2831853f)+(1.f-smoothness)*pulse);
   }),c::green.withAlpha(level>0.f?1.f:.3f));
-  if(level<=0.f) notice(g,area,juce::String::fromUTF8("DESLIGADO  \xc2\xb7  SUBA O N\xc3\x8dVEL"));
+  if(level<=0.f) notice(g,area,off);
  };
- // DIAPASAO: the fork's two tines swinging; sparks at the contact.
- m[2]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+ // TUNING FORK: two tines swinging, sparks at the contact.
+ m[2]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float level=value(P::ForkLevel),spark=value(P::Spark)*.01f,drive=value(P::Maintain)*.01f;
-  caption(g,r,"BATIMENTO "+abismo_ui::formatValue(specs()[P::Beat],value(P::Beat)),"ELETRICIDADE "+juce::String(juce::roundToInt(drive*100.f))+"%");
+  caption(g,r,"BEAT "+abismo_ui::formatValue(specs()[P::Beat],value(P::Beat)),"DRIVE "+juce::String(juce::roundToInt(drive*100.f))+"%");
   auto area=r.withTrimmedTop(16.f).reduced(4.f);
   const auto colour=c::cyan.withAlpha(level>0.f?1.f:.3f);
   const float swing=level>0.f?std::sin(animation*31.f)*(2.f+6.f*drive):0.f;
   for(int f=0;f<2;++f){
    const float cx=area.getX()+area.getWidth()*(f==0?.33f:.67f);
-   const float gap=14.f, top=area.getY()+4.f, base=area.getBottom()-30.f;
+   const float gap=12.f, top=area.getY()+2.f, base=area.getBottom()-24.f;
    const float s=f==0?swing:swing*std::cos(animation*value(P::Beat)*6.2831853f);
    juce::Path fork;
    fork.startNewSubPath(cx-gap-s,top);
@@ -195,22 +205,21 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    if(level>0.f && spark>0.f){
     juce::Random rnd(static_cast<juce::int64>(animation*30.f)+f*77);
     for(int k=0;k<juce::roundToInt(spark*8.f);++k){
-     const float x=cx+gap+s+rnd.nextFloat()*10.f-3.f,y=top+rnd.nextFloat()*18.f;
      g.setColour(c::screenInk.withAlpha(.4f+.6f*rnd.nextFloat()));
-     g.fillEllipse(x,y,2.f,2.f);
+     g.fillEllipse(cx+gap+s+rnd.nextFloat()*10.f-3.f,top+rnd.nextFloat()*18.f,2.f,2.f);
     }
    }
   }
-  if(level<=0.f) notice(g,area,juce::String::fromUTF8("DESLIGADO  \xc2\xb7  SUBA O N\xc3\x8dVEL"));
+  if(level<=0.f) notice(g,area,off);
  };
- // ORGAO: the registers as bars, like the stops on the panel.
- m[3]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+ // SOVIET ORGAN: the stops as bars.
+ m[3]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   auto area=r.withTrimmedBottom(34.f);
   const float level=value(P::OrganLevel);
-  caption(g,area,"REGISTROS","TREMOLO "+abismo_ui::formatValue(specs()[P::TremRate],value(P::TremRate)));
+  caption(g,area,value(P::SpeakerBreak)>0.f?juce::String("TORN SPEAKER"):juce::String("STOPS"),"TREMOLO "+abismo_ui::formatValue(specs()[P::TremRate],value(P::TremRate)));
   auto bars=area.withTrimmedTop(16.f);
   const int regs[4]={P::Reg16,P::Reg8,P::Reg4,P::Upper};
-  const char* labels[4]={"16'","8'","4'","SUP"};
+  const char* labels[4]={"16'","8'","4'","UP"};
   const float w=bars.getWidth()/4.f;
   const float trem=1.f-.25f*value(P::TremDepth)*.01f*(.5f+.5f*std::sin(animation*value(P::TremRate)*6.2831853f));
   for(int i=0;i<4;++i){
@@ -225,13 +234,9 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    g.setColour(c::red.withAlpha(level>0.f?.9f:.3f));
    g.fillRoundedRectangle(col.withTrimmedTop(col.getHeight()*(1.f-v)),3.f);
   }
-  if(value(P::SpeakerBreak)>0.f){
-   g.setFont(soft::monoFont(10.f));
-   g.setColour(c::screenInk);
-   g.drawText("FALANTE RASGADO",area.withTrimmedTop(14.f).withHeight(12.f),juce::Justification::centredTop);
-  }
-  if(level<=0.f) notice(g,bars,juce::String::fromUTF8("DESLIGADO  \xc2\xb7  SUBA O N\xc3\x8dVEL"));
+  if(level<=0.f) notice(g,bars,off);
  };
+ // KEYS
  m[4]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
   if(page==1){
@@ -245,29 +250,135 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   }
   soft::glowStroke(g,adsr(area.reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::violet);
  };
- // ECOS: the tape echo's repeats fading out.
- m[5]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
-  const float mix=value(P::EchoMix)*.01f,fb=value(P::EchoFeedback)*.01f,time=value(P::EchoTime);
-  caption(g,r,"ECO "+abismo_ui::formatValue(specs()[P::EchoTime],time),"POEIRA "+juce::String(juce::roundToInt(value(P::Dust)))+"%");
-  auto area=r.withTrimmedTop(16.f).reduced(2.f,2.f);
-  const float span=2400.f, base=area.getBottom();
+ // DESTROY: the drive curve, or the ring carrier.
+ m[5]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  auto area=r.withTrimmedBottom(34.f);
+  if(page==1){
+   const float mix=value(P::RingMix)*.01f,hz=value(P::RingFreq);
+   caption(g,area,"RING "+abismo_ui::formatValue(specs()[P::RingFreq],hz),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
+   const float cycles=juce::jlimit(1.f,24.f,hz/60.f);
+   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),220,[&](float t){
+    const float x=std::sin(t*6.2831853f*2.f);
+    return .8f*(x*(1.f-mix)+x*std::sin(t*6.2831853f*cycles)*mix);
+   }),c::blood.brighter(.3f).withAlpha(mix>0.f?1.f:.35f));
+   return;
+  }
+  const float drive=value(P::Drive)*.01f;
+  const int type=juce::roundToInt(value(P::DriveType));
+  caption(g,area,"DRIVE "+juce::String(juce::roundToInt(drive*100.f))+"%",
+          "CRUSH "+juce::String(juce::roundToInt(value(P::Crush)))+"%  DS "+juce::String(juce::roundToInt(value(P::Downsample)))+"%");
+  inverso_abismo::relicario::Drive preview;
+  const float levels=std::exp2(15.f-value(P::Crush)*.01f*13.f);
+  soft::glowStroke(g,curve(area.withTrimmedTop(14.f),160,[&](float t){
+   const float x=std::sin(t*6.2831853f)*.6f;
+   float y=drive>0.f?preview.process(x,type==4?0:type,drive):x;
+   y=std::round(y*levels)/levels;
+   return .85f*juce::jlimit(-1.f,1.f,y);
+  }),c::blood.brighter(.3f).withAlpha(drive>0.f || value(P::Crush)>0.f?1.f:.35f));
+ };
+ // FILTER: the response, and where the envelope takes it.
+ m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  auto area=r.withTrimmedBottom(34.f);
+  const int mode=juce::roundToInt(value(P::FilterMode));
+  if(page==1){
+   const float rate=value(P::FilterLfoRate),depth=value(P::FilterLfo)*.01f;
+   caption(g,area,"LFO "+abismo_ui::formatValue(specs()[P::FilterLfoRate],rate),"DEPTH "+juce::String(juce::roundToInt(depth*100.f))+"%");
+   const float cycles=juce::jlimit(.5f,12.f,rate*2.f);
+   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),160,[&](float t){return .8f*depth*std::sin((t*cycles-animation*rate)*6.2831853f);}),c::orange.withAlpha(mode>0?1.f:.35f));
+   return;
+  }
+  const float fc=value(P::Cutoff),k=2.f-1.95f*value(P::Resonance)*.01f,env=value(P::FilterEnv)*.01f;
+  caption(g,area,abismo_ui::formatValue(specs()[P::Cutoff],fc),mode==0?juce::String("FILTER OFF"):"ENV "+juce::String(juce::roundToInt(env*100.f))+"%");
+  auto plot=area.withTrimmedTop(14.f);
+  auto response=[&](float cutoff){
+   return curve(plot,180,[&,cutoff](float t){
+    if(mode==0) return .3f;
+    const float f=20.f*std::pow(1000.f,t);
+    const float w=f/cutoff;
+    const float re=1.f-w*w,im=k*w;
+    const float den=std::sqrt(re*re+im*im);
+    const float mag=mode==1?1.f/den:mode==2?(k*w)/den:(w*w)/den;
+    const float db=juce::jlimit(-42.f,24.f,20.f*std::log10(std::max(1e-6f,mag)));
+    return (db+9.f)/33.f;
+   });
+  };
+  if(mode>0 && std::abs(env)>.001f){
+   g.setColour(c::orange.withAlpha(.35f));
+   g.strokePath(response(juce::jlimit(20.f,20000.f,fc*std::exp2(env*6.f))),juce::PathStrokeType(1.f));
+  }
+  soft::glowStroke(g,response(fc),c::orange.withAlpha(mode>0?1.f:.35f));
+ };
+ // CHOP: the step grid, gated, dropped, repeated, reversed.
+ m[7]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  auto area=r.withTrimmedBottom(34.f);
+  const int div=juce::roundToInt(value(P::ChopDiv));
+  const bool free=juce::roundToInt(value(P::ChopSync))==1;
+  const float depth=value(P::ChopDepth)*.01f,chaos=value(P::ChopChaos)*.01f,rev=value(P::ChopReverse)*.01f;
+  if(div==0 && rev<=0.f){ notice(g,area,"CHOP OFF"); return; }
+  static const char* divs[7]={"","1/4","1/8","1/16","1/32","1/8T","1/16T"};
+  caption(g,area,free?abismo_ui::formatValue(specs()[P::ChopMs],value(P::ChopMs)):juce::String(div>0?divs[div]:"1/8"),rev>0.f?juce::String("REVERSE"):juce::String());
+  auto grid=area.withTrimmedTop(16.f);
+  const int steps=16;
+  const float w=grid.getWidth()/static_cast<float>(steps);
+  juce::Random rnd(1234);
+  for(int i=0;i<steps;++i){
+   const float a=rnd.nextFloat(),b=rnd.nextFloat();
+   auto cell=juce::Rectangle<float>(grid.getX()+w*static_cast<float>(i),grid.getY(),w,grid.getHeight()).reduced(2.f,4.f);
+   const bool reversed=b<rev, dropped=div>0 && a<chaos*.45f, repeated=div>0 && !dropped && a<chaos*.9f;
+   g.setColour(c::screenMuted.withAlpha(.18f));
+   g.fillRoundedRectangle(cell,2.f);
+   auto lit=cell.withWidth(cell.getWidth()*(div>0?1.f-.85f*depth:1.f));
+   g.setColour((reversed?c::amber:c::pink).withAlpha(dropped?.25f:repeated?.55f:.9f));
+   g.fillRoundedRectangle(lit,2.f);
+  }
+ };
+ // MODULATION: the LFO of the page shown, moving at its rate.
+ m[8]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  struct Lfo { int mix, rate; const char* name; };
+  static const Lfo lfos[5]={{P::Ensemble,P::ChorusRate,"CHORUS"},{P::FlangerMix,P::FlangerRate,"FLANGER"},{P::PhaserMix,P::PhaserRate,"PHASER"},
+                            {P::TremoloDepth,P::TremoloRate,"TREMOLO"},{P::VibratoDepth,P::VibratoRate,"VIBRATO"}};
+  const auto& l=lfos[juce::jlimit(0,4,page)];
+  const float mix=value(l.mix),rate=value(l.rate);
+  caption(g,r,juce::String(l.name)+" "+abismo_ui::formatValue(specs()[l.rate],rate),mix>0.f?juce::String("ON"):juce::String("OFF"));
+  const bool square=page==3 && juce::roundToInt(value(P::TremoloShape))==1;
+  const float cycles=juce::jlimit(.5f,12.f,rate*1.5f);
+  soft::glowStroke(g,curve(r.withTrimmedTop(14.f),200,[&](float t){
+   const float s=std::sin((t*cycles-animation*rate)*6.2831853f);
+   return .75f*(square?std::tanh(s*6.f):s);
+  }),c::blue.withAlpha(mix>0.f?1.f:.35f));
+  if(page==3 && juce::roundToInt(value(P::TremoloShape))==2){
+   soft::glowStroke(g,curve(r.withTrimmedTop(14.f),200,[&](float t){return -.75f*std::sin((t*cycles-animation*rate)*6.2831853f);}),c::pink.withAlpha(mix>0.f?.8f:.3f),1.2f);
+  }
+ };
+ // ECHO: the repeats fading out.
+ m[9]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  auto area=r.withTrimmedBottom(34.f);
+  const float mix=value(P::EchoMix)*.01f,fb=value(P::EchoFeedback)*.01f;
+  const int sync=juce::roundToInt(value(P::EchoSync));
+  static const char* syncs[7]={"","1/4","1/8","1/8 DOTTED","1/16","1/4T","1/8T"};
+  static const float beats[7]={0.f,1.f,.5f,.75f,.25f,2.f/3.f,1.f/3.f};
+  const float time=sync>0?beats[sync]*500.f:value(P::EchoTime);
+  caption(g,area,sync>0?juce::String(syncs[sync]):abismo_ui::formatValue(specs()[P::EchoTime],time),"REPEATS "+juce::String(juce::roundToInt(fb*100.f))+"%");
+  auto plot=area.withTrimmedTop(16.f).reduced(2.f,2.f);
   float amp=1.f;
+  const auto colour=c::amber.interpolatedWith(c::pink,.5f);
   for(int k=0;k<24;++k){
-   const float x=area.getX()+area.getWidth()*juce::jmin(1.f,static_cast<float>(k)*time/span);
-   if(x>=area.getRight()) break;
-   const float h=area.getHeight()*(k==0?1.f:amp*(.35f+.65f*mix));
-   juce::Path tick; tick.startNewSubPath(x,base); tick.lineTo(x,base-h);
-   soft::glowStroke(g,tick,c::pink.withAlpha(k==0?.5f:1.f),2.f);
+   const float x=plot.getX()+plot.getWidth()*juce::jmin(1.f,static_cast<float>(k)*time/2400.f);
+   if(x>=plot.getRight()) break;
+   const float h=plot.getHeight()*(k==0?1.f:amp*(.35f+.65f*mix));
+   juce::Path tick; tick.startNewSubPath(x,plot.getBottom()); tick.lineTo(x,plot.getBottom()-h);
+   soft::glowStroke(g,tick,colour.withAlpha(k==0?.5f:1.f),2.f);
    amp*=fb*.95f;
    if(k>0 && amp<.01f) break;
   }
-  if(mix<=0.f) notice(g,area,"ECO DESLIGADO");
+  if(mix<=0.f) notice(g,plot,"ECHO OFF");
  };
- m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
-  const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay);
+ m[10]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay),dark=value(P::RevDamp)*.01f;
   caption(g,r,abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
   const float span=juce::jlimit(.05f,1.f,std::log10(1.f+decay)/1.4f);
-  soft::glowStroke(g,curve(r.withTrimmedTop(14.f),160,[&](float t){return 1.6f*std::exp(-t/(span*.35f))-1.f;}),c::blue.withAlpha(mix>0.f?1.f:.35f));
+  const auto colour=c::blue.interpolatedWith(c::violet,.5f).interpolatedWith(c::screenMuted,dark*.5f);
+  soft::glowStroke(g,curve(r.withTrimmedTop(14.f),160,[&](float t){return 1.6f*std::exp(-t/(span*.35f))-1.f;}),colour.withAlpha(mix>0.f?1.f:.35f));
  };
 
  setResizable(true,true);
@@ -280,7 +391,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
 
 InversoRelicarioEditor::~InversoRelicarioEditor(){ setLookAndFeel(nullptr); }
 
-// A control whose machine is switched off (or whose effect depends on another control) is dimmed.
+// A control whose machine or effect is switched off (or whose effect depends on another control) is dimmed.
 static bool relicarioControlActive(const juce::AudioProcessorValueTreeState& apvts,int p){
  auto v=[&](int i){return apvts.getRawParameterValue(specs()[static_cast<std::size_t>(i)].id)->load();};
  if(p>=P::Loop1Wave && p<=P::FitaTone) return v(P::FitaLevel)>0.f;
@@ -292,10 +403,26 @@ static bool relicarioControlActive(const juce::AudioProcessorValueTreeState& apv
   if(p==P::TremRate) return v(P::TremDepth)>0.f;
   return true;
  }
+ const bool chop=juce::roundToInt(v(P::ChopDiv))>0, grid=chop || v(P::ChopReverse)>0.f;
+ const bool filter=juce::roundToInt(v(P::FilterMode))>0;
  switch(p){
   case P::Decay: return v(P::Sustain)<100.f;
-  case P::EchoTime: case P::EchoFeedback: return v(P::EchoMix)>0.f;
-  case P::RevSize: case P::RevDecay: return v(P::RevMix)>0.f;
+  case P::DriveType: return v(P::Drive)>0.f;
+  case P::RingFreq: return v(P::RingMix)>0.f;
+  case P::ChopSync: return grid;
+  case P::ChopMs: return grid && juce::roundToInt(v(P::ChopSync))==1;
+  case P::ChopDepth: case P::ChopChaos: return chop;
+  case P::Cutoff: case P::Resonance: case P::FilterEnv: case P::FilterLfo: return filter;
+  case P::FilterDecay: return filter && std::abs(v(P::FilterEnv))>1e-4f;
+  case P::FilterLfoRate: return filter && v(P::FilterLfo)>0.f;
+  case P::ChorusRate: case P::ChorusDepth: return v(P::Ensemble)>0.f;
+  case P::FlangerRate: case P::FlangerDepth: case P::FlangerFeedback: return v(P::FlangerMix)>0.f;
+  case P::PhaserRate: case P::PhaserDepth: case P::PhaserFeedback: return v(P::PhaserMix)>0.f;
+  case P::TremoloRate: case P::TremoloShape: return v(P::TremoloDepth)>0.f;
+  case P::VibratoRate: return v(P::VibratoDepth)>0.f;
+  case P::EchoTime: return v(P::EchoMix)>0.f && juce::roundToInt(v(P::EchoSync))==0;
+  case P::EchoFeedback: case P::EchoTone: case P::EchoSync: return v(P::EchoMix)>0.f;
+  case P::RevSize: case P::RevDecay: case P::RevDamp: return v(P::RevMix)>0.f;
   default: return true;
  }
 }
@@ -307,20 +434,25 @@ void InversoRelicarioEditor::timerCallback(){
   m->dimInactive([this](int p){return relicarioControlActive(processor.apvts,p);});
   m->screen.repaint();
  }
- master->setReadout(processor.outputPeak.load(),juce::String("VOZES ")+juce::String(processor.voicesSounding.load())+" / 12");
+ master->setReadout(processor.outputPeak.load(),juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 12");
 }
 
 void InversoRelicarioEditor::resized(){
  body.setBounds(0,0,designW,designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth())/designW));
  presets.setBounds(designW/2-210,14,420,72);
+ // Plates carry a 10 px shadow margin, so neighbours overlap by it.
  const int x0=10,y0=88,mainW=1150;
  auto place=[](juce::Component& comp,int x,int y,int w,int h){comp.setBounds(x,y,w,h);};
- const int r1=470,r2=designH-y0-r1-12;
+ const int r1=360,r2=272,r3=designH-y0-r1-r2-12;
  const int w4=mainW/4;
  for(int i=0;i<4;++i) place(*modules[static_cast<std::size_t>(i)],x0+w4*i,y0,i==3?mainW-3*w4:w4,r1);
- place(*modules[4],x0,y0+r1,440,r2);
- place(*modules[5],x0+440,y0+r1,380,r2);
- place(*modules[6],x0+820,y0+r1,mainW-820,r2);
- place(*master,x0+mainW,y0,designW-(x0+mainW)-10,r1+r2);
+ place(*modules[4],x0,y0+r1,270,r2);
+ place(*modules[5],x0+270,y0+r1,290,r2);
+ place(*modules[6],x0+560,y0+r1,310,r2);
+ place(*modules[7],x0+870,y0+r1,mainW-870,r2);
+ place(*modules[8],x0,y0+r1+r2,520,r3);
+ place(*modules[9],x0+520,y0+r1+r2,340,r3);
+ place(*modules[10],x0+860,y0+r1+r2,mainW-860,r3);
+ place(*master,x0+mainW,y0,designW-(x0+mainW)-10,r1+r2+r3);
 }

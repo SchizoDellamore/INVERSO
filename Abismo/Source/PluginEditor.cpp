@@ -11,20 +11,20 @@ constexpr int designW=1320, designH=1000;
 
 const char* const* shortNames(){
  static const char* names[P::Count]={
-  "FORMA","N\xc3\x8dVEL","OITAVA","UN\xc3\x8dSSONO","DESAFINA","ABERTURA","SUB",
-  "CLUSTER","CLUSTER","SOPRO","TENS\xc3\x83O",
-  "MATERIAL A","N\xc3\x8dVEL","DURA\xc3\x87\xc3\x83O","ARCO","RASPA","GOLPE","COR DO RU\xc3\x8d" "DO",
-  "TIPO","CORTE","RESSON\xc3\x82NCIA","ENVELOPE","SEGUE NOTA","DRIVE",
-  "ATAQUE","QUEDA","SUSTENTA","SOLTURA","VELOCITY",
-  "ATAQUE","QUEDA","SUSTENTA","SOLTURA",
-  "GLISSANDO","TEMPO","DERIVA","GLIDE","BEND",
-  "VELOCIDADE","AFINA\xc3\x87\xc3\x83O","FILTRO","VOLUME",
-  "MIX","TAMANHO","DURA\xc3\x87\xc3\x83O","ESCURO","CONGELA","LARGURA","SA\xc3\x8d" "DA",
-  "VOZ","VOGAL","FORMANTE",
-  "BITS","TAXA","DIVIS\xc3\x83O","PROFUNDIDADE","CAOS",
-  "MATERIAL B","MORPH","AFINA\xc3\x87\xc3\x83O","SEGUE NOTA","ESTICA","BRILHO","EST\xc3\x89REO","ENTRA OSC","CHOCALHO",
-  "TIPO","ANEL","TOM DO ANEL","AO CONTR\xc3\x81RIO","REVERB REVERSO","FITA",
-  "TEMPO","DURA\xc3\x87\xc3\x83O"};
+  "SHAPE","LEVEL","OCTAVE","UNISON","DETUNE","SPREAD","SUB",
+  "CLUSTER","CLUSTER","BREATH","TENSION",
+  "MATERIAL A","LEVEL","DECAY","BOW","SCRAPE","STRIKE","NOISE COLOUR",
+  "TYPE","CUTOFF","RESONANCE","ENVELOPE","KEYTRACK","DRIVE",
+  "ATTACK","DECAY","SUSTAIN","RELEASE","VELOCITY",
+  "ATTACK","DECAY","SUSTAIN","RELEASE",
+  "GLISSANDO","TIME","DRIFT","GLIDE","BEND",
+  "RATE","PITCH","FILTER","VOLUME",
+  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
+  "VOICE","VOWEL","FORMANT",
+  "BITS","RATE","DIVISION","DEPTH","CHAOS",
+  "MATERIAL B","MORPH","TUNE","KEYTRACK","STRETCH","BRIGHTNESS","STEREO","OSC INPUT","RATTLE",
+  "TYPE","RING","RING PITCH","REVERSE","REVERSE VERB","TAPE WARP",
+  "TIMING","TIME"};
  return names;
 }
 
@@ -100,7 +100,7 @@ float InversoAbismoEditor::value(int param) const {
 InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&look);
  body.title="ABISMO";
- body.subtitle=juce::String::fromUTF8("SINTETIZADOR DE TENS\xc3\x83O PARA TRILHA   \xc2\xb7   MOD WHEEL = TENS\xc3\x83O   \xc2\xb7   AFTERTOUCH = ARCO + FILTRO");
+ body.subtitle=juce::String::fromUTF8("TENSION SYNTH FOR SCORING   \xc2\xb7   MOD WHEEL = TENSION   \xc2\xb7   AFTERTOUCH = BOW + FILTER");
  addAndMakeVisible(body);
  presets.getCount=[this]{return processor.getNumPrograms();};
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -116,31 +116,31 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   return *modules.back();
  };
  // 0 SOURCE
- add("FONTE",c::amber,{{"Osc",{P::OscShape,P::OscLevel,P::Detune,P::Spread,P::SubLevel},{P::OscShape}},
-                        {"Mistura",{P::ClusterLevel,P::NoiseLevel,P::Tension}}},126,{P::Octave,P::Unison,P::ClusterMode});
+ add("SOURCE",c::amber,{{"Osc",{P::OscShape,P::OscLevel,P::Detune,P::Spread,P::SubLevel},{P::OscShape}},
+                        {"Mix",{P::ClusterLevel,P::NoiseLevel,P::Tension}}},126,{P::Octave,P::Unison,P::ClusterMode});
  // 1 RESONATOR
- add("RESSONADOR",c::cyan,{{"Tom",{P::ResLevel,P::ResDecay,P::ResMorph,P::ResTune,P::ResKeytrack},{P::ResLevel}},
-                           {juce::String::fromUTF8("EXCITA\xc3\x87\xc3\x83O"),{P::Bow,P::Scrape,P::Strike,P::NoiseTone,P::ResInput}},
-                           {"Corpo",{P::ResStretch,P::ResBright,P::ResStereo,P::ResRattle}}},126,{P::ResMaterial,P::ResMaterialB});
+ add("RESONATOR",c::cyan,{{"Tone",{P::ResLevel,P::ResDecay,P::ResMorph,P::ResTune,P::ResKeytrack},{P::ResLevel}},
+                           {"Excite",{P::Bow,P::Scrape,P::Strike,P::NoiseTone,P::ResInput}},
+                           {"Body",{P::ResStretch,P::ResBright,P::ResStereo,P::ResRattle}}},126,{P::ResMaterial,P::ResMaterialB});
  // 2 FILTER
- add("FILTRO",c::violet,{{"Filtro",{P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack},{P::Cutoff}},
+ add("FILTER",c::violet,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack},{P::Cutoff}},
                          {"Envelope",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}}},126,{P::FilterMode});
  // 3 ENVELOPE
  add("ENVELOPE",c::green,{{"Volume",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}}},96,{});
  // 4 MOVEMENT
- add("MOVIMENTO",c::blue,{{juce::String::fromUTF8("AFINA\xc3\x87\xc3\x83O"),{P::PitchEnv,P::PitchTime,P::Drift,P::Glide,P::BendRange}},
+ add("MOVEMENT",c::blue,{{"Pitch",{P::PitchEnv,P::PitchTime,P::Drift,P::Glide,P::BendRange}},
                           {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}}},96,{});
  // 5 VOICE
- add("VOZ",c::pink,{{"Voz",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
+ add("VOICE",c::pink,{{"Voice",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
  // 6 DESTRUCTION
- add(juce::String::fromUTF8("DESTRUI\xc3\x87\xc3\x83O"),c::red,{{"Drive",{P::Drive,P::RingMix,P::RingPitch,P::Warp},{P::Drive}}},120,{P::DriveMode});
+ add("DESTRUCTION",c::red,{{"Drive",{P::Drive,P::RingMix,P::RingPitch,P::Warp},{P::Drive}}},120,{P::DriveMode});
  // 7 MUTILATION
- add(juce::String::fromUTF8("MUTILA\xc3\x87\xc3\x83O"),c::orange,{{"Picote",{P::StutterMs,P::StutterDepth,P::Chaos,P::Reverse}},
+ add("MUTILATION",c::orange,{{"Chop",{P::StutterMs,P::StutterDepth,P::Chaos,P::Reverse}},
                                                               {"Digital",{P::Crush,P::Downsample}}},104,{P::StutterSync,P::StutterDiv});
  // 8 SPACE
- add(juce::String::fromUTF8("ESPA\xc3\x87O"),c::blue.interpolatedWith(c::violet,.5f),
+ add("SPACE",c::blue.interpolatedWith(c::violet,.5f),
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::RevReverse,P::Freeze},{P::RevMix}}},104,{});
- master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("LARGURA"),c::ink);
+ master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
  auto& m=modules;
@@ -149,8 +149,8 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   auto area=r.withTrimmedBottom(34.f);
   const float shape=value(P::OscShape)*.01f,level=value(P::OscLevel)*.01f;
   const int unison=juce::roundToInt(value(P::Unison))+1;
-  caption(g,area,juce::String::fromUTF8("ONDA ")+juce::String(juce::roundToInt(shape*100.f))+"%",
-          level>0.f?juce::String("SUB ")+juce::String(juce::roundToInt(value(P::SubLevel)))+"%":juce::String("OSC DESLIGADO"));
+  caption(g,area,juce::String("WAVE ")+juce::String(juce::roundToInt(shape*100.f))+"%",
+          level>0.f?juce::String("SUB ")+juce::String(juce::roundToInt(value(P::SubLevel)))+"%":juce::String("OSC OFF"));
   auto wave=area.withTrimmedTop(14.f).reduced(0.f,4.f);
   const float det=value(P::Detune)*.01f;
   for(int u=unison-1;u>=1;--u){
@@ -166,7 +166,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   const float morph=value(P::ResMorph)*.01f,stretch=value(P::ResStretch)*.01f,bright=value(P::ResBright)*.01f;
   const auto& ra=materialRatios(juce::roundToInt(value(P::ResMaterial)));
   const auto& rb=materialRatios(juce::roundToInt(value(P::ResMaterialB)));
-  caption(g,area,"PARCIAIS",juce::String::fromUTF8("DURA\xc3\x87\xc3\x83O ")+juce::String(value(P::ResDecay),1)+" s");
+  caption(g,area,"PARTIALS",juce::String("DECAY ")+juce::String(value(P::ResDecay),1)+" s");
   auto plot=area.withTrimmedTop(16.f);
   g.setColour(c::screenMuted.withAlpha(.25f));
   g.drawHorizontalLine(juce::roundToInt(plot.getBottom()),plot.getX(),plot.getRight());
@@ -187,12 +187,12 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
    bar.lineTo(x,plot.getBottom()-h);
    soft::glowStroke(g,bar,c::cyan.withAlpha(level>0.f?1.f:.3f),2.f);
   }
-  if(level<=0.f) notice(g,plot.withTrimmedBottom(plot.getHeight()*.4f),juce::String::fromUTF8("DESLIGADO  \xc2\xb7  SUBA O N\xc3\x8dVEL"));
+  if(level<=0.f) notice(g,plot.withTrimmedBottom(plot.getHeight()*.4f),juce::String::fromUTF8("OFF  \xc2\xb7  TURN UP THE LEVEL"));
  };
  m[2]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
   if(page==1){
-   caption(g,area,"ENVELOPE DO FILTRO",juce::String(juce::roundToInt(value(P::FilterEnv)))+"%");
+   caption(g,area,"FILTER ENVELOPE",juce::String(juce::roundToInt(value(P::FilterEnv)))+"%");
    soft::glowStroke(g,adsr(area.withTrimmedTop(16.f).reduced(2.f,2.f),value(P::FAttack),value(P::FDecay),value(P::FSustain)*.01f,value(P::FRelease)),c::violet);
    return;
   }
@@ -230,7 +230,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
    return;
   }
   const float gl=value(P::PitchEnv),drift=value(P::Drift)*.01f;
-  caption(g,r,juce::String::fromUTF8("GLISSANDO ")+(gl>0?"+":"")+juce::String(gl,1)+" st","DERIVA "+juce::String(juce::roundToInt(drift*100.f))+"%");
+  caption(g,r,juce::String::fromUTF8("GLISSANDO ")+(gl>0?"+":"")+juce::String(gl,1)+" st","DRIFT "+juce::String(juce::roundToInt(drift*100.f))+"%");
   const float timeShare=juce::jlimit(.1f,1.f,std::log10(1.f+value(P::PitchTime)/10.f)/3.4f);
   soft::glowStroke(g,curve(r.withTrimmedTop(12.f),160,[&](float t){
    const float g1=juce::jlimit(0.f,1.f,t/timeShare)*gl/24.f;
@@ -241,7 +241,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   const float mix=value(P::VoiceMix)*.01f,vowel=value(P::Vowel)*.01f,shift=value(P::FormantShift);
   const char* letters[5]={"A","E","I","O","U"};
   auto row=r.withTrimmedTop(12.f);
-  caption(g,r,"FORMANTE "+juce::String(shift>0?"+":"")+juce::String(shift,1)+" st");
+  caption(g,r,"FORMANT "+juce::String(shift>0?"+":"")+juce::String(shift,1)+" st");
   for(int i=0;i<5;++i){
    const float x=row.getX()+row.getWidth()*(static_cast<float>(i)+.5f)/5.f;
    const float near=1.f-juce::jlimit(0.f,1.f,std::abs(vowel*4.f-static_cast<float>(i)));
@@ -249,7 +249,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
    g.setColour(near>0.f && mix>0.f?c::pink.withAlpha(.35f+.65f*near):c::screenMuted.withAlpha(.6f));
    g.drawText(letters[i],juce::Rectangle<float>(40.f,row.getHeight()).withCentre({x,row.getCentreY()}),juce::Justification::centred);
   }
-  if(mix<=0.f) notice(g,row.withTrimmedTop(row.getHeight()*.62f),juce::String::fromUTF8("VOZ EM 0%"));
+  if(mix<=0.f) notice(g,row.withTrimmedTop(row.getHeight()*.62f),juce::String("VOICE AT 0%"));
  };
  m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   r=r.withTrimmedBottom(34.f);
@@ -262,9 +262,9 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   auto info=r.withTrimmedLeft(r.getWidth()*.62f);
   g.setFont(soft::monoFont(10.f));
   g.setColour(value(P::RingMix)>0.f?c::screenInk:c::screenMuted);
-  g.drawText("ANEL "+juce::String(juce::roundToInt(value(P::RingMix)))+"%",info.removeFromTop(16.f),juce::Justification::centredLeft);
+  g.drawText("RING "+juce::String(juce::roundToInt(value(P::RingMix)))+"%",info.removeFromTop(16.f),juce::Justification::centredLeft);
   g.setColour(value(P::Warp)>0.f?c::screenInk:c::screenMuted);
-  g.drawText("FITA "+juce::String(juce::roundToInt(value(P::Warp)))+"%",info.removeFromTop(16.f),juce::Justification::centredLeft);
+  g.drawText("WARP "+juce::String(juce::roundToInt(value(P::Warp)))+"%",info.removeFromTop(16.f),juce::Justification::centredLeft);
  };
  m[7]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
@@ -280,10 +280,10 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   const int div=juce::roundToInt(value(P::StutterDiv));
   const bool free=juce::roundToInt(value(P::StutterSync))==1;
   const float depth=value(P::StutterDepth)*.01f,chaos=value(P::Chaos)*.01f,rev=value(P::Reverse)*.01f;
-  if(div==0 && rev<=0.f){ notice(g,area,"STUTTER DESLIGADO"); return; }
+  if(div==0 && rev<=0.f){ notice(g,area,"STUTTER OFF"); return; }
   static const char* divs[7]={"","1/4","1/8","1/16","1/32","1/8T","1/16T"};
   caption(g,area,free?abismo_ui::formatValue(specs()[P::StutterMs],value(P::StutterMs)):juce::String(div>0?divs[div]:"1/8"),
-          juce::String::fromUTF8(rev>0.f?"\xe2\x97\x80 AO CONTR\xc3\x81RIO":""));
+          juce::String::fromUTF8(rev>0.f?"\xe2\x97\x80 REVERSE":""));
   auto grid=area.withTrimmedTop(16.f);
   const int steps=16;
   const float w=grid.getWidth()/static_cast<float>(steps);
@@ -310,7 +310,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
  m[8]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay),dark=value(P::RevDamp)*.01f,rev=value(P::RevReverse)*.01f;
   const bool frozen=value(P::Freeze)>=.5f;
-  caption(g,r,frozen?juce::String("CONGELADO"):abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
+  caption(g,r,frozen?juce::String("FROZEN"):abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
   auto plot=r.withTrimmedTop(14.f);
   const auto colour=c::blue.interpolatedWith(c::violet,.5f).interpolatedWith(c::screenMuted,dark*.5f);
   const float span=juce::jlimit(.05f,1.f,std::log10(1.f+decay)/1.5f);
@@ -371,7 +371,7 @@ void InversoAbismoEditor::timerCallback(){
   m->dimInactive([this](int p){return synthControlActive(processor.apvts,p);});
   m->screen.repaint();
  }
- master->setReadout(processor.outputPeak.load(),juce::String("VOZES ")+juce::String(processor.voicesSounding.load())+" / 16");
+ master->setReadout(processor.outputPeak.load(),juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 16");
 }
 
 void InversoAbismoEditor::resized(){

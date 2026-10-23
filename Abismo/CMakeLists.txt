@@ -38,9 +38,11 @@ set(ABISMO_SOURCES
  Source/PluginEditor.cpp Source/PluginEditor.h
  Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoEngine.h Source/DSP/AbismoReverb.h Source/DSP/AbismoMutilator.h)
-# Embedded typefaces for the soft UI (Poppins and IBM Plex Mono, SIL OFL; see Fonts/).
+# Embedded typefaces (SIL OFL, see Fonts/): Poppins and IBM Plex Mono for the soft UI; Oswald,
+# Bebas Neue and Courier Prime for the vintage UI.
 juce_add_binary_data(AbismoFonts HEADER_NAME AbismoFonts.h NAMESPACE AbismoFonts
- SOURCES Fonts/Poppins-Medium.ttf Fonts/Poppins-SemiBold.ttf Fonts/IBMPlexMono-Medium.ttf)
+ SOURCES Fonts/Poppins-Medium.ttf Fonts/Poppins-SemiBold.ttf Fonts/IBMPlexMono-Medium.ttf
+ Fonts/Oswald-Medium.ttf Fonts/Oswald-SemiBold.ttf Fonts/BebasNeue-Regular.ttf Fonts/CourierPrime-Bold.ttf)
 juce_add_plugin(InversoAbismo
  COMPANY_NAME "Inverso Studios"
  BUNDLE_ID "net.inversostudios.abismo"

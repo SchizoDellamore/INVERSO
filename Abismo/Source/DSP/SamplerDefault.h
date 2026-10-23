@@ -16,7 +16,7 @@ inline SampleData makeDefaultSample(double sampleRate = 48000.0) {
  synth.prepare(sampleRate);
  SampleData d;
  d.sampleRate = sampleRate;
- d.name = "ABISMO voz interna";
+ d.name = "ABISMO built-in voice";
  const int total = static_cast<int>(sampleRate * 5.0);
  d.left.assign(static_cast<std::size_t>(total), 0.f);
  d.right.assign(static_cast<std::size_t>(total), 0.f);

@@ -47,7 +47,7 @@ private:
  std::vector<std::unique_ptr<soft::Module>> modules;
  std::unique_ptr<soft::Master> master;
  SampleView view;
- juce::TextButton loadButton{"CARREGAR"},builtInButton{"VOZ INTERNA"};
+ juce::TextButton loadButton{"LOAD"},builtInButton{"BUILT-IN VOICE"};
  juce::TooltipWindow tooltips{this,600};
  std::unique_ptr<juce::FileChooser> chooser;
  juce::String loadError;
