@@ -11,7 +11,7 @@ jobs:
   wav:
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write # attaches the WAV ZIP to the ABISMO GitHub Release
     steps:
       - name: Checkout INVERSO repository
         uses: actions/checkout@v4
@@ -41,3 +41,15 @@ jobs:
           name: ABISMO_DRUMS_WAV_0.7.0
           path: ${{ env.WAV_DIR }}
           if-no-files-found: error
+      - name: Attach WAV ZIP to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=abismo-v0.7.0
+          (cd "$(dirname "$WAV_DIR")" && zip -qr "$RUNNER_TEMP/ABISMO_DRUMS_WAV_0.7.0.zip" "$(basename "$WAV_DIR")")
+          # The Windows workflow may create the release first; either way it ends up existing once.
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --target "$GITHUB_SHA" \
+            --title "INVERSO ABISMO 0.7.0" --notes "Instaladores e biblioteca WAV do INVERSO ABISMO 0.7.0." \
+            || gh release view "$tag" >/dev/null
+          gh release upload "$tag" "$RUNNER_TEMP/ABISMO_DRUMS_WAV_0.7.0.zip" --clobber
