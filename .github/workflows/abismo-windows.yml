@@ -7,7 +7,7 @@ on:
     tags: ['build-abismo-*']
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-2025
     permissions:
       contents: write # publishes the GitHub Release with direct download links
     steps:

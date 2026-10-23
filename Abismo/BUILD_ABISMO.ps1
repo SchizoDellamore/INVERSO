@@ -1,14 +1,16 @@
 # -HostSmoke also builds and runs the JUCE host tests (slow: each compiles JUCE again).
 # -NoLto skips link-time optimisation (faster build, same sound).
 [CmdletBinding()]
-param([string]$JucePath="",[string]$Generator="Visual Studio 17 2022",[switch]$SkipInstaller,[switch]$HostSmoke,[switch]$NoLto)
+param([string]$JucePath="",[string]$Generator="",[switch]$SkipInstaller,[switch]$HostSmoke,[switch]$NoLto)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=$PSScriptRoot
 function Assert-Status([string]$step){if($LASTEXITCODE -ne 0){throw "$step failed with exit code $LASTEXITCODE"}}
 if(-not $JucePath){$JucePath=Join-Path (Split-Path $root -Parent) 'JUCE'}
 if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not found: $JucePath"}
-& cmake -S $root -B (Join-Path $root 'build') -G $Generator -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF "-DINVERSO_LTO=$(if($NoLto){'OFF'}else{'ON'})"
+# No generator given: CMake picks the newest Visual Studio installed.
+$generatorArgs=if($Generator){@('-G',$Generator)}else{@()}
+& cmake -S $root -B (Join-Path $root 'build') @generatorArgs -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF "-DINVERSO_LTO=$(if($NoLto){'OFF'}else{'ON'})"
 Assert-Status 'CMake configure'
 $targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3',
  'abismo_engine','abismo_presets','abismo_stress','abismo_sampler','abismo_drums','relicario_engine')
