@@ -5,6 +5,7 @@
 // bow noise / scrape impulses / strike burst, stereo TPT state-variable filter.
 // Optional 3-formant vowel filter after the SVF for processed-voice timbres.
 // Global: LFO, stutter / crush stage, FDN reverb, width, output gain and a soft safety ceiling.
+#include "AbismoCommon.h"
 #include "AbismoParams.h"
 #include "AbismoMutilator.h"
 #include "AbismoReverb.h"
@@ -15,105 +16,10 @@
 
 namespace inverso_abismo {
 
-constexpr float twoPi = 6.28318530718f;
 constexpr int maxVoices = 16;
 constexpr int maxUnison = 7;
 constexpr int maxStacks = 3;  // root + two cluster intervals
 constexpr int numModes = 6;
-constexpr int controlInterval = 16;
-
-namespace detail {
-inline float polyBlep(float t, float dt) {
- if (t < dt) { t /= dt; return t + t - t * t - 1.f; }
- if (t > 1.f - dt) { t = (t - 1.f) / dt; return t * t + t + t + 1.f; }
- return 0.f;
-}
-inline float sine(float phase) {
- static const auto table = [] {
-  std::array<float, 2049> t{};
-  for (std::size_t i = 0; i < t.size(); ++i) t[i] = std::sin(twoPi * static_cast<float>(i) / 2048.f);
-  return t;
- }();
- const float pos = phase * 2048.f;
- const auto i = std::min(static_cast<std::size_t>(pos), std::size_t{2047});
- const float frac = pos - static_cast<float>(i);
- return table[i] + frac * (table[i + 1] - table[i]);
-}
-inline float softTanh(float x) {
- x = std::clamp(x, -3.f, 3.f);
- return x * (27.f + x * x) / (27.f + 9.f * x * x);
-}
-inline float semitoneRatio(float st) { return std::exp2(st / 12.f); }
-inline float msToCoef(float ms, double sr, double timeConstants = 4.6) {
- // One-pole coefficient: 4.6 time constants = 99% of the way after `ms`.
- const double samples = std::max(1.0, static_cast<double>(ms) * .001 * sr);
- return static_cast<float>(1.0 - std::exp(-timeConstants / samples));
-}
-struct Random {
- std::uint32_t state = 0x9E3779B9u;
- float next() { // uniform [-1, 1)
-  state ^= state << 13; state ^= state >> 17; state ^= state << 5;
-  return static_cast<float>(state) * (2.f / 4294967296.f) - 1.f;
- }
-};
-} // namespace detail
-
-class Envelope {
-public:
- enum class Stage { Idle, Attack, Decay, Sustain, Release };
- void set(float a, float d, float s, float r, double sr) {
-  attackStep = static_cast<float>(1.0 / std::max(1.0, static_cast<double>(a) * .001 * sr));
-  decayCoef = detail::msToCoef(d, sr);
-  releaseCoef = detail::msToCoef(r, sr, 9.2); // -80 dB at the release time, then the voice frees
-  sustain = std::clamp(s, 0.f, 1.f);
- }
- void copySettings(const Envelope& o) {
-  attackStep = o.attackStep; decayCoef = o.decayCoef; releaseCoef = o.releaseCoef; sustain = o.sustain;
- }
- void gateOn() { stage = Stage::Attack; } // restarts from the current level: no click on retrigger
- void gateOff() { if (stage != Stage::Idle) stage = Stage::Release; }
- void reset() { stage = Stage::Idle; level = 0.f; }
- bool active() const { return stage != Stage::Idle; }
- float next() {
-  switch (stage) {
-   case Stage::Idle: return 0.f;
-   case Stage::Attack:
-    level += attackStep;
-    if (level >= 1.f) { level = 1.f; stage = Stage::Decay; }
-    break;
-   case Stage::Decay:
-    level += decayCoef * (sustain - level);
-    if (std::abs(level - sustain) < 1e-4f) { level = sustain; stage = Stage::Sustain; }
-    break;
-   case Stage::Sustain: level = sustain; break;
-   case Stage::Release:
-    level += releaseCoef * (0.f - level);
-    if (level < 1e-4f) { level = 0.f; stage = Stage::Idle; }
-    break;
-  }
-  return level;
- }
- float value() const { return level; }
- Stage stage = Stage::Idle;
-private:
- float level = 0.f, attackStep = .01f, decayCoef = .01f, releaseCoef = .01f, sustain = 1.f;
-};
-
-// Topology-preserving-transform SVF (Zavalishin). Stable under fast modulation.
-struct SVF {
- float ic1 = 0.f, ic2 = 0.f;
- float process(float v0, float a1, float a2, float a3, float k, int mode) {
-  const float v3 = v0 - ic2;
-  const float v1 = a1 * ic1 + a2 * v3;
-  const float v2 = ic2 + a2 * ic1 + a3 * v3;
-  ic1 = 2.f * v1 - ic1;
-  ic2 = 2.f * v2 - ic2;
-  if (mode == 1) return v1 * k;           // band-pass, unity peak
-  if (mode == 2) return v0 - k * v1 - v2; // high-pass
-  return v2;                              // low-pass
- }
- void reset() { ic1 = ic2 = 0.f; }
-};
 
 struct Resonator {
  float y1 = 0.f, y2 = 0.f, a1 = 0.f, a2 = 0.f, gain = 0.f;
@@ -204,8 +110,7 @@ public:
    sub.phase = 0.f;
    for (auto& m : modes) m.reset();
    filterL.reset(); filterR.reset();
-   for (auto& f : formantL) f.reset();
-   for (auto& f : formantR) f.reset();
+   formant.reset();
    driftValue = driftTarget = 0.f;
    exciterState = 0.f;
   }
@@ -272,28 +177,7 @@ public:
   a2 = g * a1;
   a3 = g * a2;
   ampVel = std::pow(velScale, 1.5f);
-  if (c.voiceMix > 0.f) setFormants(std::clamp(c.vowel + c.lfoFilterOct * lfo * .1f, 0.f, 1.f), c.formantRatio, sr);
- }
-
- // Bass-voice formant table (Hz, linear gain), morphed A -> E -> I -> O -> U.
- void setFormants(float vowelPos, float ratio, double sr) {
-  static const float freq[5][3] = {{600, 1040, 2250}, {400, 1620, 2400}, {250, 1750, 2600}, {400, 750, 2400}, {350, 600, 2400}};
-  static const float amp[5][3] = {{1.f, .45f, .35f}, {1.f, .25f, .35f}, {1.f, .03f, .16f}, {1.f, .28f, .09f}, {1.f, .1f, .025f}};
-  static const float bandwidth[3] = {80.f, 90.f, 120.f};
-  const float pos = vowelPos * 4.f;
-  const int a = std::min(static_cast<int>(pos), 3);
-  const float t = pos - static_cast<float>(a);
-  for (int i = 0; i < 3; ++i) {
-   const float f = std::clamp((freq[a][i] + t * (freq[a + 1][i] - freq[a][i])) * ratio, 60.f, .45f * static_cast<float>(sr));
-   const float g = std::tan(3.14159265f * f / static_cast<float>(sr));
-   const float kk = std::clamp(bandwidth[i] * ratio / f, .02f, 2.f);
-   auto& co = formant[static_cast<std::size_t>(i)];
-   co.k = kk;
-   co.a1 = 1.f / (1.f + g * (g + kk));
-   co.a2 = g * co.a1;
-   co.a3 = g * co.a2;
-   co.gain = amp[a][i] + t * (amp[a + 1][i] - amp[a][i]);
-  }
+  if (c.voiceMix > 0.f) formant.set(std::clamp(c.vowel + c.lfoFilterOct * lfo * .1f, 0.f, 1.f), c.formantRatio, sr);
  }
 
  void render(const Controls& c, float lfo, float* outL, float* outR, int n, double sr) {
@@ -342,17 +226,7 @@ public:
    }
    l = filterL.process(l, a1, a2, a3, k, c.filterMode);
    r = filterR.process(r, a1, a2, a3, k, c.filterMode);
-   if (c.voiceMix > 0.f) {
-    float fl = 0.f, fr = 0.f;
-    for (std::size_t f = 0; f < 3; ++f) {
-     const auto& co = formant[f];
-     fl += co.gain * formantL[f].process(l, co.a1, co.a2, co.a3, co.k, 1);
-     fr += co.gain * formantR[f].process(r, co.a1, co.a2, co.a3, co.k, 1);
-    }
-    // Narrow band-passes remove most of the energy of a broad source: make up for it.
-    l += c.voiceMix * (fl * 3.f - l);
-    r += c.voiceMix * (fr * 3.f - r);
-   }
+   if (c.voiceMix > 0.f) formant.process(l, r, c.voiceMix);
    const float e = amp.next() * ampVel * trem * .25f;
    fenv.next();
    outL[i] += l * e;
@@ -373,9 +247,7 @@ private:
  std::array<Resonator, numModes> modes{};
  std::array<float, maxUnison> unisonPos{}, unisonJitter{};
  SVF filterL, filterR;
- struct FormantCoefficients { float a1 = 1.f, a2 = 0.f, a3 = 0.f, k = 1.f, gain = 0.f; };
- std::array<FormantCoefficients, 3> formant{};
- std::array<SVF, 3> formantL{}, formantR{};
+ FormantFilter formant;
  detail::Random rng;
  int unison = 1, driftHold = 0, strikeSamples = 0;
  float velocity = 1.f, baseFreq = 440.f, pitchEnvTime = 0.f, glideOffset = 0.f, glideStart = 0.f;
@@ -478,14 +350,7 @@ public:
   }
  }
 
- // Soft ceiling: linear below 0.9, smoothly saturating to never exceed 1.0.
- static float safety(float x) {
-  if (!std::isfinite(x)) return 0.f;
-  const float a = std::abs(x);
-  if (a <= .9f) return x;
-  const float y = .9f + .1f * std::tanh((a - .9f) * 10.f);
-  return x < 0.f ? -y : y;
- }
+ static float safety(float x) { return softCeiling(x); }
 
 private:
  void controlTick() {

@@ -6,31 +6,7 @@
 using namespace inverso_abismo;
 
 juce::AudioProcessorValueTreeState::ParameterLayout InversoAbismoProcessor::makeParameters() {
- using namespace juce;
- std::vector<std::unique_ptr<RangedAudioParameter>> p;
- for (const auto& s : specs()) {
-  switch (s.kind) {
-   case Kind::Choice:
-    p.push_back(std::make_unique<AudioParameterChoice>(ParameterID{s.id,1},s.name,
-     StringArray::fromTokens(s.choices,"|",""),static_cast<int>(s.def)));
-    break;
-   case Kind::Bool:
-    p.push_back(std::make_unique<AudioParameterBool>(ParameterID{s.id,1},s.name,s.def>=.5f));
-    break;
-   case Kind::Int:
-    p.push_back(std::make_unique<AudioParameterInt>(ParameterID{s.id,1},s.name,
-     static_cast<int>(s.min),static_cast<int>(s.max),static_cast<int>(s.def)));
-    break;
-   case Kind::Float: {
-    NormalisableRange<float> range(s.min,s.max,s.interval);
-    if (s.centre>0.f) range.setSkewForCentre(s.centre);
-    p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{s.id,1},s.name,range,s.def,
-     AudioParameterFloatAttributes().withLabel(s.unit)));
-    break;
-   }
-  }
- }
- return {p.begin(),p.end()};
+ return abismo_ui::makeLayout(specs().data(),P::Count);
 }
 
 InversoAbismoProcessor::InversoAbismoProcessor()

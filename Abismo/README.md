@@ -1,4 +1,8 @@
-# INVERSO ABISMO v0.2.0: sintetizador de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.3.0: instrumentos de tensão para trilha (VST3i)
+
+Este pacote instala dois instrumentos VST3 para Windows x64:
+- **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
+- **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular (veja a seção própria mais adiante).
 
 Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifônico (16 vozes) voltado para trilha de terror e suspense: clusters dissonantes, metal friccionado, vidro, sinos, drones, glissandos e afinação instável. É um instrumento independente; os outros plugins INVERSO não são alterados.
 
@@ -21,8 +25,22 @@ Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifôni
 ## Presets de fábrica
 Init, Cordas Mortas, Arco no Metal, Vidro Rachado, Queda Livre, Drone do Abismo, Sussurro no Porão, Caixa de Música Quebrada, Batimento, Tensão Infinita, Coro Afogado e Corrente Arrastada. Na linha de voz processada e picotada: Sorriso Torto, Grunhido, Respiração Picotada e Lamento Mastigado. Ficam no menu do plugin e também aparecem como *programs* do VST3 na DAW. Os níveis foram equilibrados em cerca de −27 dB RMS.
 
+## ABISMO SAMPLER
+Toca qualquer áudio seu (WAV, AIFF, FLAC, OGG ou MP3, de até 10 minutos, mono ou estéreo, em qualquer taxa de amostragem) pelo teclado. O áudio passa pelos mesmos filtro, VOZ, MUTILAÇÃO, reverb e TENSION do ABISMO.
+- **Carregar**: use o botão *CARREGAR SAMPLE* ou arraste o arquivo para a janela. *VOZ INTERNA* volta ao sample embutido, uma frase vocal de 5 s gerada pelo próprio ABISMO, que garante que o plugin nunca abra mudo.
+- **Modo clássico**: ROOT (a nota em que o sample soa no tom original), TUNE, START, REVERSE e LOOP, que pode ser normal (com crossfade XFADE) ou vai-e-volta, entre LOOP START e LOOP END. Sem loop, a nota termina quando o sample acaba.
+- **Modo granular**: o som vira uma nuvem de grãos.
+  - POSITION diz de que ponto do sample os grãos saem; SCAN anda por ele a uma velocidade de −200% a +200%, e 0 congela o instante.
+  - SIZE (5 ms a 1 s) e DENSITY (1 a 200 grãos/s) controlam o tamanho e a quantidade de grãos.
+  - SPRAY espalha a posição em até ±500 ms. PITCH RND dá até ±12 semitons aleatórios por grão, REVERSE % faz parte dos grãos tocar ao contrário e SPREAD abre os grãos no estéreo.
+  - A afinação vem do teclado e não depende da velocidade: dá para esticar o tempo sem mudar o tom, ou mudar o tom sem mudar o tempo.
+- **Forma de onda**: clicar ou arrastar nela define START (modo clássico) ou POSITION (granular). A linha branca mostra onde a última nota está lendo.
+- **LFO → POSITION** faz a região dos grãos passear pelo sample. A TENSION aumenta o SPRAY e a afinação aleatória dos grãos.
+- **Presets** (receitas aplicadas ao sample carregado): Init, Congelado, Nuvem de Vozes, Rasgo Reverso, Gagueira, Respiração Esticada, Monstro Grave, Fita Derretida, Enxame e Boca Fechada.
+- **Sessões**: o projeto guarda o **caminho** do arquivo, não o áudio em si. Se você mover ou apagar o arquivo, o plugin avisa "ARQUIVO NAO ENCONTRADO", toca a voz interna e continua lembrando o caminho original. Guarde seus samples numa pasta fixa.
+
 ## Instalação
-No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.2.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.2.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se o plugin não aparecer, faça um novo scan de plugins. Ele aparece como instrumento (*Instrument / Synth*) da Inverso Studios.
+No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.3.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.3.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os dois aparecem como instrumentos da Inverso Studios: ABISMO em *Synth* e ABISMO SAMPLER em *Sampler*. A versão portátil traz as duas pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
@@ -46,4 +64,15 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
 - `abismo_engine` verifica a afinação (A4 = 440 Hz em 44,1/48/96 kHz), pitch bend, troca de oitava, release até o silêncio, pedal de sustain, limite e roubo de vozes, os intervalos de cluster, a chegada exata do glissando, o glide linear, o ressonador sem osciladores, o freeze/unfreeze do reverb, o morph de vogais, o gate do stutter na grade de 1/16 a 120 BPM, a volta do áudio ao desligar o stutter e a quantização do crush.
 - `abismo_presets` verifica que todo preset é audível, finito e fica abaixo de 0 dBFS.
 - `abismo_stress` faz automação aleatória de todos os parâmetros com MIDI, pitch bend, mod wheel, aftertouch e pedal em três taxas de amostragem. Também estima a CPU do pior caso (16 vozes × 7 unison × 3 camadas de cluster + ressonador + reverb).
+- `abismo_sampler` verifica:
+  - a afinação do sample (nota 81 sobre root 69 dá 880 Hz em 44,1, 48 e 96 kHz);
+  - o fim do one-shot, os loops normal e vai-e-volta e o reverse;
+  - o freeze granular estável e a transposição granular independente do SCAN;
+  - a troca de sample cortando as vozes;
+  - os presets sobre a voz interna e automação aleatória com troca de sample.
+- `InversoAbismoSamplerHostSmoke` (JUCE):
+  - grava WAVs reais em disco (estéreo de 44,1 kHz e mono de 96 kHz) e carrega cada um com a "DAW" rodando;
+  - confere a afinação e troca o sample no meio de uma nota;
+  - testa o modo granular, salvar/restaurar a sessão com o caminho do arquivo e o arquivo apagado (que volta para a voz interna e continua lembrando o caminho);
+  - abre o editor.
 - `InversoAbismoHostSmoke` (JUCE) toca MIDI em blocos de 1 a 2048 amostras, troca programas, automatiza o cutoff dentro da nota, testa pedal, All Sound Off, salvar/restaurar sessão e a abertura do editor. Com `ABISMO_SNAPSHOT=arquivo.png`, também salva uma imagem da interface.
