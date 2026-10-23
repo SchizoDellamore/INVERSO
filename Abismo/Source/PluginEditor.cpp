@@ -91,6 +91,8 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   {"AMPLITUDE",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens},{}},
   {"ENVELOPE DO FILTRO",{P::FAttack,P::FDecay,P::FSustain,P::FRelease},{}},
   {"AFINACAO / MOVIMENTO",{P::PitchEnv,P::PitchTime,P::Drift,P::Glide,P::BendRange},{}},
+  {"VOZ",{P::VoiceMix,P::Vowel,P::FormantShift},{}},
+  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterDiv,P::StutterDepth,P::Chaos},{}},
   {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp},{}},
   {"ESPACO",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze,P::Width,P::Output},{}},
  };
@@ -103,7 +105,8 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
   "ATTACK","DECAY","SUSTAIN","RELEASE",
   "GLISSANDO","GLISS TIME","DRIFT","GLIDE","BEND",
   "RATE","PITCH","FILTER","AMP",
-  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT"};
+  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
+  "VOICE","VOWEL","FORMANT","CRUSH","DOWNSAMPLE","STUTTER","DEPTH","CHAOS"};
  for(const auto& section:sections){
   for(int param:section.params){
    const auto& spec=specs()[static_cast<std::size_t>(param)];
@@ -152,7 +155,7 @@ InversoAbismoEditor::InversoAbismoEditor(InversoAbismoProcessor& p):AudioProcess
  };
  addAndMakeVisible(presetBox);addAndMakeVisible(previous);addAndMakeVisible(next);
  refreshPresetBox();
- setSize(1180,headerHeight+4*(knobHeight+34+sectionPad)+40);
+ setSize(1180,headerHeight+5*(knobHeight+34+sectionPad)+40);
  startTimerHz(20);
 }
 
@@ -178,7 +181,7 @@ void InversoAbismoEditor::paint(juce::Graphics& g){
  g.setFont(juce::FontOptions(28.f,juce::Font::bold));
  g.drawText("INVERSO   /   ABISMO",22,12,420,40,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(12.f);
- g.drawText("SINTETIZADOR DE TENSAO PARA TRILHA   /   MOD WHEEL = TENSION   /   AFTERTOUCH = BOW + FILTRO",24,48,760,18,juce::Justification::centredLeft);
+ g.drawText("SINTETIZADOR DE TENSAO PARA TRILHA   /   MOD WHEEL = TENSION   /   AFTERTOUCH = BOW + FILTRO   /   STUTTER SEGUE O TEMPO DA DAW",24,48,760,18,juce::Justification::centredLeft);
  const float db=juce::Decibels::gainToDecibels(shownPeak,-90.f);
  g.setColour(shownPeak>.89f?juce::Colours::salmon:bone);
  g.setFont(12.f);

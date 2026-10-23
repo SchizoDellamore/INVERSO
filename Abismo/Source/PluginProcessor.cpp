@@ -62,6 +62,11 @@ void InversoAbismoProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::
  Values v{};
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
+ if (auto* head=getPlayHead()) {
+  if (const auto position=head->getPosition()) {
+   engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
+  }
+ }
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
  // Split the block at each MIDI event so notes start sample-accurately.

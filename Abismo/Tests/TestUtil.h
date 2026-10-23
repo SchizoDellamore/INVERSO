@@ -1,5 +1,6 @@
 #pragma once
 #include "../Source/DSP/AbismoEngine.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>

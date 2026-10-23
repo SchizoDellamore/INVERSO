@@ -97,11 +97,72 @@ static void resonatorAndFreeze() {
  verify(rms(gone.l) < 1e-4f, "unfrozen reverb must decay");
 }
 
+static void voiceAndMutilation() {
+ const int sr = 48000;
+ // Vowel A on a low saw: energy near F1 (600 Hz) must dominate energy near 1700 Hz;
+ // vowel I reverses that relation (F1 250 Hz, F2 1750 Hz).
+ auto vowelBalance = [&](float vowel) {
+  Values v = pureSine(); v[P::OscShape] = 66; v[P::VoiceMix] = 100; v[P::Vowel] = vowel;
+  Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(36, 1.f);
+  auto s = render(e, sr);
+  double low = 0, high = 0;
+  for (int h = 1; h < 60; ++h) {
+   const double f = 65.406 * h;
+   const double m = goertzel(s.l, sr, f, sr / 4, sr);
+   if (f > 450 && f < 750) low += m;
+   if (f > 1550 && f < 1950) high += m;
+  }
+  return low / high;
+ };
+ const double a = vowelBalance(0), i = vowelBalance(50);
+ std::printf("formant F1/F2 energy ratio: A %.2f, I %.2f\n", a, i);
+ verify(a > 2.0 * i, "vowel morph must move the formants");
+
+ // 1/16 stutter at 120 BPM, full depth, no chaos: the end of each 125 ms step is gated.
+ Values v = pureSine(); v[P::StutterDiv] = 3; v[P::StutterDepth] = 100; v[P::Chaos] = 0;
+ Engine e; e.setValues(v); e.prepare(sr);
+ e.setTransport(120.0, 0.0, true);
+ e.noteOn(69, 1.f);
+ auto s = render(e, sr * 2);
+ const auto step = static_cast<std::size_t>(sr * .125);
+ double open = 0, closed = 0;
+ for (std::size_t k = 4; k < 14; ++k) {
+  open += rms(s.l, k * step + step / 20, k * step + step / 8);
+  closed += rms(s.l, k * step + step / 2, k * step + step - step / 10);
+ }
+ std::printf("stutter open %.4f closed %.6f\n", open, closed);
+ verify(open > .1 && closed < open * .01, "stutter gate must follow the 1/16 grid");
+
+ // Chaos must change the pattern between steps without breaking the output.
+ v[P::Chaos] = 100; e.setValues(v);
+ auto chaotic = render(e, sr * 2);
+ verify(finite(chaotic) && peak(chaotic) <= 1.f, "chaotic stutter must stay finite");
+
+ // Stutter off again: gain must recover fully.
+ v[P::StutterDiv] = 0; e.setValues(v);
+ render(e, sr / 2);
+ auto recovered = render(e, sr / 2);
+ verify(rms(recovered.l) > .5f * rms(s.l, 0, step / 8), "audio must return when stutter is switched off");
+
+ // Crush at maximum quantises to very few levels.
+ v = pureSine(); v[P::Crush] = 100;
+ Engine c; c.setValues(v); c.prepare(sr);
+ c.noteOn(69, 1.f);
+ auto crushed = render(c, sr / 2);
+ std::vector<float> levels;
+ for (std::size_t n = sr / 4; n < crushed.l.size(); ++n)
+  if (std::find(levels.begin(), levels.end(), crushed.l[n]) == levels.end()) levels.push_back(crushed.l[n]);
+ std::printf("crushed distinct levels: %zu\n", levels.size());
+ verify(levels.size() < 40, "crush must quantise the signal");
+}
+
 int main() {
  tuning();
  releaseAndPedal();
  polyphony();
  clusterAndGlissando();
  resonatorAndFreeze();
+ voiceAndMutilation();
  std::puts("Abismo engine tests passed");
 }

@@ -32,6 +32,8 @@ enum : int {
  PitchEnv, PitchTime, Drift, Glide, BendRange,
  LfoRate, LfoPitch, LfoFilter, LfoAmp,
  RevMix, RevSize, RevDecay, RevDamp, Freeze, Width, Output,
+ VoiceMix, Vowel, FormantShift,
+ Crush, Downsample, StutterDiv, StutterDepth, Chaos,
  Count
 };
 }
@@ -89,6 +91,14 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"FREEZE","Reverb freeze",0,1,0,0,1,Kind::Bool,nullptr,""},
   {"WIDTH","Width",0,200,100,0,.01f,Kind::Float,nullptr,"%"},
   {"OUTPUT","Output",-36,6,-6,0,.01f,Kind::Float,nullptr,"dB"},
+  {"VOICE_MIX","Formant voice",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"VOWEL","Vowel A-E-I-O-U",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"FORMANT_SHIFT","Formant shift",-12,12,0,0,.01f,Kind::Float,nullptr,"st"},
+  {"CRUSH","Bit crush",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"DOWNSAMPLE","Downsample",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"STUTTER_DIV","Stutter",0,6,0,0,1,Kind::Choice,"Off|1/4|1/8|1/16|1/32|1/8T|1/16T",""},
+  {"STUTTER_DEPTH","Stutter depth",0,100,60,0,.01f,Kind::Float,nullptr,"%"},
+  {"CHAOS","Stutter chaos",0,100,30,0,.01f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -113,9 +123,9 @@ struct Preset { const char* name; PresetValue values[32]; };
 // Each preset starts from the defaults and overrides only what it lists.
 // Value lists end at the first entry with param == -1 (zero-initialised tail
 // entries have param 0, so every list is explicitly terminated).
-inline const std::array<Preset, 12>& presets() {
+inline const std::array<Preset, 16>& presets() {
  using namespace P;
- static const std::array<Preset, 12> table{{
+ static const std::array<Preset, 16> table{{
   {"Init", {{-1, 0}}},
   {"Cordas Mortas", {{OscShape,62},{Unison,4},{Detune,30},{Spread,85},{ClusterMode,1},{ClusterLevel,45},
    {Cutoff,1400},{Resonance,10},{FilterEnv,15},{Attack,2200},{Release,4500},{Sustain,90},
@@ -153,6 +163,22 @@ inline const std::array<Preset, 12>& presets() {
   {"Corrente Arrastada", {{OscLevel,10},{OscShape,90},{ResLevel,80},{ResMaterial,5},{ResDecay,1.2f},{Bow,20},
    {Scrape,70},{Strike,40},{NoiseTone,85},{Drive,45},{Cutoff,5000},{Resonance,20},{FilterEnv,0},{Attack,5},
    {Sustain,100},{Release,1800},{Drift,50},{RevMix,40},{RevDecay,5},{RevDamp,40},{Output,-12},{-1,0}}},
+  // Processed-voice presets: formant mouths, crushed and chopped in host tempo.
+  {"Sorriso Torto", {{OscShape,70},{Unison,2},{Detune,25},{NoiseLevel,25},{VoiceMix,100},{Vowel,20},
+   {FormantShift,-5},{Cutoff,6000},{FilterEnv,0},{Drive,55},{Crush,35},{StutterDiv,3},{StutterDepth,70},
+   {Chaos,45},{PitchEnv,-3},{PitchTime,900},{Attack,5},{Sustain,100},{Release,400},{Drift,40},{RevMix,20},
+   {RevDecay,2.5f},{Output,-6},{-1,0}}},
+  {"Grunhido", {{OscShape,85},{Octave,1},{SubLevel,40},{NoiseLevel,45},{VoiceMix,100},{Vowel,75},
+   {FormantShift,-10},{Drive,80},{Cutoff,4000},{FilterEnv,0},{LfoRate,6.5f},{LfoFilter,20},{LfoPitch,10},
+   {Attack,30},{Sustain,100},{Release,600},{Drift,60},{RevMix,25},{RevDecay,3},{RevDamp,60},{Output,-6},{-1,0}}},
+  {"Respiracao Picotada", {{OscLevel,0},{NoiseLevel,100},{VoiceMix,100},{Vowel,45},{FormantShift,2},
+   {Cutoff,9000},{FilterEnv,0},{Keytrack,0},{StutterDiv,4},{StutterDepth,80},{Chaos,70},{Downsample,25},
+   {LfoRate,.6f},{LfoFilter,40},{Attack,10},{Sustain,100},{Release,300},{RevMix,30},{RevDecay,3},
+   {Output,6},{-1,0}}},
+  {"Lamento Mastigado", {{OscShape,45},{Unison,3},{Detune,20},{ClusterMode,1},{ClusterLevel,40},
+   {VoiceMix,90},{Vowel,90},{FormantShift,4},{Cutoff,5000},{FilterEnv,0},{PitchEnv,-5},{PitchTime,4000},
+   {Crush,55},{Downsample,40},{StutterDiv,6},{StutterDepth,50},{Chaos,35},{LfoRate,5},{LfoPitch,15},
+   {Attack,400},{Sustain,100},{Release,2500},{Drift,45},{RevMix,40},{RevDecay,7},{Output,0},{-1,0}}},
  }};
  return table;
 }

@@ -3,8 +3,10 @@
 // prepare(). Per voice: morphing PolyBLEP oscillator stacks (unison + dissonant
 // cluster intervals), sub sine, breath noise, a 6-mode resonator excited by
 // bow noise / scrape impulses / strike burst, stereo TPT state-variable filter.
-// Global: LFO, FDN reverb, width, output gain and a soft safety ceiling.
+// Optional 3-formant vowel filter after the SVF for processed-voice timbres.
+// Global: LFO, stutter / crush stage, FDN reverb, width, output gain and a soft safety ceiling.
 #include "AbismoParams.h"
+#include "AbismoMutilator.h"
 #include "AbismoReverb.h"
 #include <algorithm>
 #include <array>
@@ -170,6 +172,7 @@ struct Controls {
  float pitchEnv = 0.f, pitchTimeMs = 1500.f, driftCents = 5.f, glideMs = 0.f;
  float lfoPitchCents = 0.f, lfoFilterOct = 0.f, lfoAmp = 0.f, velSens = .6f;
  float octaveSt = 0.f, bendRange = 2.f;
+ float voiceMix = 0.f, vowel = 0.f, formantRatio = 1.f;
  int filterMode = 0, unison = 3, material = 2;
  std::array<float, 2> clusterSt{0.f, 0.f};
  int clusterCount = 0;
@@ -201,6 +204,8 @@ public:
    sub.phase = 0.f;
    for (auto& m : modes) m.reset();
    filterL.reset(); filterR.reset();
+   for (auto& f : formantL) f.reset();
+   for (auto& f : formantR) f.reset();
    driftValue = driftTarget = 0.f;
    exciterState = 0.f;
   }
@@ -267,6 +272,28 @@ public:
   a2 = g * a1;
   a3 = g * a2;
   ampVel = std::pow(velScale, 1.5f);
+  if (c.voiceMix > 0.f) setFormants(std::clamp(c.vowel + c.lfoFilterOct * lfo * .1f, 0.f, 1.f), c.formantRatio, sr);
+ }
+
+ // Bass-voice formant table (Hz, linear gain), morphed A -> E -> I -> O -> U.
+ void setFormants(float vowelPos, float ratio, double sr) {
+  static const float freq[5][3] = {{600, 1040, 2250}, {400, 1620, 2400}, {250, 1750, 2600}, {400, 750, 2400}, {350, 600, 2400}};
+  static const float amp[5][3] = {{1.f, .45f, .35f}, {1.f, .25f, .35f}, {1.f, .03f, .16f}, {1.f, .28f, .09f}, {1.f, .1f, .025f}};
+  static const float bandwidth[3] = {80.f, 90.f, 120.f};
+  const float pos = vowelPos * 4.f;
+  const int a = std::min(static_cast<int>(pos), 3);
+  const float t = pos - static_cast<float>(a);
+  for (int i = 0; i < 3; ++i) {
+   const float f = std::clamp((freq[a][i] + t * (freq[a + 1][i] - freq[a][i])) * ratio, 60.f, .45f * static_cast<float>(sr));
+   const float g = std::tan(3.14159265f * f / static_cast<float>(sr));
+   const float kk = std::clamp(bandwidth[i] * ratio / f, .02f, 2.f);
+   auto& co = formant[static_cast<std::size_t>(i)];
+   co.k = kk;
+   co.a1 = 1.f / (1.f + g * (g + kk));
+   co.a2 = g * co.a1;
+   co.a3 = g * co.a2;
+   co.gain = amp[a][i] + t * (amp[a + 1][i] - amp[a][i]);
+  }
  }
 
  void render(const Controls& c, float lfo, float* outL, float* outR, int n, double sr) {
@@ -315,6 +342,17 @@ public:
    }
    l = filterL.process(l, a1, a2, a3, k, c.filterMode);
    r = filterR.process(r, a1, a2, a3, k, c.filterMode);
+   if (c.voiceMix > 0.f) {
+    float fl = 0.f, fr = 0.f;
+    for (std::size_t f = 0; f < 3; ++f) {
+     const auto& co = formant[f];
+     fl += co.gain * formantL[f].process(l, co.a1, co.a2, co.a3, co.k, 1);
+     fr += co.gain * formantR[f].process(r, co.a1, co.a2, co.a3, co.k, 1);
+    }
+    // Narrow band-passes remove most of the energy of a broad source: make up for it.
+    l += c.voiceMix * (fl * 3.f - l);
+    r += c.voiceMix * (fr * 3.f - r);
+   }
    const float e = amp.next() * ampVel * trem * .25f;
    fenv.next();
    outL[i] += l * e;
@@ -335,6 +373,9 @@ private:
  std::array<Resonator, numModes> modes{};
  std::array<float, maxUnison> unisonPos{}, unisonJitter{};
  SVF filterL, filterR;
+ struct FormantCoefficients { float a1 = 1.f, a2 = 0.f, a3 = 0.f, k = 1.f, gain = 0.f; };
+ std::array<FormantCoefficients, 3> formant{};
+ std::array<SVF, 3> formantL{}, formantR{};
  detail::Random rng;
  int unison = 1, driftHold = 0, strikeSamples = 0;
  float velocity = 1.f, baseFreq = 440.f, pitchEnvTime = 0.f, glideOffset = 0.f, glideStart = 0.f;
@@ -347,6 +388,7 @@ public:
  void prepare(double sampleRate) {
   sr = (std::isfinite(sampleRate) && sampleRate >= 8000.0) ? sampleRate : 48000.0;
   reverb.prepare(sr);
+  mutilator.prepare(sr);
   for (int i = 0; i < maxVoices; ++i) {
    voices[static_cast<std::size_t>(i)].seed(static_cast<std::uint32_t>(i + 1));
    voices[static_cast<std::size_t>(i)].amp.reset();
@@ -396,6 +438,8 @@ public:
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f); }
  void setModWheel(float value) { modWheel = std::clamp(value, 0.f, 1.f); }
  void setPressure(float value) { pressure = std::clamp(value, 0.f, 1.f); }
+ // Host tempo and musical position at the start of the next render() call.
+ void setTransport(double bpm, double ppqPosition, bool playing) { mutilator.setTransport(bpm, ppqPosition, playing); }
 
  int activeVoices() const {
   int n = 0;
@@ -419,6 +463,7 @@ public:
    const float width = smoothed[P::Width] * .01f;
    for (int i = 0; i < n; ++i) {
     float wl = 0.f, wr = 0.f;
+    mutilator.process(l[i], r[i]);
     reverb.process(l[i], r[i], wl, wr);
     float ol = l[i] * dryGain + wl * wetGain;
     float orr = r[i] * dryGain + wr * wetGain;
@@ -504,6 +549,13 @@ private:
   c.lfoPitchCents = lp * lp * 200.f;
   c.lfoFilterOct = pct(P::LfoFilter) * 3.f;
   c.lfoAmp = pct(P::LfoAmp);
+  c.voiceMix = pct(P::VoiceMix);
+  c.vowel = pct(P::Vowel);
+  c.formantRatio = detail::semitoneRatio(s[P::FormantShift]);
+  static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
+  const int division = std::clamp(choice(P::StutterDiv), 0, 6);
+  mutilator.configure(divisions[division], pct(P::StutterDepth), std::min(1.f, pct(P::Chaos) + tension * .3f),
+                      pct(P::Crush), pct(P::Downsample));
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
   filterShape.set(s[P::FAttack], s[P::FDecay], pct(P::FSustain), s[P::FRelease], sr);
   reverb.configure(pct(P::RevSize), s[P::RevDecay], pct(P::RevDamp), s[P::Freeze] >= .5f);
@@ -515,6 +567,7 @@ private:
  Envelope ampShape, filterShape;
  std::array<Voice, maxVoices> voices{};
  Reverb reverb;
+ Mutilator mutilator;
  int controlCountdown = 0, lastNote = -1;
  float lfoPhase = 0.f, lfoValue = 0.f, bend = 0.f, modWheel = 0.f, pressure = 0.f, outGain = .5f;
  bool sustainPedal = false;
