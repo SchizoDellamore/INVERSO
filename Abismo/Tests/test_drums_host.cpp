@@ -77,6 +77,50 @@ int main(){
  restored.setStateInformation(saved.getData(),static_cast<int>(saved.getSize()));
  verify(std::lround(restored.apvts.getRawParameterValue("P03_OBJECT")->load())==13,"pad object not restored");
  verify(std::abs(restored.apvts.getRawParameterValue("P03_TUNE")->load()+7.f)<.05f,"pad tune not restored");
+ // The built-in recordings are embedded and play by default.
+ verify(InversoAbismoDrumsProcessor::library().objects.size()==24,"embedded drum library missing");
+ // A pad loaded with the user's own takes: several files become dynamics, survive a session
+ // round trip, fall back to the OBJECT when the files are gone, and clear back to the OBJECT.
+ {
+  auto dir=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("abismo_drums_host_takes");
+  dir.deleteRecursively();dir.createDirectory();
+  juce::Array<juce::File> takes;
+  for(int k=0;k<3;++k){
+   auto f=dir.getChildFile("take"+juce::String(k)+".wav");
+   juce::WavAudioFormat wav;
+   std::unique_ptr<juce::OutputStream> stream=f.createOutputStream();
+   auto writer=wav.createWriterFor(stream,juce::AudioFormatWriterOptions{}.withSampleRate(44100).withNumChannels(1).withBitsPerSample(16));
+   verify(writer!=nullptr,"wav writer");
+   juce::AudioBuffer<float> b(1,8000);
+   for(int i=0;i<8000;++i) b.setSample(0,i,(.15f+.3f*static_cast<float>(k))*std::sin(6.2831853f*220.f*static_cast<float>(i)/44100.f)*std::exp(-static_cast<float>(i)/3000.f));
+   writer->writeFromAudioSampleBuffer(b,0,8000);
+   takes.add(f);
+  }
+  p.prepareToPlay(48000,512);
+  verify(p.loadPadFiles(2,takes),"pad files not loaded");
+  verify(p.getPadSampleName(2).contains("(3)"),"pad sample name");
+  param(p,"STUMBLE",0);
+  juce::AudioBuffer<float> b(2,512);juce::MidiBuffer m;
+  for(int i=0;i<20;++i){b.clear();p.processBlock(b,m);} // swap in, let earlier hits die
+  m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),0);
+  b.clear();p.processBlock(b,m);
+  verify(b.getMagnitude(0,512)>1e-3f,"pad sample silent");
+  juce::MemoryBlock withTakes;p.getStateInformation(withTakes);
+  InversoAbismoDrumsProcessor again;
+  again.setStateInformation(withTakes.getData(),static_cast<int>(withTakes.getSize()));
+  verify(again.getPadSampleName(2)==p.getPadSampleName(2),"pad sample not restored");
+  dir.deleteRecursively();
+  InversoAbismoDrumsProcessor lost;
+  lost.setStateInformation(withTakes.getData(),static_cast<int>(withTakes.getSize()));
+  verify(lost.getPadSampleName(2).isEmpty() && lost.getPadMissing(2).contains("take0"),"missing takes not reported");
+  juce::MemoryBlock keep;lost.getStateInformation(keep);
+  InversoAbismoDrumsProcessor kept;kept.setStateInformation(keep.getData(),static_cast<int>(keep.getSize()));
+  verify(kept.getPadMissing(2).contains("take2"),"missing paths forgotten on save");
+  p.clearPadSample(2);
+  for(int i=0;i<3;++i){b.clear();m.clear();p.processBlock(b,m);}
+  p.collectGarbage();
+  verify(p.getPadSampleName(2).isEmpty(),"pad not cleared");
+ }
  p.setCurrentProgram(0); // editor opens on the default kit
  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
  verify(editor!=nullptr && editor->getWidth()>0,"editor failed to open");

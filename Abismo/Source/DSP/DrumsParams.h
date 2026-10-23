@@ -62,9 +62,29 @@ inline const std::array<ObjectModel, 16>& objects() {
  return table;
 }
 
+// Recorded objects in the embedded library (Library/drums.bin, CC0 sources),
+// in the library's order. OBJECT indices 0-23 play these recordings; indices
+// 24-39 play the synthesised models above, labelled "(sint)".
+constexpr int numSampleObjects = 24;
+constexpr int numObjects = numSampleObjects + 16;
+inline const char* sampleObjectName(int i) {
+ static const char* names[numSampleObjects] = {
+  "Tambor de Oleo", "Ossos", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
+  "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Prato Rachado", "Bigorna",
+  "Mola", "Raspador", "Chocalho de Mola", "Sino Enferrujado", "Pandeiro de Lata", "Tabua Batendo", "Peito",
+  "Estalo", "Calcanhar"};
+ return names[std::clamp(i, 0, numSampleObjects - 1)];
+}
+inline bool isSampleObject(int object) { return object >= 0 && object < numSampleObjects; }
+inline int synthObject(int object) { return std::clamp(object - numSampleObjects, 0, 15); }
+inline std::string objectName(int object) {
+ return isSampleObject(object) ? std::string(sampleObjectName(object))
+                               : "(sint) " + std::string(objects()[static_cast<std::size_t>(synthObject(object))].name);
+}
+
 // Default object per pad, laid out like General MIDI drums so DAW drum maps
-// make sense: C1 kick (oil drum), D1 snare (parade drum), F#1 closed hat
-// (cutlery), G#1 pedal hat (chain), C#2 crash (cracked cymbal)...
+// make sense: C1 kick (oil drum), D1 snare (parade snare), F#1 closed hat
+// (old hi-hat), G#1 pedal hat (stomp), C#2 crash (cracked cymbal)...
 inline int defaultObject(int pad) { return std::clamp(pad, 0, 15); }
 
 namespace P {
@@ -86,7 +106,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   std::array<ParamSpec, P::Count> t{};
   storage.reserve(numPads * P::PadCount * 2);
   static std::string objectChoices;
-  for (std::size_t i = 0; i < objects().size(); ++i) objectChoices += (i ? "|" : "") + std::string(objects()[i].name);
+  for (int i = 0; i < numObjects; ++i) objectChoices += (i ? "|" : "") + objectName(i);
   auto keep = [](std::string s) -> const char* { storage.push_back(std::move(s)); return storage.back().c_str(); };
   for (int pad = 0; pad < numPads; ++pad) {
    char prefix[8];
@@ -94,11 +114,11 @@ inline const std::array<ParamSpec, P::Count>& specs() {
    const std::string id(prefix), name = "Pad " + std::to_string(pad + 1) + " ";
    const float defaultPan = static_cast<float>(((pad * 7) % 9) - 4) * 9.f; // gentle spread, -36..+36
    const int b = P::padBase(pad);
-   t[static_cast<std::size_t>(b + P::Object)] = {keep(id + "OBJECT"), keep(name + "object"), 0, 15, static_cast<float>(defaultObject(pad)), 0, 1, Kind::Choice, objectChoices.c_str(), ""};
+   t[static_cast<std::size_t>(b + P::Object)] = {keep(id + "OBJECT"), keep(name + "object"), 0, static_cast<float>(numObjects - 1), static_cast<float>(defaultObject(pad)), 0, 1, Kind::Choice, objectChoices.c_str(), ""};
    t[static_cast<std::size_t>(b + P::Tune)] = {keep(id + "TUNE"), keep(name + "tune"), -24, 24, 0, 0, .01f, Kind::Float, nullptr, "st"};
    t[static_cast<std::size_t>(b + P::Decay)] = {keep(id + "DECAY"), keep(name + "decay"), 10, 400, 100, 100, .1f, Kind::Float, nullptr, "%"};
    t[static_cast<std::size_t>(b + P::Tone)] = {keep(id + "TONE"), keep(name + "tone"), 0, 100, 50, 0, .01f, Kind::Float, nullptr, "%"};
-   t[static_cast<std::size_t>(b + P::Rattle)] = {keep(id + "RATTLE"), keep(name + "rattle"), 0, 100, objects()[static_cast<std::size_t>(defaultObject(pad))].rattle, 0, .01f, Kind::Float, nullptr, "%"};
+   t[static_cast<std::size_t>(b + P::Rattle)] = {keep(id + "RATTLE"), keep(name + "rattle"), 0, 100, 0, 0, .01f, Kind::Float, nullptr, "%"};
    t[static_cast<std::size_t>(b + P::Rust)] = {keep(id + "RUST"), keep(name + "rust"), 0, 100, 20, 0, .01f, Kind::Float, nullptr, "%"};
    t[static_cast<std::size_t>(b + P::Variation)] = {keep(id + "VARIATION"), keep(name + "variation"), 0, 100, 35, 0, .01f, Kind::Float, nullptr, "%"};
    t[static_cast<std::size_t>(b + P::Level)] = {keep(id + "LEVEL"), keep(name + "level"), -36, 6, 0, 0, .01f, Kind::Float, nullptr, "dB"};
@@ -143,21 +163,30 @@ inline Values defaults() {
 struct KitValue { int pad, param; float value; };
 struct Kit { const char* name; KitValue values[64]; };
 
-inline const std::array<Kit, 6>& kits() {
+inline const std::array<Kit, 8>& kits() {
  using namespace P;
- static const std::array<Kit, 6> table{{
-  {"Ferro-Velho", {{-1, -1, 0}}},
+ constexpr int sint = numSampleObjects; // first synthesised object
+ static const std::array<Kit, 8> table{{
+  {"Ferro-Velho", {{0,Decay,55},{-1, -1, 0}}},
   {"Galpao Abandonado", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
-   {0,Tune,-3},{0,Decay,140},{3,Decay,150},{12,Decay,160},{13,Decay,130},{-1,Output,-3},{-1,-1,0}}},
-  {"Fanfarra Bebada", {{-1,Stumble,60},{-1,Gramophone,35},{-1,RoomMix,25},{2,Rattle,85},{2,Tune,2},
-   {5,Object,2},{5,Tune,-7},{7,Object,2},{7,Tune,-4},{9,Object,2},{9,Tune,-10},{11,Object,2},{11,Tune,-12},{-1,Output,-2},{-1,-1,0}}},
-  {"Cozinha Assombrada", {{0,Object,5},{0,Tune,-6},{2,Object,4},{2,Tune,3},{4,Object,7},{4,Tune,4},{5,Object,7},{5,Tune,-5},
-   {7,Object,7},{9,Object,15},{9,Tune,-3},{11,Object,15},{11,Tune,4},{-1,RoomMix,28},{-1,RoomSize,25},{-1,Stumble,15},{-1,Output,-3},{-1,-1,0}}},
-  {"Oficina de Graxa", {{-1,StutterDiv,3},{-1,StutterDepth,35},{-1,Chaos,45},{-1,Crush,12},{-1,Stumble,25},
-   {3,Object,12},{4,Object,9},{4,Tune,5},{6,Object,8},{6,Tune,4},{10,Object,14},{10,Tune,-5},{13,Object,12},{13,Tune,7},
+   {0,Tune,-3},{-1,Output,-3},{-1,-1,0}}},
+  {"Fanfarra Bebada", {{0,Decay,55},{-1,Stumble,60},{-1,Gramophone,35},{-1,RoomMix,25},{2,Tune,2},
+   {5,Object,2},{5,Tune,-5},{7,Object,2},{7,Tune,-8},{9,Object,2},{9,Tune,-11},{11,Object,2},{11,Tune,-13},{-1,Output,-2},{-1,-1,0}}},
+  {"Cozinha Assombrada", {{0,Object,5},{0,Tune,-6},{1,Object,sint + 1},{2,Object,4},{2,Tune,3},{4,Object,18},
+   {6,Object,sint + 6},{7,Object,sint + 7},{9,Object,sint + 15},{9,Tune,-3},{11,Object,sint + 7},{11,Tune,4},
+   {-1,RoomMix,28},{-1,RoomSize,25},{-1,Stumble,15},{-1,Output,-3},{-1,-1,0}}},
+  {"Oficina de Graxa", {{0,Decay,55},{-1,StutterDiv,3},{-1,StutterDepth,35},{-1,Chaos,45},{-1,Crush,12},{-1,Stumble,25},
+   {3,Object,12},{4,Object,14},{6,Object,10},{10,Object,11},{13,Object,16},{8,Object,20},
    {-1,RoomMix,18},{-1,RoomSize,40},{-1,Output,-3},{-1,-1,0}}},
-  {"Radio de Valvula", {{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
+  {"Chain Gang", {{0,Object,8},{2,Object,3},{3,Object,20},{5,Object,21},{6,Object,22},{7,Object,23},{8,Object,10},
+   {-1,RoomMix,30},{-1,RoomSize,55},{-1,Stumble,30},{-1,Output,-2},{-1,-1,0}}},
+  {"Radio de Valvula", {{0,Decay,55},{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
    {-1,SawVibrato,55},{-1,Output,-4},{-1,-1,0}}},
+  {"Ferro-Velho Sintetico", {{0,Object,sint + 0},{1,Object,sint + 1},{2,Object,sint + 2},{3,Object,sint + 3},
+   {4,Object,sint + 4},{5,Object,sint + 5},{6,Object,sint + 6},{7,Object,sint + 7},{8,Object,sint + 8},
+   {9,Object,sint + 9},{10,Object,sint + 10},{11,Object,sint + 11},{12,Object,sint + 12},{13,Object,sint + 13},
+   {14,Object,sint + 14},{15,Object,sint + 15},{2,Rattle,75},{3,Rattle,50},{4,Rattle,45},{13,Rattle,70},
+   {10,Rattle,50},{11,Rattle,30},{-1,-1,0}}},
  }};
  return table;
 }

@@ -1,10 +1,24 @@
 #include "DrumsProcessor.h"
 #include "DrumsEditor.h"
 #include "AbismoUI.h"
+#include "AbismoDrumsData.h"
 #include <algorithm>
 #include <cmath>
 
 using namespace inverso_abismo::drums;
+
+namespace { constexpr double maxPadSeconds=20.0; constexpr int maxPadFiles=16; }
+
+const SampleLibrary& InversoAbismoDrumsProcessor::library() {
+ // Parsed once and shared by every instance of the plugin.
+ static const SampleLibrary lib=[]{
+  SampleLibrary l;
+  if (!SampleLibrary::parse(reinterpret_cast<const unsigned char*>(AbismoDrumsData::drums_bin),
+                            static_cast<std::size_t>(AbismoDrumsData::drums_binSize),l)) l.objects.clear();
+  return l;
+ }();
+ return lib;
+}
 
 juce::AudioProcessorValueTreeState::ParameterLayout InversoAbismoDrumsProcessor::makeParameters() {
  return abismo_ui::makeLayout(specs().data(),P::Count);
@@ -14,7 +28,12 @@ InversoAbismoDrumsProcessor::InversoAbismoDrumsProcessor()
  : AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),
    apvts(*this,nullptr,"PARAMETERS",makeParameters()) {
  for (std::size_t i=0;i<raw.size();++i) raw[i]=apvts.getRawParameterValue(specs()[i].id);
+ formats.registerBasicFormats();
+ engine.setLibrary(&library());
+ startTimer(500);
 }
+
+InversoAbismoDrumsProcessor::~InversoAbismoDrumsProcessor() { stopTimer(); }
 
 bool InversoAbismoDrumsProcessor::isBusesLayoutSupported(const BusesLayout& layout) const {
  return layout.getMainOutputChannelSet()==juce::AudioChannelSet::stereo()
@@ -35,6 +54,20 @@ void InversoAbismoDrumsProcessor::releaseResources() { prepared=false; }
 void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
  juce::ScopedNoDenormals noDenormals;
  const int samples=audio.getNumSamples();
+ // Pick up pads' new recordings without freeing memory on this thread:
+ // the replaced ones are parked in `retired` and released by the message thread.
+ if (swapLock.tryEnter()) {
+  for (int pad=0;pad<numPads;++pad) {
+   auto& slot=slots[static_cast<std::size_t>(pad)];
+   if (slot.hasPending && !slot.retired) {
+    slot.retired=std::move(slot.current);
+    slot.current=std::move(slot.pending);
+    slot.hasPending=false;
+    engine.setPadSample(pad,slot.current.get());
+   }
+  }
+  swapLock.exit();
+ }
  if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
  Values v{};
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
@@ -68,6 +101,115 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  padLights.fetch_or(engine.takeTriggeredPads(),std::memory_order_relaxed);
 }
 
+void InversoAbismoDrumsProcessor::queuePad(int pad,std::shared_ptr<SampleSet> set,const juce::StringArray& paths) {
+ auto& slot=slots[static_cast<std::size_t>(pad)];
+ {
+  const juce::SpinLock::ScopedLockType lock(swapLock);
+  slot.pending=std::move(set); // an older, never-played pending set is freed here, off the audio thread
+  slot.hasPending=true;
+  if (!prepared) {
+   // No audio callback running (e.g. session restore before playback): swap now.
+   slot.retired=std::move(slot.current);
+   slot.current=std::move(slot.pending);
+   slot.hasPending=false;
+   engine.setPadSample(pad,slot.current.get());
+  }
+ }
+ {
+  const juce::ScopedLock lock(pathLock);
+  slot.paths=paths;
+  slot.missing.clear();
+ }
+ ++sampleVersion;
+}
+
+bool InversoAbismoDrumsProcessor::loadPadFiles(int pad,const juce::Array<juce::File>& files) {
+ if (pad<0 || pad>=numPads) return false;
+ auto set=std::make_shared<SampleSet>();
+ juce::StringArray paths;
+ std::vector<std::pair<float,std::vector<float>>> takes;
+ double rate=0.0;
+ for (const auto& file : files) {
+  if (static_cast<int>(takes.size())>=maxPadFiles) break;
+  std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(file));
+  if (!reader || reader->lengthInSamples<4 || reader->sampleRate<1000.0) continue;
+  // Every take of a pad plays at one rate: the first file's.
+  juce::AudioBuffer<float> buffer;
+  const double sourceRate=reader->sampleRate;
+  if (rate<=0.0) rate=sourceRate;
+  const auto frames=static_cast<int>(std::min<juce::int64>(reader->lengthInSamples,static_cast<juce::int64>(sourceRate*maxPadSeconds)));
+  buffer.setSize(static_cast<int>(std::min(2u,reader->numChannels)),frames);
+  if (!reader->read(&buffer,0,frames,0,true,buffer.getNumChannels()>1)) continue;
+  std::vector<float> mono(static_cast<std::size_t>(frames));
+  for (int c=0;c<buffer.getNumChannels();++c)
+   for (int i=0;i<frames;++i) mono[static_cast<std::size_t>(i)]+=buffer.getSample(c,i)/static_cast<float>(buffer.getNumChannels());
+  if (std::abs(sourceRate-rate)>1.0) {
+   // Resample to the pad's rate (linear is enough for a take recorded at another rate).
+   const double ratio=sourceRate/rate;
+   std::vector<float> out(static_cast<std::size_t>(static_cast<double>(frames)/ratio));
+   for (std::size_t i=0;i<out.size();++i) {
+    const double at=static_cast<double>(i)*ratio;
+    const auto k=static_cast<std::size_t>(at);
+    const float f=static_cast<float>(at-static_cast<double>(k));
+    out[i]=k+1<mono.size()?mono[k]+(mono[k+1]-mono[k])*f:mono[std::min(k,mono.size()-1)];
+   }
+   mono=std::move(out);
+  }
+  // Loudness of the attack decides the take's place among the dynamics.
+  const auto attack=std::min<std::size_t>(mono.size(),static_cast<std::size_t>(rate*.05));
+  double sum=0.0;
+  for (std::size_t i=0;i<attack;++i) sum+=static_cast<double>(mono[i])*mono[i];
+  takes.emplace_back(static_cast<float>(std::sqrt(sum/static_cast<double>(std::max<std::size_t>(1,attack)))),std::move(mono));
+  paths.add(file.getFullPathName());
+ }
+ if (takes.empty()) return false;
+ std::stable_sort(takes.begin(),takes.end(),[](const auto& a,const auto& b){return a.first<b.first;});
+ // Level the loudest take to the library's -6 dBFS so pads sit together.
+ float peak=0.f;
+ for (const auto& t : takes) for (const float x : t.second) peak=std::max(peak,std::abs(x));
+ const float gain=peak>1e-6f?.5f/peak:1.f;
+ for (auto& t : takes) {
+  for (auto& x : t.second) x*=gain;
+  set->layers.push_back(std::move(t.second));
+ }
+ set->sampleRate=rate;
+ set->name=(paths.size()==1?juce::File(paths[0]).getFileNameWithoutExtension()
+                           :juce::File(paths[0]).getParentDirectory().getFileName()+" ("+juce::String(paths.size())+")").toStdString();
+ queuePad(pad,std::move(set),paths);
+ return true;
+}
+
+void InversoAbismoDrumsProcessor::clearPadSample(int pad) {
+ if (pad<0 || pad>=numPads) return;
+ queuePad(pad,nullptr,{});
+}
+
+void InversoAbismoDrumsProcessor::collectGarbage() {
+ std::array<std::shared_ptr<SampleSet>,numPads> old;
+ {
+  const juce::SpinLock::ScopedLockType lock(swapLock);
+  for (std::size_t i=0;i<old.size();++i) old[i]=std::move(slots[i].retired);
+ }
+ // `old` is destroyed here, on the calling (message) thread.
+}
+
+juce::String InversoAbismoDrumsProcessor::getPadSampleName(int pad) const {
+ if (pad<0 || pad>=numPads) return {};
+ const juce::ScopedLock lock(pathLock);
+ const auto& paths=slots[static_cast<std::size_t>(pad)].paths;
+ if (paths.isEmpty()) return {};
+ return paths.size()==1?juce::File(paths[0]).getFileNameWithoutExtension()
+                       :juce::File(paths[0]).getParentDirectory().getFileName()+" ("+juce::String(paths.size())+")";
+}
+juce::String InversoAbismoDrumsProcessor::getPadMissing(int pad) const {
+ if (pad<0 || pad>=numPads) return {};
+ const juce::ScopedLock lock(pathLock);
+ return slots[static_cast<std::size_t>(pad)].missing.joinIntoString("\n");
+}
+bool InversoAbismoDrumsProcessor::isAudioFile(const juce::String& path) const {
+ return formats.findFormatForFileExtension(juce::File(path).getFileExtension())!=nullptr;
+}
+
 int InversoAbismoDrumsProcessor::getNumPrograms() { return static_cast<int>(kits().size()); }
 const juce::String InversoAbismoDrumsProcessor::getProgramName(int index) {
  if (index<0 || index>=getNumPrograms()) return {};
@@ -86,9 +228,19 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
  }
 }
 
+// Pad recordings are stored by path, not embedded: sessions stay small, but a
+// moved or deleted file means the pad plays its OBJECT until it is reloaded.
 void InversoAbismoDrumsProcessor::getStateInformation(juce::MemoryBlock& dest) {
  auto state=apvts.copyState();
  state.setProperty("program",currentProgram,nullptr);
+ {
+  const juce::ScopedLock lock(pathLock);
+  for (int pad=0;pad<numPads;++pad) {
+   const auto& slot=slots[static_cast<std::size_t>(pad)];
+   const auto& paths=slot.missing.isEmpty()?slot.paths:slot.missing;
+   if (!paths.isEmpty()) state.setProperty("padSample"+juce::String(pad),paths.joinIntoString("\n"),nullptr);
+  }
+ }
  if (auto xml=state.createXml()) copyXmlToBinary(*xml,dest);
 }
 void InversoAbismoDrumsProcessor::setStateInformation(const void* data,int size) {
@@ -96,7 +248,35 @@ void InversoAbismoDrumsProcessor::setStateInformation(const void* data,int size)
  if (xml && xml->hasTagName(apvts.state.getType())) {
   auto state=juce::ValueTree::fromXml(*xml);
   currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
+  std::array<juce::StringArray,numPads> wanted;
+  for (int pad=0;pad<numPads;++pad) {
+   const juce::Identifier key("padSample"+juce::String(pad));
+   wanted[static_cast<std::size_t>(pad)]=juce::StringArray::fromLines(state.getProperty(key,juce::String()).toString());
+   wanted[static_cast<std::size_t>(pad)].removeEmptyStrings();
+   state.removeProperty(key,nullptr);
+  }
   apvts.replaceState(state);
+  for (int pad=0;pad<numPads;++pad) {
+   const auto& paths=wanted[static_cast<std::size_t>(pad)];
+   {
+    const juce::ScopedLock lock(pathLock);
+    if (paths==slots[static_cast<std::size_t>(pad)].paths) continue;
+   }
+   if (paths.isEmpty()) { clearPadSample(pad); continue; }
+   juce::Array<juce::File> files;
+   juce::StringArray missing;
+   for (const auto& path : paths) { const juce::File f(path); if (f.existsAsFile()) files.add(f); else missing.add(path); }
+   if (!loadPadFiles(pad,files)) {
+    clearPadSample(pad);
+    missing=paths;
+   }
+   if (!missing.isEmpty()) {
+    // Keep every saved path so a later save does not forget the missing ones.
+    const juce::ScopedLock lock(pathLock);
+    slots[static_cast<std::size_t>(pad)].missing=paths;
+    ++sampleVersion;
+   }
+  }
  }
 }
 

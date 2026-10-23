@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.5.0 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.6.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -22,6 +22,7 @@ add_test(NAME abismo_presets COMMAND abismo_presets)
 add_test(NAME abismo_stress COMMAND abismo_stress)
 add_test(NAME abismo_sampler COMMAND abismo_sampler)
 add_test(NAME abismo_drums COMMAND abismo_drums)
+target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
  return()
 endif()
@@ -117,6 +118,8 @@ set(DRUMS_SOURCES
  Source/AbismoUI.cpp Source/AbismoUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoReverb.h Source/DSP/AbismoMutilator.h
  Source/DSP/DrumsParams.h Source/DSP/DrumsEngine.h)
+# The drum recordings (CC0, see Library/SOURCES.md) are compiled into the plugin.
+juce_add_binary_data(AbismoDrumsData HEADER_NAME AbismoDrumsData.h NAMESPACE AbismoDrumsData SOURCES Library/drums.bin)
 juce_add_plugin(InversoAbismoDrums
  COMPANY_NAME "Inverso Studios"
  BUNDLE_ID "net.inversostudios.abismodrums"
@@ -136,6 +139,7 @@ juce_generate_juce_header(InversoAbismoDrums)
 target_sources(InversoAbismoDrums PRIVATE ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrums PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrums PRIVATE
+ AbismoDrumsData
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
@@ -146,6 +150,7 @@ juce_generate_juce_header(InversoAbismoDrumsHostSmoke)
 target_sources(InversoAbismoDrumsHostSmoke PRIVATE Tests/test_drums_host.cpp ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrumsHostSmoke PRIVATE
+ AbismoDrumsData
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
 add_test(NAME abismo_drums_host_smoke COMMAND InversoAbismoDrumsHostSmoke)

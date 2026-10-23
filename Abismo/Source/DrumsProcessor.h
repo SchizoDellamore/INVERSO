@@ -3,11 +3,12 @@
 #include "DSP/DrumsEngine.h"
 #include <array>
 #include <atomic>
+#include <memory>
 
-class InversoAbismoDrumsProcessor final : public juce::AudioProcessor {
+class InversoAbismoDrumsProcessor final : public juce::AudioProcessor,private juce::Timer {
 public:
  InversoAbismoDrumsProcessor();
- ~InversoAbismoDrumsProcessor() override = default;
+ ~InversoAbismoDrumsProcessor() override;
  void prepareToPlay(double sampleRate,int samplesPerBlock) override;
  void releaseResources() override;
  void processBlock(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
@@ -33,15 +34,43 @@ public:
  // Pads that sounded since the last call (editor lights).
  std::uint32_t takePadLights(){ return padLights.exchange(0); }
 
+ using SampleSet=inverso_abismo::drums::SampleSet;
+ // Message thread. A pad can hold the user's own recordings instead of its OBJECT:
+ // one file, or several (up to 16) used as dynamics and round robin, ordered by loudness.
+ // Returns false (and keeps what the pad had) when nothing could be read.
+ bool loadPadFiles(int pad,const juce::Array<juce::File>&);
+ void clearPadSample(int pad);
+ // Releases replaced recordings on the message thread; the timer also calls it.
+ void collectGarbage();
+ // The pad's own recordings: display name ("" when it plays its OBJECT) and missing files.
+ juce::String getPadSampleName(int pad) const;
+ juce::String getPadMissing(int pad) const;
+ bool isAudioFile(const juce::String& path) const;
+ // The built-in recordings (empty only if the embedded library failed to parse).
+ static const inverso_abismo::drums::SampleLibrary& library();
+ std::atomic<int> sampleVersion{0};
+
  juce::AudioProcessorValueTreeState apvts;
  std::atomic<float> outputPeak{0.f};
  std::atomic<int> hitsSounding{0};
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
 private:
+ void timerCallback() override {collectGarbage();}
+ void queuePad(int pad,std::shared_ptr<SampleSet>,const juce::StringArray& paths);
  inverso_abismo::drums::Engine engine;
+ juce::AudioFormatManager formats;
+ // Audio thread owns `current`; `pending` and `retired` cross threads under swapLock.
+ struct PadSlot {
+  std::shared_ptr<SampleSet> current,pending,retired;
+  bool hasPending=false; // a pending null clears the pad
+  juce::StringArray paths,missing;
+ };
+ std::array<PadSlot,inverso_abismo::drums::numPads> slots;
+ juce::SpinLock swapLock;
+ mutable juce::CriticalSection pathLock;
  std::array<std::atomic<float>*,inverso_abismo::drums::P::Count> raw{};
  std::atomic<std::uint32_t> auditions{0},padLights{0};
  int currentProgram=0;
- bool prepared=false;
+ std::atomic<bool> prepared{false};
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoAbismoDrumsProcessor)
 };

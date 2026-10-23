@@ -1,9 +1,9 @@
-# INVERSO ABISMO v0.5.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.6.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
 - **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular.
-- **INVERSO ABISMO DRUMS**: percussão de ferro-velho sintetizada e serrote melódico.
+- **INVERSO ABISMO DRUMS**: sampler de percussão de ferro-velho (gravações reais em domínio público, ou as suas) e serrote melódico.
 
 O SAMPLER e o DRUMS têm seções próprias mais adiante.
 
@@ -43,24 +43,23 @@ Toca qualquer áudio seu (WAV, AIFF, FLAC, OGG ou MP3, de até 10 minutos, mono 
 - **Sessões**: o projeto guarda o **caminho** do arquivo, não o áudio em si. Se você mover ou apagar o arquivo, o plugin avisa "ARQUIVO NAO ENCONTRADO", toca a voz interna e continua lembrando o caminho original. Guarde seus samples numa pasta fixa.
 
 ## ABISMO DRUMS
-Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e música industrial. Não usa nenhum sample: cada batida é sintetizada pela física do objeto, e nenhuma sai igual à anterior.
-- **Como cada objeto soa**:
-  - 12 a 44 modos de vibração por objeto, distribuídos pela forma dele: pele (modos de Bessel), chapa, barra (modos de flexão e de torção), cilindro (anel × axial), madeira ou peça irregular.
-  - Os agudos morrem bem mais rápido que os graves, então nada fica estridente.
-  - A baqueta é um pulso de contato: baqueta macia dá contato mais longo e som mais escuro; os objetos podem quicar.
-  - Talheres e corrente são várias peças batendo em sequência aleatória.
-  - RATTLE são peças soltas (rebites, esteira, rachadura) colidindo com o objeto conforme ele vibra. Não é ruído branco.
-  - Na saída, uma leve saturação de fita e corte de ar em 9,5 kHz.
-- **16 objetos**: Tambor de Óleo, Colheres, Caixa de Fanfarra, Porta de Garagem, Tampa de Lixo, Caixote, Talheres, Panela, Corrente, Cano de Ferro, Mola de Cama, Lata de Lixo, Chapa de Metal, Prato Rachado, Bigorna e Garrafa.
-- **Notas**: os pads ficam em C1 a D#2 (MIDI 36–51), no layout General MIDI. C1 é o bumbo (Tambor de Óleo), D1 a caixa (Caixa de Fanfarra), F#1 o "chimbal" (Talheres), G#1 o chimbal de pé (Corrente) e C#2 o prato de ataque (Prato Rachado).
-- **Por pad**: OBJECT (qualquer pad aceita qualquer objeto), TUNE, DECAY, TONE (baqueta macia ou dura), RATTLE, RUST (o objeto entortado de um jeito fixo e próprio do pad), VARIATION (cada batida muda afinação, decay, volume, ponto de contato e espaçamento dos modos), LEVEL e PAN. Clicar num pad toca o objeto e mostra os controles dele.
+Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e música industrial. Desde a 0.6 é um sampler: toca gravações reais, e qualquer pad aceita os seus próprios arquivos.
+- **Biblioteca embutida**: 24 objetos e 210 tomadas, gravações CC0 (domínio público) do Versilian Community Sample Library e do sfzinstruments body_percussion. A lista de fontes está em `Library/SOURCES.md` e o script que monta a biblioteca em `Tools/build_drum_library.py`.
+  - Gravações como estão: Ossos (claves), Caixa de Fanfarra (caixa de corda), Palma, Caixote (cajón), Pisão, Tronco (slit drum), Matraca, Freio de Carro, Bigorna, Mola (flexatone), Raspador (guiro), Chocalho de Mola (vibraslap), Pandeiro de Lata, Tábua Batendo, Peito, Estalo e Calcanhar.
+  - Montados a partir de gravações: Tambor de Óleo (bumbo de concerto com um freio de carro uma oitava abaixo, saturado), Tampa de Lixo (prato de choque abafado, mais grave e sujo), Chimbal Velho, Lata de Lixo (tom com um prato abafado chacoalhando dentro), Chapa de Metal (gongo), Prato Rachado (prato suspenso com o zumbido de uma rachadura) e Sino Enferrujado (cowbell sete semitons abaixo, saturado).
+- **Como toca**: cada objeto tem várias tomadas, ordenadas da mais fraca para a mais forte. A velocity escolhe a tomada, VARIATION sorteia em volta dela e a mesma tomada nunca toca duas vezes seguidas. TUNE é varispeed, como fita: mais grave fica mais longo. DECAY abaixo de 100% encurta a gravação, TONE abaixo de 50% escurece e acima clareia, RUST suja e RATTLE põe peças soltas colidindo junto.
+- **Seus samples**: selecione um pad e use **CARREGAR SAMPLE**, ou arraste arquivos ou uma pasta para cima de um pad. Vários arquivos (até 16) viram tomadas: o plugin ordena pela força do ataque e usa como dinâmica e alternância. **VOLTAR AO OBJETO** limpa o pad. WAV, AIFF, FLAC, OGG e MP3, até 20 s por arquivo, somados em mono.
+  - O projeto guarda o caminho dos arquivos, não o áudio. Se um arquivo sumir, o pad toca o OBJECT, mostra "FALTA ARQUIVO" e o caminho continua salvo.
+- **OBJECT**: os 24 primeiros são as gravações; os 16 seguintes, marcados "(sint)", são os objetos sintetizados da 0.5 (Tambor de Óleo, Colheres, Caixa de Fanfarra, Porta de Garagem, Tampa de Lixo, Caixote, Talheres, Panela, Corrente, Cano de Ferro, Mola de Cama, Lata de Lixo, Chapa de Metal, Prato Rachado, Bigorna e Garrafa).
+- **Notas**: os pads ficam em C1 a D#2 (MIDI 36–51), no layout General MIDI. C1 é o bumbo (Tambor de Óleo), D1 a caixa (Caixa de Fanfarra), F#1 o chimbal (Chimbal Velho) e C#2 o prato de ataque (Prato Rachado).
+- **Por pad**: OBJECT, TUNE, DECAY, TONE, RATTLE, RUST, VARIATION, LEVEL e PAN. Clicar num pad toca o som e mostra os controles dele.
 - **Serrote**: do C3 (MIDI 60) para cima, monofônico, desliza no legato.
 - **MÁQUINA QUEBRADA** (STUMBLE de até 80 ms, stutter de disco arranhado, CRUSH), **CARÁTER** (MEGAPHONE, GRAMOPHONE) e **SALA**.
-- **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina de Graxa e Rádio de Válvula.
-- **Mudança da 0.5**: a lista de objetos mudou (saíram Engrenagem, Máquina de Escrever, Ossos e Chocalho; entraram Colheres, Talheres, Panela, Chapa de Metal, Prato Rachado e Tambor de Óleo). Projetos salvos com a 0.4 abrem com os objetos novos nos mesmos números.
+- **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina de Graxa, Chain Gang (só corpo: pisão, palma, peito, estalo, calcanhar), Rádio de Válvula e Ferro-Velho Sintético (os 16 objetos sintetizados).
+- **Mudança da 0.6**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## Instalação
-No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.5.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.5.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.6.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.6.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
@@ -68,7 +67,7 @@ O instalador não é assinado digitalmente.
 - Foi testado em CI e por um host JUCE simulado, **não** dentro de Cubase, Studio One, Ableton Live ou Reaper. Teste em uma cópia do projeto antes de usar em produção.
 - O FREEZE é *quase* infinito: a modulação interna das linhas de atraso faz a cauda perder energia muito lentamente.
 - A polifonia é fixa em 16 vozes. Notas além disso roubam a voz mais antiga, começando pelas que já estão em release.
-- Não há MPE, oversampling nem importação de samples nesta versão.
+- Não há MPE nem oversampling nesta versão.
 
 ## Testes
 Testes de DSP portáteis (Linux/macOS/Windows, sem JUCE):
@@ -95,12 +94,15 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
   - confere a afinação e troca o sample no meio de uma nota;
   - testa o modo granular, salvar/restaurar a sessão com o caminho do arquivo e o arquivo apagado (que volta para a voz interna e continua lembrando o caminho);
   - abre o editor.
-- `abismo_drums` verifica:
-  - que os 16 objetos são audíveis, terminam sozinhos e chegam ao silêncio;
+- `abismo_drums` verifica (lê a biblioteca de `Library/drums.bin`):
+  - que a biblioteca é lida, tem os 24 objetos e que um arquivo truncado é recusado;
+  - que os 40 objetos são audíveis, terminam sozinhos e chegam ao silêncio;
+  - que a velocity escolhe tomadas mais fortes, que a mesma tomada não se repete e que TUNE -12 dobra a duração;
+  - que um sample do usuário toca afinado e que tirá-lo silencia o pad;
   - que um groove em shuffle lento (84 BPM) com todos os kits fica abaixo de 0 dBFS;
   - que batidas consecutivas variam e que STUMBLE atrasa em até 80 ms;
   - que o serrote afina (A4 = 440 Hz), desliza e para no release, e que as notas dele não disparam pads;
   - que os kits num groove 6/8 com serrote ficam abaixo de 0 dBFS;
   - a automação aleatória em 44,1 e 96 kHz.
-- `InversoAbismoDrumsHostSmoke` (JUCE): groove em blocos de 1 a 1024 amostras com todos os kits, audição e luz de pad vindas do editor, serrote, restauração de sessão com pad reatribuído e abertura do editor.
+- `InversoAbismoDrumsHostSmoke` (JUCE): groove em blocos de 1 a 1024 amostras com todos os kits, audição e luz de pad vindas do editor, serrote, restauração de sessão com pad reatribuído, a biblioteca embutida, um pad com três tomadas próprias (toca, volta na sessão, avisa e guarda o caminho quando os arquivos somem, limpa) e abertura do editor.
 - `InversoAbismoHostSmoke` (JUCE) toca MIDI em blocos de 1 a 2048 amostras, troca programas, automatiza o cutoff dentro da nota, testa pedal, All Sound Off, salvar/restaurar sessão e a abertura do editor. Com `ABISMO_SNAPSHOT=arquivo.png`, também salva uma imagem da interface.

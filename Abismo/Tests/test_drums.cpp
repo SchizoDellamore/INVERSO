@@ -6,6 +6,27 @@
 using namespace test;
 namespace D = inverso_abismo::drums;
 
+#ifndef ABISMO_DRUMS_LIBRARY
+#define ABISMO_DRUMS_LIBRARY "Library/drums.bin"
+#endif
+static D::SampleLibrary library;
+
+static void loadLibrary() {
+ std::ifstream f(ABISMO_DRUMS_LIBRARY, std::ios::binary);
+ verify(f.good(), "cannot open Library/drums.bin");
+ std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+ verify(D::SampleLibrary::parse(bytes.data(), bytes.size(), library), "library does not parse");
+ verify(library.objects.size() == D::numSampleObjects, "library object count");
+ for (int i = 0; i < D::numSampleObjects; ++i) {
+  const auto& o = library.objects[static_cast<std::size_t>(i)];
+  verify(o.name == D::sampleObjectName(i), "library object names must match the parameter list");
+  verify(!o.layers.empty(), "object without recordings");
+ }
+ std::vector<unsigned char> broken(bytes.begin(), bytes.begin() + static_cast<long>(bytes.size() / 2));
+ D::SampleLibrary partial;
+ verify(!D::SampleLibrary::parse(broken.data(), broken.size(), partial), "a truncated library must be rejected");
+}
+
 static D::Values dry() {
  D::Values v = D::defaults();
  v[D::P::RoomMix] = 0; v[D::P::Stumble] = 0; v[D::P::Output] = 0;
@@ -24,20 +45,74 @@ static std::size_t onset(const std::vector<float>& x, float threshold = 1e-3f) {
 
 static void objects() {
  const int sr = 48000;
- for (int obj = 0; obj < 16; ++obj) {
+ for (int obj = 0; obj < D::numObjects; ++obj) {
   D::Values v = dry();
   v[static_cast<std::size_t>(D::P::padBase(0) + D::P::Object)] = static_cast<float>(obj);
   v[static_cast<std::size_t>(D::P::padBase(0) + D::P::Variation)] = 0;
-  D::Engine e; e.setValues(v); e.prepare(sr);
+  D::Engine e; e.setValues(v); e.prepare(sr); e.setLibrary(&library);
+  verify(e.padUsesSample(0) == D::isSampleObject(obj), "object type routing");
   e.noteOn(D::firstPadNote, 1.f);
   auto hit = play(e, sr * 8);
   const float early = rms(hit.l, 0, static_cast<std::size_t>(sr / 5)), p = peak(hit);
-  std::printf("%-24s peak %.3f  rms(200ms) %.4f\n", D::objects()[static_cast<std::size_t>(obj)].name, p, early);
+  std::printf("%-30s peak %.3f  rms(200ms) %.4f\n", D::objectName(obj).c_str(), p, early);
   verify(finite(hit) && p <= 1.f, "object output invalid");
   verify(early > 3e-3f, "object must be audible");
   verify(e.activeHits() == 0, "hit must free itself after ringing out");
   verify(rms(hit.l, static_cast<std::size_t>(sr * 7), hit.l.size()) < 1e-5f, "object must decay to silence");
  }
+}
+
+static void recordings() {
+ const int sr = 48000;
+ // Velocity picks the dynamic layer: soft hits come from the quiet takes.
+ D::Values v = dry();
+ v[static_cast<std::size_t>(D::P::padBase(2) + D::P::Variation)] = 0;
+ auto level = [&](float vel) {
+  D::Engine e; e.setValues(v); e.prepare(sr); e.setLibrary(&library);
+  e.noteOn(D::firstPadNote + 2, vel);
+  return peak(play(e, sr / 2));
+ };
+ const float soft = level(.15f), loud = level(1.f);
+ std::printf("parade snare: soft %.3f, loud %.3f\n", soft, loud);
+ verify(loud > soft * 2.f, "velocity must reach softer recordings");
+ // Never the same take twice in a row.
+ D::Engine rr; rr.setValues(v); rr.prepare(sr); rr.setLibrary(&library);
+ std::vector<float> previous;
+ for (int k = 0; k < 6; ++k) {
+  rr.noteOn(D::firstPadNote + 2, .8f);
+  auto hit = play(rr, 4800);
+  if (!previous.empty()) {
+   double d = 0; for (std::size_t i = 0; i < hit.l.size(); ++i) d += std::abs(hit.l[i] - previous[i]);
+   verify(d > 1.0, "consecutive hits must use different takes");
+  }
+  previous = hit.l;
+  rr.allSoundOff(); play(rr, 480);
+ }
+ // TUNE is varispeed: an octave down plays twice as long.
+ auto length = [&](float tune) {
+  D::Values t = dry();
+  t[static_cast<std::size_t>(D::P::padBase(14) + D::P::Tune)] = tune;
+  t[static_cast<std::size_t>(D::P::padBase(14) + D::P::Variation)] = 0;
+  D::Engine e; e.setValues(t); e.prepare(sr); e.setLibrary(&library);
+  e.noteOn(D::firstPadNote + 14, 1.f);
+  int n = 0; while (e.activeHits() > 0 && n < sr * 10) { play(e, 256); n += 256; }
+  return n;
+ };
+ const int normal = length(0.f), down = length(-12.f);
+ verify(down > normal * 18 / 10 && down < normal * 22 / 10, "an octave down must last twice as long");
+ // A user sample on a pad replaces its object and can be removed again.
+ D::SampleSet mine; mine.sampleRate = sr; mine.name = "mine";
+ mine.layers.push_back(std::vector<float>(static_cast<std::size_t>(sr / 10), 0.f));
+ for (std::size_t i = 0; i < mine.layers[0].size(); ++i) mine.layers[0][i] = .3f * std::sin(2.f * 3.14159265f * 440.f * static_cast<float>(i) / static_cast<float>(sr));
+ D::Values uv = dry();
+ uv[static_cast<std::size_t>(D::P::padBase(5) + D::P::Variation)] = 0; // exact pitch for the check
+ D::Engine u; u.setValues(uv); u.prepare(sr); u.setLibrary(&library);
+ u.setPadSample(5, &mine);
+ u.noteOn(D::firstPadNote + 5, 1.f);
+ auto s = play(u, sr / 20);
+ verify(std::abs(frequency(s.l, sr, 100, s.l.size() - 10) - 440.0) < 2.0, "pad must play the user sample");
+ u.setPadSample(5, nullptr);
+ verify(u.activeHits() == 0, "removing a pad sample must stop its hits");
 }
 
 static void variationAndStumble() {
@@ -119,12 +194,14 @@ static void groove(D::Engine& e, Stereo& all, int sr, int bars, int seed) {
 }
 
 int main(int argc, char** argv) {
+ loadLibrary();
  objects();
+ recordings();
  variationAndStumble();
  saw();
  const int sr = 48000;
  for (std::size_t k = 0; k < D::kits().size(); ++k) {
-  D::Engine e; e.setValues(D::kitValues(k)); e.prepare(sr);
+  D::Engine e; e.setValues(D::kitValues(k)); e.prepare(sr); e.setLibrary(&library);
   e.setTransport(84.0, 0.0, true);
   Stereo all;
   groove(e, all, sr, 4, 11);
@@ -148,7 +225,7 @@ int main(int argc, char** argv) {
  }
  detail::Random rnd;
  for (int hostRate : {44100, 96000}) {
-  D::Engine e; e.prepare(hostRate);
+  D::Engine e; e.prepare(hostRate); e.setLibrary(&library);
   std::vector<float> l(4096), r(4096);
   for (int b = 0; b < 600; ++b) {
    D::Values v = D::defaults();

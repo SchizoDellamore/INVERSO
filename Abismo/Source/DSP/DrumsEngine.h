@@ -12,6 +12,9 @@
 #include "AbismoReverb.h"
 #include "DrumsParams.h"
 #include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
 
 namespace inverso_abismo::drums {
 
@@ -51,6 +54,59 @@ inline float shapeRatio(Shape shape, int k, detail::Random& r) {
  return 1.f;
 }
 
+// A set of recordings for one object, ordered soft -> loud.
+struct SampleSet {
+ std::string name;
+ double sampleRate = 44100.0;
+ std::vector<std::vector<float>> layers;
+};
+
+// The embedded library (Library/drums.bin). Parsed once; never touched by the audio thread.
+struct SampleLibrary {
+ std::vector<SampleSet> objects;
+ static bool parse(const unsigned char* data, std::size_t size, SampleLibrary& out) {
+  std::size_t o = 0;
+  auto need = [&](std::size_t n) { return o + n <= size; };
+  auto u16 = [&] { const unsigned v = data[o] | (data[o + 1] << 8); o += 2; return v; };
+  auto u32 = [&] {
+   const std::uint32_t v = static_cast<std::uint32_t>(data[o]) | (static_cast<std::uint32_t>(data[o + 1]) << 8) |
+                           (static_cast<std::uint32_t>(data[o + 2]) << 16) | (static_cast<std::uint32_t>(data[o + 3]) << 24);
+   o += 4;
+   return v;
+  };
+  if (!data || !need(16) || std::memcmp(data, "ABDL", 4) != 0) return false;
+  o = 4;
+  if (u32() != 1) return false;
+  const double rate = u32();
+  const std::uint32_t count = u32();
+  out.objects.clear();
+  for (std::uint32_t i = 0; i < count; ++i) {
+   if (!need(2)) return false;
+   const unsigned nameLen = u16();
+   if (!need(nameLen + 2)) return false;
+   SampleSet set;
+   set.name.assign(reinterpret_cast<const char*>(data + o), nameLen);
+   o += nameLen;
+   set.sampleRate = rate;
+   const unsigned layers = u16();
+   for (unsigned l = 0; l < layers; ++l) {
+    if (!need(4)) return false;
+    const std::uint32_t frames = u32();
+    if (!need(static_cast<std::size_t>(frames) * 2)) return false;
+    std::vector<float> pcm(frames);
+    for (std::uint32_t k = 0; k < frames; ++k) {
+     const auto v = static_cast<std::int16_t>(data[o] | (data[o + 1] << 8));
+     pcm[k] = static_cast<float>(v) / 32768.f;
+     o += 2;
+    }
+    set.layers.push_back(std::move(pcm));
+   }
+   out.objects.push_back(std::move(set));
+  }
+  return true;
+ }
+};
+
 class Hit {
 public:
  void seed(std::uint32_t s) { rng.state = s * 2654435761u + 99u; }
@@ -66,7 +122,8 @@ public:
   age = 0;
   elapsed = 0;
   quiet = 0;
-  const int objectIndex = std::clamp(p.object, 0, 15);
+  sample = nullptr;
+  const int objectIndex = synthObject(p.object);
   const auto& m = objects()[static_cast<std::size_t>(objectIndex)];
   const float v = p.variation;
   // The pad's own random identity (fixed) and this hit's randomness.
@@ -148,8 +205,57 @@ public:
   toneFilter.reset();
  }
 
+ // A recording: velocity picks the dynamic layer, never the same take twice in a row.
+ void startSample(int padIndex, const PadSettings& p, const SampleSet& set, int& lastLayer, float velocity,
+                  float velSens, double sampleRate) {
+  sr = sampleRate;
+  pad = padIndex;
+  age = 0;
+  elapsed = 0;
+  quiet = 0;
+  const int n = static_cast<int>(set.layers.size());
+  if (n == 0) { alive = false; return; }
+  const float v = p.variation;
+  const float shaped = std::pow(std::clamp(velocity, 0.f, 1.f), .8f) * static_cast<float>(n - 1);
+  int layer = std::clamp(static_cast<int>(std::lround(shaped + v * .25f * static_cast<float>(n) * rng.next())), 0, n - 1);
+  if (layer == lastLayer && n > 1) layer = layer > 0 && (rng.next() < 0.f || layer == n - 1) ? layer - 1 : layer + 1;
+  lastLayer = layer;
+  sample = &set.layers[static_cast<std::size_t>(layer)];
+  alive = true;
+  pos = 0.0;
+  rate = static_cast<double>(detail::semitoneRatio(p.tune + v * .3f * rng.next())) * set.sampleRate / sr;
+  // Layers carry the dynamics, so velocity scales level only gently on top.
+  const float velScale = 1.f - velSens * .45f * (1.f - velocity);
+  gain = p.gain * std::pow(10.f, 2.f * v * rng.next() / 20.f) * velScale;
+  const float rad = (std::clamp(p.pan, -1.f, 1.f) + 1.f) * .785398f;
+  panL = std::cos(rad) * 1.4142f;
+  panR = std::sin(rad) * 1.4142f;
+  // DECAY below 100% fades the recording out sooner; above it keeps its natural length.
+  const double seconds = static_cast<double>(sample->size()) / set.sampleRate / std::max(1e-6, rate * sr / set.sampleRate);
+  envMul = p.decay < .999f ? static_cast<float>(std::exp(-1.0 / std::max(1.0, seconds * p.decay * .35 * sr))) : 1.f;
+  env = 1.f;
+  // TONE: below 50% a low-pass closes in, above 50% a high-pass thins it out.
+  toneMode = p.tone < .5f ? 0 : 2;
+  const float cutoff = p.tone < .5f ? 1200.f * std::exp2(p.tone * 2.f * 3.9f) : 20.f * std::exp2((p.tone - .5f) * 2.f * 6.f);
+  const float g = std::tan(3.14159265f * std::clamp(cutoff, 20.f, .45f * static_cast<float>(sr)) / static_cast<float>(sr));
+  toneA1 = 1.f / (1.f + g * (g + 1.2f)); toneA2 = g * toneA1; toneA3 = g * toneA2;
+  toneFilter.reset();
+  rust = p.rust;
+  rattle = p.rattle;
+  detail::Random fixed;
+  fixed.state = 0x5EED0000u + static_cast<std::uint32_t>(padIndex * 131 + 977);
+  for (int k = 0; k < maxLoose; ++k) {
+   const float ratio = shapeRatio(Shape::Plate, k, fixed);
+   loose[static_cast<std::size_t>(k)].reset();
+   loose[static_cast<std::size_t>(k)].set(std::min(2400.f * ratio, .45f * static_cast<float>(sr)), .03f / std::sqrt(ratio), sr);
+   looseAmp[static_cast<std::size_t>(k)] = (.4f + .6f * std::abs(fixed.next())) / (1.f + .3f * static_cast<float>(k));
+  }
+  follower = 0.f;
+ }
+
  void render(float* outL, float* outR, int n) {
   if (!alive) return;
+  if (sample) { renderSample(outL, outR, n); return; }
   const float pulseAmp = 3.14159265f / (2.f * static_cast<float>(pulseLen)); // unit impulse area
   for (int i = 0; i < n; ++i) {
    // Half-sine contact force for every event that is touching right now.
@@ -197,6 +303,41 @@ public:
  void stop() { alive = false; }
 
 private:
+ void renderSample(float* outL, float* outR, int n) {
+  const auto& buf = *sample;
+  const auto len = static_cast<double>(buf.size());
+  for (int i = 0; i < n; ++i) {
+   float x = 0.f;
+   if (pos < len - 1.0) {
+    // 4-point Hermite read; tape-like varispeed for TUNE.
+    const auto k = static_cast<std::size_t>(pos);
+    const float t = static_cast<float>(pos - static_cast<double>(k));
+    const float xm1 = k > 0 ? buf[k - 1] : buf[k], x0 = buf[k], x1 = buf[k + 1], x2 = k + 2 < buf.size() ? buf[k + 2] : x1;
+    const float c1 = .5f * (x1 - xm1), c2 = xm1 - 2.5f * x0 + 2.f * x1 - .5f * x2, c3 = .5f * (x2 - xm1) + 1.5f * (x0 - x1);
+    x = (((c3 * t + c2) * t + c1) * t + x0) * env;
+    env *= envMul;
+    pos += rate;
+   }
+   if (rust > 0.f) x += rust * (detail::softTanh(x * 6.f) * .3f - x * .5f); // corroded, gritty
+   if (rattle > 0.f) {
+    const float a = std::abs(x);
+    follower += (a > follower ? .02f : .002f) * (a - follower);
+    float hit = 0.f;
+    if (.5f * (rng.next() + 1.f) < rattle * std::min(1.f, follower * 30.f) * .2f) hit = follower * (.5f + std::abs(rng.next())) * 6.f;
+    float rat = 0.f;
+    for (int k = 0; k < maxLoose; ++k) rat += loose[static_cast<std::size_t>(k)].process(hit) * looseAmp[static_cast<std::size_t>(k)];
+    x += rat * rattle;
+   }
+   const float y = toneFilter.process(x, toneA1, toneA2, toneA3, 1.2f, toneMode) * gain;
+   outL[i] += y * panL;
+   outR[i] += y * panR;
+   ++elapsed;
+   quiet = std::abs(y) < 2e-6f ? quiet + 1 : 0;
+  }
+  age += n;
+  if (pos >= len - 1.0 && quiet > static_cast<long long>(sr * .03)) alive = false;
+ }
+
  struct ModeState { Resonator res; float amp = 0.f; int piece = 0; };
  struct Event { long long at = 0; float amp = 0.f; int piece = 0; };
  detail::Random rng;
@@ -214,6 +355,10 @@ private:
  float memLevel = 0.f, memFreq = 100.f, memStart = 1.f, memDrop = .99f, memDecay = .999f, memEnv = 0.f;
  float memPhase = 0.f, memDropState = 1.f;
  float toneA1 = 1.f, toneA2 = 0.f, toneA3 = 0.f;
+ const std::vector<float>* sample = nullptr;
+ double pos = 0.0, rate = 1.0;
+ float env = 1.f, envMul = 1.f, rust = 0.f;
+ int toneMode = 0;
 };
 
 // Monophonic musical saw: a near-sine "singing" tone with bow noise, vibrato,
@@ -378,6 +523,19 @@ public:
   derive();
  }
  void setValues(const Values& v) { target = v; }
+ // The library and pad samples are owned by the caller and must outlive their use.
+ // Changing them silences the hits that may be reading the old memory.
+ void setLibrary(const SampleLibrary* lib) { if (lib != library) { for (auto& h : hits) h.stop(); library = lib; } }
+ void setPadSample(int pad, const SampleSet* set) {
+  if (pad < 0 || pad >= numPads || padSample[static_cast<std::size_t>(pad)] == set) return;
+  for (auto& h : hits) if (h.active() && h.pad == pad) h.stop();
+  padSample[static_cast<std::size_t>(pad)] = set;
+ }
+ bool padUsesSample(int pad) const {
+  const auto& p = pads[static_cast<std::size_t>(std::clamp(pad, 0, numPads - 1))];
+  return padSample[static_cast<std::size_t>(std::clamp(pad, 0, numPads - 1))] ||
+         (library && isSampleObject(p.object) && static_cast<std::size_t>(p.object) < library->objects.size());
+ }
  void setTransport(double bpm, double ppq, bool playing) { mutilator.setTransport(bpm, ppq, playing); }
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f) * 2.f; }
  void setSustain(bool down) { sustainPedal = down; if (!down) saw.sustainUp(); }
@@ -451,7 +609,12 @@ private:
   Hit* chosen = nullptr;
   for (auto& h : hits) if (!h.active()) { chosen = &h; break; }
   if (!chosen) for (auto& h : hits) if (!chosen || h.age > chosen->age) chosen = &h;
-  chosen->start(pad, pads[static_cast<std::size_t>(pad)], rust[static_cast<std::size_t>(pad)], velocity, velSens, sr);
+  const auto u = static_cast<std::size_t>(pad);
+  const auto& settings = pads[u];
+  if (padSample[u]) chosen->startSample(pad, settings, *padSample[u], lastLayer[u], velocity, velSens, sr);
+  else if (library && isSampleObject(settings.object) && static_cast<std::size_t>(settings.object) < library->objects.size())
+   chosen->startSample(pad, settings, library->objects[static_cast<std::size_t>(settings.object)], lastLayer[u], velocity, velSens, sr);
+  else chosen->start(pad, settings, rust[u], velocity, velSens, sr);
   triggered |= 1u << pad;
  }
 
@@ -495,6 +658,9 @@ private:
  std::array<std::array<float, 8>, numPads> rust{};
  std::array<Hit, maxHits> hits{};
  std::array<Pending, maxPending> pending{};
+ const SampleLibrary* library = nullptr;
+ std::array<const SampleSet*, numPads> padSample{};
+ std::array<int, numPads> lastLayer{};
  int pendingCount = 0, controlCountdown = 0;
  Saw saw;
  Saw::Settings sawSettings;
