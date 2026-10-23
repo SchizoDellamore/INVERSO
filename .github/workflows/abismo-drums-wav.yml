@@ -1,0 +1,43 @@
+name: Build ABISMO DRUMS WAV library
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'Abismo/Tools/**'
+      - 'Abismo/Library/**'
+      - '.github/workflows/abismo-drums-wav.yml'
+jobs:
+  wav:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout INVERSO repository
+        uses: actions/checkout@v4
+      - name: Install Python packages
+        run: python3 -m pip install --break-system-packages numpy scipy soundfile
+      - name: Fetch the CC0 recordings
+        run: Abismo/Tools/fetch_drum_sources.sh "$RUNNER_TEMP/src"
+      - name: Build the library and export every take as WAV
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/ABISMO DRUMS WAV"
+          python3 Abismo/Tools/build_drum_library.py "$RUNNER_TEMP/src/vcsl" "$RUNNER_TEMP/src/body_percussion" \
+            "$RUNNER_TEMP/src/big-rusty-drums" "$RUNNER_TEMP/drums.bin" "$out/FONTES (CC0).md" "$out"
+          # The library shipped in the plugin must be exactly what the builder makes.
+          cmp "$RUNNER_TEMP/drums.bin" Abismo/Library/drums.bin
+          cat > "$out/LEIA-ME.txt" <<'TXT'
+          ABISMO DRUMS - biblioteca de gravacoes em WAV (44,1 kHz, 16 bit, mono)
+          Uma pasta por objeto, numerada como no menu OBJECT do plugin.
+          Tomadas numeradas da mais fraca (01) para a mais forte; a mais forte de cada objeto chega a -0,2 dBFS.
+          Todas as fontes sao CC0 (dominio publico): use como quiser, inclusive comercialmente. Veja FONTES (CC0).md.
+          Para tocar no ABISMO DRUMS: arraste a pasta de um objeto para cima de um pad.
+          TXT
+          echo "WAV_DIR=$out" >> "$GITHUB_ENV"
+      - name: Publish WAV library
+        uses: actions/upload-artifact@v4
+        with:
+          name: ABISMO_DRUMS_WAV_0.7.0
+          path: ${{ env.WAV_DIR }}
+          if-no-files-found: error
