@@ -1,7 +1,10 @@
 name: Build INVERSO ABISMO Windows VST3
-# Runs only when started by hand (Actions > Run workflow), to save build minutes.
+# Runs only when asked for, to save build minutes: by hand, or by pushing a
+# tag named build-abismo-* (Claude does this when a build is requested).
 on:
   workflow_dispatch:
+  push:
+    tags: ['build-abismo-*']
 jobs:
   build:
     runs-on: windows-2022
