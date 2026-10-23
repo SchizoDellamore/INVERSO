@@ -1,0 +1,11 @@
+﻿INVERSO WaveMover 0.1.0 — Windows x64
+
+Feche o Cubase antes de continuar.
+
+Este instalador localiza a pasta de arquivos compartilhados do Windows e cria automaticamente o destino VST3, se necessário. Não é preciso criar pastas nem copiar arquivos manualmente.
+
+Depois da instalação, abra o Cubase e procure INVERSO WaveMover entre os efeitos de inserção VST3. O aplicativo independente também ficará no menu Iniciar, em INVERSO.
+
+Para editar o áudio de uma pista: insira o plugin, ative Capturar e reproduza o trecho na DAW. Também é possível importar um arquivo de áudio. Faça as edições e exporte o resultado em WAV ou use o botão de preparar/arrastar o WAV para a DAW.
+
+Esta instalação usa os mesmos arquivos da versão 0.1.0 validada. Não inclui novos efeitos.

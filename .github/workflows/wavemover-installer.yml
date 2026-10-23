@@ -1,0 +1,103 @@
+name: Package and verify WaveMover Windows installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [wavemover-editor]
+    paths: ['WaveMoverInstaller/**', '.github/workflows/wavemover-installer.yml']
+concurrency:
+  group: inverso-wavemover-installer-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  installer:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download previously tested native binaries
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 39873826586
+          name: INVERSO_WaveMover_0.1.0_Windows_x64
+          path: WaveMoverInstaller/payload
+      - name: Verify native payload identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = @{
+            'INVERSO WaveMover.exe' = '2c9919446a87564b0cd118fb1628fa433aba61db2194b0b861e5a8a3ee3fa37b'
+            'INVERSO WaveMover.vst3/Contents/Resources/moduleinfo.json' = '909d7de7f862eaef18a67e72c59c4a5f538e0c5bc45136e2f7f9e1788f24197b'
+            'INVERSO WaveMover.vst3/Contents/x86_64-win/INVERSO WaveMover.vst3' = '20cc76a03e96eae7178644546ecb22700d5644f1b1d25d42ead452ac20d41c3d'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $file = Join-Path 'WaveMoverInstaller/payload' $entry.Key
+            if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value) { throw "Unexpected binary: $file" }
+          }
+      - name: Locate Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" 'WaveMoverInstaller/Setup.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installation into Windows known folders and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path 'WaveMoverInstaller/dist/INVERSO_WaveMover_Setup_0.1.0_x64.exe').Path
+          $app = Join-Path $env:ProgramW6432 'INVERSO\WaveMover'
+          $common = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonProgramFiles)
+          $vstRoot = Join-Path $common 'VST3'
+          $bundle = Join-Path $vstRoot 'INVERSO WaveMover.vst3'
+          if (Test-Path -LiteralPath $bundle) { throw 'Runner already has this plugin installed' }
+          $vstRootExisted = Test-Path -LiteralPath $vstRoot
+          $sentinel = Join-Path $vstRoot 'WaveMover-CI-neighbor.txt'
+          New-Item -ItemType Directory -Path $vstRoot -Force | Out-Null
+          Set-Content -LiteralPath $sentinel -Value 'Preserve other plugins'
+          $log = Join-Path $env:RUNNER_TEMP 'wavemover-setup.log'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=`"$log`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
+          $source = (Resolve-Path 'WaveMoverInstaller/payload/INVERSO WaveMover.vst3').Path
+          foreach ($file in Get-ChildItem -LiteralPath $source -File -Recurse) {
+            $dest = Join-Path $bundle $file.FullName.Substring($source.Length + 1)
+            if ((Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $dest).Hash) { throw "Installed VST3 differs: $dest" }
+          }
+          $standalone = Join-Path $app 'INVERSO WaveMover.exe'
+          if ((Get-FileHash -LiteralPath $standalone).Hash -ne (Get-FileHash -LiteralPath 'WaveMoverInstaller/payload/INVERSO WaveMover.exe').Hash) { throw 'Installed standalone differs' }
+          $uninstall = Join-Path $app 'unins000.exe'
+          $p = Start-Process -FilePath $uninstall -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Uninstaller exited $($p.ExitCode)" }
+          if (Test-Path -LiteralPath $bundle) { throw 'Plugin bundle was not removed' }
+          if (-not (Test-Path -LiteralPath $sentinel)) { throw 'Another plugin was removed' }
+          Remove-Item -LiteralPath $sentinel
+          # Exercise the missing VST3 root too, when this runner began without it.
+          if (-not $vstRootExisted) {
+            Remove-Item -LiteralPath $vstRoot
+            $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+            if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $bundle 'Contents/x86_64-win/INVERSO WaveMover.vst3'))) { throw 'Cannot install when VST3 root is absent' }
+            $p = Start-Process -FilePath $uninstall -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw 'Second uninstall failed' }
+          }
+          @("Installation and uninstall passed.", "VST3 destination: $bundle", "Standalone destination: $standalone", "VST3 folder existed initially: $vstRootExisted", "Installed bytes match tested native payload.", "Neighboring plugin preserved.") | Set-Content 'WaveMoverInstaller/dist/installation-test.txt'
+          Get-ChildItem 'WaveMoverInstaller/dist' -File | ForEach-Object { $h = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content 'WaveMoverInstaller/dist/SHA256SUMS.txt'
+      - name: Publish verified installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_WaveMover_Setup_0.1.0_x64
+          path: WaveMoverInstaller/dist/
+          if-no-files-found: error
+      - name: Preserve installer log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaveMover-installer-log
+          path: ${{ runner.temp }}/wavemover-setup.log
+          if-no-files-found: ignore
