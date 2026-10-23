@@ -64,6 +64,14 @@ static void objects() {
 
 static void recordings() {
  const int sr = 48000;
+ // Without the library file every recorded object still sounds, through its synthesised stand-in.
+ for (int object = 0; object < D::numSampleObjects; ++object) {
+  D::Values w = dry();
+  w[static_cast<std::size_t>(D::P::padBase(0) + D::P::Object)] = static_cast<float>(object);
+  D::Engine e; e.setValues(w); e.prepare(sr);
+  e.noteOn(D::firstPadNote, 1.f);
+  verify(peak(play(e, sr / 2)) > 1e-2f, "recorded object silent without the library");
+ }
  // Velocity picks the dynamic layer: soft hits come from the quiet takes.
  D::Values v = dry();
  v[static_cast<std::size_t>(D::P::padBase(2) + D::P::Variation)] = 0;

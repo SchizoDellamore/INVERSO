@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.6.0 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.7.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -118,8 +118,6 @@ set(DRUMS_SOURCES
  Source/AbismoUI.cpp Source/AbismoUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoReverb.h Source/DSP/AbismoMutilator.h
  Source/DSP/DrumsParams.h Source/DSP/DrumsEngine.h)
-# The drum recordings (CC0, see Library/SOURCES.md) are compiled into the plugin.
-juce_add_binary_data(AbismoDrumsData HEADER_NAME AbismoDrumsData.h NAMESPACE AbismoDrumsData SOURCES Library/drums.bin)
 juce_add_plugin(InversoAbismoDrums
  COMPANY_NAME "Inverso Studios"
  BUNDLE_ID "net.inversostudios.abismodrums"
@@ -139,7 +137,6 @@ juce_generate_juce_header(InversoAbismoDrums)
 target_sources(InversoAbismoDrums PRIVATE ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrums PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrums PRIVATE
- AbismoDrumsData
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
@@ -150,7 +147,16 @@ juce_generate_juce_header(InversoAbismoDrumsHostSmoke)
 target_sources(InversoAbismoDrumsHostSmoke PRIVATE Tests/test_drums_host.cpp ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrumsHostSmoke PRIVATE
- AbismoDrumsData
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
 add_test(NAME abismo_drums_host_smoke COMMAND InversoAbismoDrumsHostSmoke)
+# The drum recordings (CC0, see Library/SOURCES.md) ship inside the plugin bundle,
+# in Contents/Resources, so the installer and the portable copy carry them along.
+get_target_property(drums_bundle InversoAbismoDrums_VST3 JUCE_PLUGIN_ARTEFACT_FILE)
+add_custom_command(TARGET InversoAbismoDrums_VST3 POST_BUILD
+ COMMAND ${CMAKE_COMMAND} -E make_directory "${drums_bundle}/Contents/Resources"
+ COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin" "${drums_bundle}/Contents/Resources/drums.bin"
+ VERBATIM)
+# Development builds and the host smoke test find the library in the source tree.
+target_compile_definitions(InversoAbismoDrums PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
+target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")

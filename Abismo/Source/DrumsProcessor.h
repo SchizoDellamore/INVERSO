@@ -48,6 +48,7 @@ public:
  bool isAudioFile(const juce::String& path) const;
  // The built-in recordings (empty only if the embedded library failed to parse).
  static const inverso_abismo::drums::SampleLibrary& library();
+ static juce::File libraryFile();
  std::atomic<int> sampleVersion{0};
 
  juce::AudioProcessorValueTreeState apvts;

@@ -63,19 +63,29 @@ inline const std::array<ObjectModel, 16>& objects() {
 }
 
 // Recorded objects in the embedded library (Library/drums.bin, CC0 sources),
-// in the library's order. OBJECT indices 0-23 play these recordings; indices
-// 24-39 play the synthesised models above, labelled "(sint)".
-constexpr int numSampleObjects = 24;
+// in the library's order. OBJECT indices 0-47 play these recordings; indices
+// 48-63 play the synthesised models above, labelled "(sint)".
+constexpr int numSampleObjects = 48;
 constexpr int numObjects = numSampleObjects + 16;
 inline const char* sampleObjectName(int i) {
  static const char* names[numSampleObjects] = {
   "Tambor de Oleo", "Ossos", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
   "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Prato Rachado", "Bigorna",
   "Mola", "Raspador", "Chocalho de Mola", "Sino Enferrujado", "Pandeiro de Lata", "Tabua Batendo", "Peito",
-  "Estalo", "Calcanhar"};
+  "Estalo", "Calcanhar",
+  "Bumbo Enferrujado", "Bumbo Oco", "Caixa Enferrujada", "Aro", "Casco", "Esteira Solta", "Pilha de Pratos",
+  "China Velho", "Prato de Rebites", "Conducao Rebitada", "Chimbal Enferrujado", "Pedal Rangendo", "Surdo Velho",
+  "Tanque", "Cano de Ferro", "Talheres", "Corrente", "Agogo Torto", "Bilha de Barro", "Chocalho de Lata", "Areia",
+  "Vidro Gemendo", "Gongo Raspado", "Sino de Mao"};
  return names[std::clamp(i, 0, numSampleObjects - 1)];
 }
 inline bool isSampleObject(int object) { return object >= 0 && object < numSampleObjects; }
+// The closest synthesised model for each recording, played if the library file is missing.
+inline int synthStandIn(int sampleObject) {
+ static const int map[numSampleObjects] = {0, 1, 2, 5, 4, 5, 6, 11, 5, 5, 1, 7, 12, 13, 14, 10, 1, 10, 9, 6, 5, 0, 1, 5,
+                                           0, 0, 2, 1, 5, 2, 4, 13, 13, 13, 6, 10, 11, 3, 9, 6, 8, 9, 15, 6, 2, 15, 12, 9};
+ return map[std::clamp(sampleObject, 0, numSampleObjects - 1)];
+}
 inline int synthObject(int object) { return std::clamp(object - numSampleObjects, 0, 15); }
 inline std::string objectName(int object) {
  return isSampleObject(object) ? std::string(sampleObjectName(object))
@@ -159,14 +169,15 @@ inline Values defaults() {
  return v;
 }
 
+static_assert(numSampleObjects == 48, "kits below name objects by number");
 // Kits: per-pad overrides written as {pad, offset, value}; globals use pad -1.
 struct KitValue { int pad, param; float value; };
 struct Kit { const char* name; KitValue values[64]; };
 
-inline const std::array<Kit, 8>& kits() {
+inline const std::array<Kit, 11>& kits() {
  using namespace P;
  constexpr int sint = numSampleObjects; // first synthesised object
- static const std::array<Kit, 8> table{{
+ static const std::array<Kit, 11> table{{
   {"Ferro-Velho", {{0,Decay,55},{-1, -1, 0}}},
   {"Galpao Abandonado", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
    {0,Tune,-3},{-1,Output,-3},{-1,-1,0}}},
@@ -182,6 +193,18 @@ inline const std::array<Kit, 8>& kits() {
    {-1,RoomMix,30},{-1,RoomSize,55},{-1,Stumble,30},{-1,Output,-2},{-1,-1,0}}},
   {"Radio de Valvula", {{0,Decay,55},{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
    {-1,SawVibrato,55},{-1,Output,-4},{-1,-1,0}}},
+  // A rusty drum kit laid out like General MIDI, with junk where the cymbals were.
+  {"Bateria Enferrujada", {{0,Object,24},{1,Object,27},{2,Object,26},{3,Object,28},{4,Object,29},{5,Object,36},{5,Tune,-4},
+   {6,Object,34},{7,Object,36},{8,Object,35},{9,Object,36},{9,Tune,3},{10,Object,30},{11,Object,36},{11,Tune,6},
+   {12,Object,25},{13,Object,31},{14,Object,32},{15,Object,33},{-1,RoomMix,20},{-1,RoomSize,45},{-1,Stumble,10},{-1,-1,0}}},
+  {"Fabrica", {{0,Object,37},{1,Object,38},{2,Object,7},{3,Object,40},{4,Object,4},{5,Object,11},{6,Object,39},{7,Object,14},
+   {8,Object,35},{9,Object,12},{10,Object,10},{11,Object,38},{11,Tune,-5},{12,Object,46},{13,Object,30},{14,Object,29},
+   {15,Object,45},{-1,StutterDiv,3},{-1,StutterDepth,25},{-1,Chaos,35},{-1,Crush,8},{-1,Stumble,15},
+   {-1,RoomMix,30},{-1,RoomSize,75},{-1,RoomDecay,2.5f},{-1,Output,-3},{-1,-1,0}}},
+  {"Porao", {{0,Object,25},{0,Tune,-5},{1,Object,28},{2,Object,44},{3,Object,35},{4,Object,45},{5,Object,47},{5,Tune,-7},
+   {6,Object,43},{7,Object,46},{8,Object,42},{9,Object,40},{10,Object,41},{11,Object,38},{11,Tune,-12},{12,Object,37},
+   {13,Object,31},{13,Tune,-5},{14,Object,17},{15,Object,15},{-1,RoomMix,45},{-1,RoomSize,90},{-1,RoomDecay,5.f},
+   {-1,RoomDamp,75},{-1,Stumble,35},{-1,Output,-3},{-1,-1,0}}},
   {"Ferro-Velho Sintetico", {{0,Object,sint + 0},{1,Object,sint + 1},{2,Object,sint + 2},{3,Object,sint + 3},
    {4,Object,sint + 4},{5,Object,sint + 5},{6,Object,sint + 6},{7,Object,sint + 7},{8,Object,sint + 8},
    {9,Object,sint + 9},{10,Object,sint + 10},{11,Object,sint + 11},{12,Object,sint + 12},{13,Object,sint + 13},

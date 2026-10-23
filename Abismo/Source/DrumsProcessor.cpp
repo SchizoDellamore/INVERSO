@@ -1,7 +1,6 @@
 #include "DrumsProcessor.h"
 #include "DrumsEditor.h"
 #include "AbismoUI.h"
-#include "AbismoDrumsData.h"
 #include <algorithm>
 #include <cmath>
 
@@ -9,12 +8,33 @@ using namespace inverso_abismo::drums;
 
 namespace { constexpr double maxPadSeconds=20.0; constexpr int maxPadFiles=16; }
 
+// The recordings live in the plugin bundle (Contents/Resources/drums.bin), next to
+// the binary in Contents/x86_64-win. ABISMO_DRUMS_LIBRARY overrides the location.
+juce::File InversoAbismoDrumsProcessor::libraryFile() {
+ juce::Array<juce::File> candidates;
+ if (const auto custom=juce::SystemStats::getEnvironmentVariable("ABISMO_DRUMS_LIBRARY",{}); custom.isNotEmpty())
+  candidates.add(juce::File(custom));
+ const auto binary=juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+ candidates.add(binary.getParentDirectory().getParentDirectory().getChildFile("Resources").getChildFile("drums.bin"));
+ candidates.add(binary.getParentDirectory().getChildFile("drums.bin"));
+#ifdef ABISMO_DRUMS_DEV_LIBRARY
+ candidates.add(juce::File(juce::String::fromUTF8(ABISMO_DRUMS_DEV_LIBRARY)));
+#endif
+ for (const auto& f : candidates) if (f.existsAsFile()) return f;
+ return {};
+}
+
 const SampleLibrary& InversoAbismoDrumsProcessor::library() {
- // Parsed once and shared by every instance of the plugin.
+ // Read once and shared by every instance of the plugin. Empty when the file is
+ // missing or damaged: pads then fall back to the synthesised objects.
  static const SampleLibrary lib=[]{
   SampleLibrary l;
-  if (!SampleLibrary::parse(reinterpret_cast<const unsigned char*>(AbismoDrumsData::drums_bin),
-                            static_cast<std::size_t>(AbismoDrumsData::drums_binSize),l)) l.objects.clear();
+  juce::MemoryBlock bytes;
+  const auto file=libraryFile();
+  if (file==juce::File() || !file.loadFileAsData(bytes)
+      || !SampleLibrary::parse(static_cast<const unsigned char*>(bytes.getData()),bytes.getSize(),l)
+      || static_cast<int>(l.objects.size())!=numSampleObjects)
+   l.objects.clear();
   return l;
  }();
  return lib;
@@ -29,7 +49,7 @@ InversoAbismoDrumsProcessor::InversoAbismoDrumsProcessor()
    apvts(*this,nullptr,"PARAMETERS",makeParameters()) {
  for (std::size_t i=0;i<raw.size();++i) raw[i]=apvts.getRawParameterValue(specs()[i].id);
  formats.registerBasicFormats();
- engine.setLibrary(&library());
+ if (!library().objects.empty()) engine.setLibrary(&library());
  startTimer(500);
 }
 

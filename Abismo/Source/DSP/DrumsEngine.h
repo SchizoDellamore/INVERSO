@@ -123,7 +123,7 @@ public:
   elapsed = 0;
   quiet = 0;
   sample = nullptr;
-  const int objectIndex = synthObject(p.object);
+  const int objectIndex = isSampleObject(p.object) ? synthStandIn(p.object) : synthObject(p.object);
   const auto& m = objects()[static_cast<std::size_t>(objectIndex)];
   const float v = p.variation;
   // The pad's own random identity (fixed) and this hit's randomness.

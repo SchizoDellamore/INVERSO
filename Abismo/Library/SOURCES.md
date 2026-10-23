@@ -4,9 +4,10 @@ All recordings are CC0 1.0 (public domain dedication):
 
 - Versilian Community Sample Library (VCSL), https://github.com/sgossner/VCSL
 - sfzinstruments body_percussion, https://github.com/sfzinstruments/body_percussion
+- Karoryfer Big Rusty Drums, https://github.com/sfzinstruments/karoryfer.big-rusty-drums
 
 Built by `Tools/build_drum_library.py` (trim, mono, level; some objects layered, pitched,
-choked, saturated or cracked). 24 objects, 210 samples, 167.0 s of audio at 44100 Hz.
+choked, saturated or cracked). 48 objects, 454 samples, 433.7 s of audio at 44100 Hz.
 
 - Tambor de Oleo: 8 samples
 - Ossos: 12 samples
@@ -32,3 +33,27 @@ choked, saturated or cracked). 24 objects, 210 samples, 167.0 s of audio at 4410
 - Peito: 12 samples
 - Estalo: 12 samples
 - Calcanhar: 12 samples
+- Bumbo Enferrujado: 12 samples
+- Bumbo Oco: 10 samples
+- Caixa Enferrujada: 12 samples
+- Aro: 12 samples
+- Casco: 12 samples
+- Esteira Solta: 8 samples
+- Pilha de Pratos: 12 samples
+- China Velho: 10 samples
+- Prato de Rebites: 10 samples
+- Conducao Rebitada: 12 samples
+- Chimbal Enferrujado: 12 samples
+- Pedal Rangendo: 12 samples
+- Surdo Velho: 12 samples
+- Tanque: 10 samples
+- Cano de Ferro: 10 samples
+- Talheres: 12 samples
+- Corrente: 12 samples
+- Agogo Torto: 5 samples
+- Bilha de Barro: 12 samples
+- Chocalho de Lata: 12 samples
+- Areia: 12 samples
+- Vidro Gemendo: 8 samples
+- Gongo Raspado: 2 samples
+- Sino de Mao: 3 samples

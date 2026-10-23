@@ -191,6 +191,10 @@ void InversoAbismoDrumsEditor::paint(juce::Graphics& g){
  g.drawText("INVERSO   /   ABISMO DRUMS",22,12,560,40,juce::Justification::centredLeft);
  g.setColour(muted);g.setFont(12.f);
  g.drawText("PERCUSSAO DE FERRO-VELHO GRAVADA   /   PADS C1 A D#2   /   SERROTE DO C3 PARA CIMA   /   CLIQUE NUM PAD PARA OUVIR E EDITAR",24,48,900,18,juce::Justification::centredLeft);
+ if(InversoAbismoDrumsProcessor::library().objects.empty()){
+  g.setColour(juce::Colours::salmon);
+  g.drawText("BIBLIOTECA DE GRAVACOES NAO ENCONTRADA: reinstale. Tocando os objetos sintetizados.",24,62,900,14,juce::Justification::centredLeft);
+ }
  const float db=juce::Decibels::gainToDecibels(shownPeak,-90.f);
  g.setColour(shownPeak>.89f?juce::Colours::salmon:bone);
  g.drawText("SOANDO "+juce::String(shownHits)+"    PICO "+juce::String(db,1)+" dBFS",getWidth()-290,48,268,18,juce::Justification::centredRight);
@@ -199,7 +203,7 @@ void InversoAbismoDrumsEditor::paint(juce::Graphics& g){
  const int y=gridTop+180;
  g.setColour(muted);g.setFont(12.5f);
  const juce::String help=
-  "OBJECT troca o objeto do pad; os 24 primeiros sao gravacoes reais, os (sint) sao sintetizados.\n"
+  "OBJECT troca o objeto do pad; os 48 primeiros sao gravacoes reais, os (sint) sao sintetizados.\n"
   "RATTLE: pecas soltas vibrando junto.   RUST: o objeto torto, desafinado do jeito dele.\n"
   "VARIATION: cada batida diferente da anterior (afinacao, decay, volume).\n"
   "STUMBLE atrasa batidas ao acaso (ate 80 ms); STUTTER repete como disco arranhado.\n"
