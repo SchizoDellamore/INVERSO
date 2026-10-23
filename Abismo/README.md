@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.8.1: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.9.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -28,6 +28,27 @@ Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifôni
   - TEMPO (0.8.1, também no SAMPLER e no DRUMS): **BPM** prende o stutter e o reverse à grade da DAW; **LIVRE** solta da DAW e cada passo dura TIME milissegundos (de 10 ms a 2 s), em qualquer andamento. STUTTER em *Off* continua desligando; em LIVRE, qualquer outra opção liga.
 - **LFO** para pitch, filtro e amplitude (o tremolo serve para pulso e batimento).
 - **ESPAÇO**: reverb FDN de 8 linhas, com decay de 0,3 a 30 s, DARKNESS (amortecimento), REV REVERSE (0.8: a cauda toca de trás para frente em janelas de 350 ms e cresce antes do som, à la reverse reverb de trilha de terror), FREEZE, largura estéreo e ganho de saída. Na saída há um teto suave: o sinal é linear até −0,9 dBFS e nunca passa de 0 dBFS.
+
+## Interface (0.9)
+Os três plugins usam o mesmo desenho:
+- **Corpo claro e módulos em cartões**, cada módulo com uma cor (fonte âmbar, ressonador ciano, filtro violeta, destruição vermelho, mutilação laranja, envelope verde, movimento azul, voz rosa).
+- **Uma tela escura em cada módulo**, que desenha o que o som está fazendo:
+  - a forma de onda e as cópias do uníssono;
+  - os 12 parciais do ressonador (com os do material B, durante o morph);
+  - a curva do filtro (e para onde o envelope a leva);
+  - o envelope;
+  - a curva de cada tipo de drive;
+  - a grade do stutter, com os passos ao contrário marcados;
+  - as vogais;
+  - a cauda do reverb (congelada ou ao contrário).
+  - No SAMPLER, a forma de onda clicável e a nuvem de grãos; no DRUMS, a gravação do pad.
+- **Os seletores principais ficam na tela**, com setas ‹ ›; clicar no nome abre a lista.
+- **Knobs brancos com o arco na cor do módulo**. Os bipolares (afinação, envelope do filtro) partem do centro. Duplo clique volta ao valor padrão, a roda do mouse ajusta e SHIFT + roda faz o ajuste fino.
+- **Páginas**: cada módulo mostra no máximo 6 controles; o resto fica nas abas do título (ex.: RESSONADOR › TOM, EXCITAÇÃO, CORPO).
+- **MASTER** com o volume de saída, um segundo controle, o medidor de pico e as vozes soando.
+- **Presets/kits** numa barra central: ‹ › trocam, clicar no nome abre a lista.
+- A janela abre em 90% do tamanho de projeto e pode ser redimensionada pelo canto (de 60% a 150%), mantendo a proporção.
+- Fontes embutidas: Poppins e IBM Plex Mono, ambas sob a SIL Open Font License (`Fonts/`).
 
 ## Controles apagados (0.8.1)
 Uma auditoria mediu o efeito de cada controle dos três plugins: o som foi gerado com o controle no mínimo e no máximo, em vários contextos, e as mudanças foram comparadas. Nenhum controle repete o que outro faz; os pares que parecem semelhantes só mexem no volume ou no brilho geral por caminhos diferentes. O que existia era controle sem efeito por depender de outro. Agora ele fica apagado na tela enquanto não age (continua ajustável) e acende quando passa a valer. Exemplos: o corpo do ressonador com LEVEL em 0, MATERIAL B com MORPH em 0, DRIVE TYPE com DRIVE em 0, o envelope do filtro com ENV AMT em 0, VOWEL e FORMANT com VOICE em 0, os grãos no modo clássico do SAMPLER e os loops no granular, a sala do DRUMS com MIX em 0. O KEYTRACK do ressonador passou a se chamar SEGUE NOTA, para não confundir com o do filtro.
@@ -80,7 +101,7 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.8.1** e baixe `INVERSO_ABISMO_Setup_0.8.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.8.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.9.0** e baixe `INVERSO_ABISMO_Setup_0.9.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.9.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 

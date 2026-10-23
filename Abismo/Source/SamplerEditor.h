@@ -1,14 +1,17 @@
 #pragma once
 #include <JuceHeader.h>
-#include "AbismoUI.h"
+#include "SoftUI.h"
 #include "SamplerProcessor.h"
 
-// Waveform with start / loop / grain-position markers and the live playhead.
-// Clicking sets START (classic) or POSITION (granular) at that point.
+// Waveform with start / loop / grain-position markers and the live playhead,
+// drawn over the SAMPLE module's screen. Clicking sets START (classic) or
+// POSITION (granular) at that point.
 class SampleView final : public juce::Component {
 public:
  explicit SampleView(InversoAbismoSamplerProcessor&);
  void refresh();
+ juce::String status;
+ bool statusIsError=false;
  void paint(juce::Graphics&) override;
  void mouseDown(const juce::MouseEvent&) override;
  void mouseDrag(const juce::MouseEvent&) override;
@@ -25,29 +28,31 @@ class InversoAbismoSamplerEditor final : public juce::AudioProcessorEditor,publi
 public:
  explicit InversoAbismoSamplerEditor(InversoAbismoSamplerProcessor&);
  ~InversoAbismoSamplerEditor() override;
- void paint(juce::Graphics&) override;
+ void paintOverChildren(juce::Graphics&) override;
  void resized() override;
  bool isInterestedInFileDrag(const juce::StringArray&) override;
  void filesDropped(const juce::StringArray&,int,int) override;
  void fileDragEnter(const juce::StringArray&,int,int) override {dragging=true;repaint();}
  void fileDragExit(const juce::StringArray&) override {dragging=false;repaint();}
- // Pull sample, status and meters from the processor (the timer does this 25x/s).
+ // Pull sample, status and meters from the processor (the timer does this 30x/s).
  void refreshFromProcessor();
 private:
  void timerCallback() override {refreshFromProcessor();}
  void load(const juce::File&);
+ float value(int param) const;
  InversoAbismoSamplerProcessor& processor;
- abismo_ui::Look look;
- std::unique_ptr<abismo_ui::ParameterPanel> panel;
+ soft::Look look;
+ soft::Body body;
+ soft::PresetBar presets;
+ std::vector<std::unique_ptr<soft::Module>> modules;
+ std::unique_ptr<soft::Master> master;
  SampleView view;
- juce::TextButton loadButton{"CARREGAR SAMPLE"},builtInButton{"VOZ INTERNA"};
- juce::ComboBox presetBox;
- juce::TextButton previous{"<"},next{">"};
+ juce::TextButton loadButton{"CARREGAR"},builtInButton{"VOZ INTERNA"};
+ juce::TooltipWindow tooltips{this,600};
  std::unique_ptr<juce::FileChooser> chooser;
- juce::String status;
+ juce::String loadError;
  int shownVersion=-1;
- float shownPeak=0.f;
- int shownVoices=0;
  bool dragging=false;
+ float animation=0.f;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoAbismoSamplerEditor)
 };

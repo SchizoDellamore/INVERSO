@@ -45,6 +45,8 @@ public:
  // The pad's own recordings: display name ("" when it plays its OBJECT) and missing files.
  juce::String getPadSampleName(int pad) const;
  juce::String getPadMissing(int pad) const;
+ // The pad's own recordings for display (null when it plays its OBJECT).
+ std::shared_ptr<const SampleSet> getPadDisplay(int pad) const;
  bool isAudioFile(const juce::String& path) const;
  // The built-in recordings (empty only if the embedded library failed to parse).
  static const inverso_abismo::drums::SampleLibrary& library();
@@ -65,6 +67,7 @@ private:
   std::shared_ptr<SampleSet> current,pending,retired;
   bool hasPending=false; // a pending null clears the pad
   juce::StringArray paths,missing;
+  std::shared_ptr<const SampleSet> display; // message thread, under pathLock
  };
  std::array<PadSlot,inverso_abismo::drums::numPads> slots;
  juce::SpinLock swapLock;

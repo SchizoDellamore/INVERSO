@@ -2,10 +2,65 @@
 #include <cmath>
 
 using namespace inverso_abismo::sampler;
-using namespace abismo_ui;
+namespace c = soft::colour;
 
-namespace { constexpr int headerHeight=72, viewTop=112, viewHeight=150; }
-static bool samplerControlActive(const juce::AudioProcessorValueTreeState&,int);
+namespace {
+constexpr int designW=1320, designH=1000;
+
+const char* const* shortNames(){
+ static const char* names[P::Count]={
+  "MODO","NOTA BASE","AFINA\xc3\x87\xc3\x83O","IN\xc3\x8d" "CIO","AO CONTR\xc3\x81RIO","LOOP","IN\xc3\x8d" "CIO","FIM","CROSSFADE",
+  "POSI\xc3\x87\xc3\x83O","VARREDURA","TAMANHO","DENSIDADE","ESPALHA","TOM ALEAT.","AO CONTR\xc3\x81RIO","EST\xc3\x89REO",
+  "TIPO","CORTE","RESSON\xc3\x82NCIA","ENVELOPE","SEGUE NOTA","DRIVE",
+  "VOZ","VOGAL","FORMANTE",
+  "ATAQUE","QUEDA","SUSTENTA","SOLTURA","VELOCITY",
+  "ATAQUE","QUEDA","SUSTENTA","SOLTURA",
+  "GLISSANDO","TEMPO","DERIVA","BEND",
+  "VELOCIDADE","AFINA\xc3\x87\xc3\x83O","FILTRO","VOLUME","POSI\xc3\x87\xc3\x83O",
+  "TENS\xc3\x83O","BITS","TAXA","DIVIS\xc3\x83O","PROFUNDIDADE","CAOS",
+  "MIX","TAMANHO","DURA\xc3\x87\xc3\x83O","ESCURO","CONGELA","LARGURA","SA\xc3\x8d" "DA",
+  "TEMPO","DURA\xc3\x87\xc3\x83O"};
+ return names;
+}
+
+juce::Path curve(juce::Rectangle<float> r,int points,const std::function<float(float)>& f){
+ juce::Path p;
+ for(int i=0;i<=points;++i){
+  const float t=static_cast<float>(i)/static_cast<float>(points);
+  const float y=juce::jlimit(-1.2f,1.2f,f(t));
+  const juce::Point<float> pt(r.getX()+t*r.getWidth(),r.getCentreY()-y*r.getHeight()*.5f);
+  if(i==0) p.startNewSubPath(pt); else p.lineTo(pt);
+ }
+ return p;
+}
+void caption(juce::Graphics& g,juce::Rectangle<float> r,const juce::String& left,const juce::String& right={}){
+ g.setFont(soft::monoFont(10.f));
+ g.setColour(c::screenMuted);
+ g.drawText(left,r.withHeight(12.f),juce::Justification::topLeft);
+ if(right.isNotEmpty()) g.drawText(right,r.withHeight(12.f),juce::Justification::topRight);
+}
+void notice(juce::Graphics& g,juce::Rectangle<float> r,const juce::String& text){
+ g.setFont(soft::uiFont(11.f,true));
+ g.setColour(c::screenMuted);
+ g.drawText(text,r,juce::Justification::centred);
+}
+juce::Path adsr(juce::Rectangle<float> r,float a,float d,float s,float rel){
+ auto w=[](float ms){return std::log10(1.f+ms/4.f);};
+ const float total=w(a)+w(d)+1.2f+w(rel);
+ const float k=r.getWidth()/total;
+ const float x1=r.getX()+w(a)*k,x2=x1+w(d)*k,x3=x2+1.2f*k,x4=x3+w(rel)*k;
+ const float top=r.getY(),bottom=r.getBottom(),sy=bottom-s*r.getHeight();
+ juce::Path p;
+ p.startNewSubPath(r.getX(),bottom);
+ p.quadraticTo((r.getX()+x1)*.5f,top+(bottom-top)*.15f,x1,top);
+ p.quadraticTo(x1+(x2-x1)*.25f,sy,x2,sy);
+ p.lineTo(x3,sy);
+ p.quadraticTo(x3+(x4-x3)*.2f,bottom,x4,bottom);
+ return p;
+}
+}
+
+// ---------------------------------------------------------------- sample view
 
 SampleView::SampleView(InversoAbismoSamplerProcessor& p):processor(p){ setMouseCursor(juce::MouseCursor::PointingHandCursor); }
 
@@ -14,64 +69,73 @@ float SampleView::param(const char* id) const { return processor.apvts.getRawPar
 void SampleView::refresh(){
  peaks.clear();
  const auto sample=processor.getDisplaySample();
- const int columns=std::max(1,getWidth());
+ const int columns=std::max(1,getWidth()/2);
  if(!sample || sample->length()==0){repaint();return;}
  const auto& l=sample->left;
  const auto& r=sample->right.empty()?sample->left:sample->right;
  const double per=static_cast<double>(sample->length())/columns;
  peaks.resize(static_cast<std::size_t>(columns));
- for(int c=0;c<columns;++c){
-  const auto a=static_cast<std::size_t>(c*per),b=std::max(a+1,static_cast<std::size_t>((c+1)*per));
+ for(int col=0;col<columns;++col){
+  const auto a=static_cast<std::size_t>(col*per),b=std::max(a+1,static_cast<std::size_t>((col+1)*per));
   float lo=0.f,hi=0.f;
   for(std::size_t i=a;i<b && i<l.size();++i){lo=std::min({lo,l[i],r[i]});hi=std::max({hi,l[i],r[i]});}
-  peaks[static_cast<std::size_t>(c)]={lo,hi};
+  peaks[static_cast<std::size_t>(col)]={lo,hi};
  }
  repaint();
 }
 
 void SampleView::paint(juce::Graphics& g){
- const auto area=getLocalBounds().toFloat();
- g.setColour(panel);
- g.fillRoundedRectangle(area,7.f);
- const float w=area.getWidth(),h=area.getHeight(),mid=h*.5f;
+ const auto area=getLocalBounds().toFloat().reduced(12.f,8.f);
+ const auto wave=area.withTrimmedTop(16.f);
+ g.setFont(soft::monoFont(10.f));
+ g.setColour(statusIsError?c::red:c::screenMuted);
+ g.drawText(status,area.withHeight(12.f),juce::Justification::topLeft);
+ const float w=wave.getWidth(),mid=wave.getCentreY(),half=wave.getHeight()*.48f;
  const bool granular=param("MODE")>=.5f;
  const int loop=juce::roundToInt(param("LOOP_MODE"));
  if(!granular && loop>0){
   const float a=std::min(param("LOOP_START"),param("LOOP_END"))*.01f,b=std::max(param("LOOP_START"),param("LOOP_END"))*.01f;
-  g.setColour(blood.withAlpha(.13f));
-  g.fillRect(a*w,0.f,(b-a)*w,h);
+  g.setColour(c::amber.withAlpha(.12f));
+  g.fillRect(wave.getX()+a*w,wave.getY(),(b-a)*w,wave.getHeight());
  }
- g.setColour(bone.withAlpha(.85f));
+ if(peaks.empty()){
+  g.setFont(soft::uiFont(12.f,true));
+  g.setColour(c::screenMuted);
+  g.drawText(juce::String::fromUTF8("SEM SAMPLE  \xc2\xb7  ARRASTE UM ARQUIVO PARA C\xc3\x81"),wave,juce::Justification::centred);
+  return;
+ }
+ juce::Path shape;
+ const float step=w/static_cast<float>(peaks.size());
  for(std::size_t x=0;x<peaks.size();++x){
   const auto [lo,hi]=peaks[x];
-  g.drawVerticalLine(static_cast<int>(x),mid-hi*mid*.92f,mid-lo*mid*.92f+1.f);
+  const float px=wave.getX()+static_cast<float>(x)*step;
+  shape.addRectangle(px,mid-hi*half,std::max(1.f,step*.7f),std::max(1.f,(hi-lo)*half));
  }
+ g.setColour(c::amber.withAlpha(.8f));
+ g.fillPath(shape);
  if(granular){
-  const float pos=param("POSITION")*.01f*w,spray=param("SPRAY")*.01f;
+  const float pos=wave.getX()+param("POSITION")*.01f*w,spray=param("SPRAY")*.01f;
   const auto sample=processor.getDisplaySample();
   if(sample && sample->length()>0){
    const float sprayPx=static_cast<float>(spray*.5*sample->sampleRate/sample->length())*w;
-   g.setColour(blood.withAlpha(.18f));
-   g.fillRect(pos-sprayPx,0.f,sprayPx*2.f,h);
+   g.setColour(c::cyan.withAlpha(.18f));
+   g.fillRect(pos-sprayPx,wave.getY(),sprayPx*2.f,wave.getHeight());
   }
-  g.setColour(blood);
-  g.fillRect(pos-1.f,0.f,2.f,h);
+  g.setColour(c::cyan);
+  g.fillRect(pos-1.f,wave.getY(),2.f,wave.getHeight());
  } else {
-  g.setColour(blood);
-  g.fillRect(param("START")*.01f*w-1.f,0.f,2.f,h);
+  g.setColour(c::cyan);
+  g.fillRect(wave.getX()+param("START")*.01f*w-1.f,wave.getY(),2.f,wave.getHeight());
  }
  const float head=processor.playhead.load();
- if(head>=0.f){g.setColour(text);g.fillRect(head*w,0.f,1.5f,h);}
- if(peaks.empty()){
-  g.setColour(muted);g.setFont(13.f);
-  g.drawText("sem sample",getLocalBounds(),juce::Justification::centred);
- }
+ if(head>=0.f){ g.setColour(juce::Colours::white); g.fillRect(wave.getX()+head*w,wave.getY(),1.5f,wave.getHeight()); }
 }
 
 void SampleView::setFromX(float x){
  const bool granular=param("MODE")>=.5f;
  auto* p=processor.apvts.getParameter(granular?"POSITION":"START");
- const float value=juce::jlimit(0.f,100.f,x/static_cast<float>(std::max(1,getWidth()))*100.f);
+ const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
+ const float value=juce::jlimit(0.f,100.f,(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f);
  p->setValueNotifyingHost(p->convertTo0to1(value));
  repaint();
 }
@@ -83,61 +147,186 @@ void SampleView::mouseDown(const juce::MouseEvent& e){
 }
 void SampleView::mouseDrag(const juce::MouseEvent& e){ setFromX(e.position.x); }
 
+// ---------------------------------------------------------------- editor
+
+float InversoAbismoSamplerEditor::value(int param) const {
+ return processor.apvts.getRawParameterValue(specs()[static_cast<std::size_t>(param)].id)->load();
+}
+
 InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProcessor& p)
  :AudioProcessorEditor(&p),processor(p),view(p){
  setLookAndFeel(&look);
- static const char* shortNames[P::Count]={
-  "MODE","ROOT","TUNE","START","REVERSE","LOOP","LOOP START","LOOP END","XFADE",
-  "POSITION","SCAN","SIZE","DENSITY","SPRAY","PITCH RND","REVERSE %","SPREAD",
-  "TYPE","CUTOFF","RESO","ENV AMT","KEYTRACK","DRIVE",
-  "VOICE","VOWEL","FORMANT",
-  "ATTACK","DECAY","SUSTAIN","RELEASE","VELOCITY",
-  "ATTACK","DECAY","SUSTAIN","RELEASE",
-  "GLISSANDO","GLISS TIME","DRIFT","BEND",
-  "RATE","PITCH","FILTER","AMP","POSITION",
-  "TENSION","CRUSH","DOWNSAMPLE","STUTTER","DEPTH","CHAOS",
-  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT","TEMPO","TIME"};
- panel=std::make_unique<ParameterPanel>(p.apvts,specs().data(),std::vector<ParameterPanel::Section>{
-  {"SAMPLE",{P::RootNote,P::Tune,P::Start,P::Reverse,P::LoopMode,P::LoopStart,P::LoopEnd,P::Xfade}},
-  {"GRANULAR",{P::Mode,P::Position,P::Scan,P::GrainSize,P::Density,P::Spray,P::GrainPitch,P::GrainReverse,P::GrainSpread}},
-  {"FILTRO",{P::FilterMode,P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack,P::Drive}},
-  {"VOZ",{P::VoiceMix,P::Vowel,P::FormantShift}},
-  {"AMPLITUDE",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
-  {"ENVELOPE DO FILTRO",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}},
-  {"AFINACAO / MOVIMENTO",{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
-  {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp,P::LfoPosition}},
-  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterSync,P::StutterDiv,P::StutterMs,P::StutterDepth,P::Chaos}},
-  {"ESPACO",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze,P::Width,P::Output}},
- },shortNames);
- addAndMakeVisible(*panel);
- addAndMakeVisible(view);
+ body.title="ABISMO SAMPLER";
+ body.subtitle=juce::String::fromUTF8("SEUS SONS, CL\xc3\x81SSICO OU GRANULAR   \xc2\xb7   ARRASTE UM ARQUIVO DE \xc3\x81UDIO PARA A JANELA   \xc2\xb7   MOD WHEEL = TENS\xc3\x83O");
+ addAndMakeVisible(body);
+ presets.getCount=[this]{return processor.getNumPrograms();};
+ presets.getCurrent=[this]{return processor.getCurrentProgram();};
+ presets.getName=[this](int i){return processor.getProgramName(i);};
+ presets.select=[this](int i){processor.setCurrentProgram(i);};
+ body.addAndMakeVisible(presets);
+
+ using Page=soft::Module::Page;
+ auto add=[&](juce::String title,juce::Colour accent,std::vector<Page> pages,int screenH,std::vector<int> choices)->soft::Module&{
+  modules.push_back(std::make_unique<soft::Module>(processor.apvts,specs().data(),shortNames(),title,accent,std::move(pages),screenH,std::move(choices)));
+  body.addAndMakeVisible(*modules.back());
+  return *modules.back();
+ };
+ auto& sample=add("SAMPLE",c::amber,{{"Tocar",{P::Tune,P::RootNote,P::Start,P::Reverse}},
+                                     {"Loop",{P::LoopStart,P::LoopEnd,P::Xfade}}},176,{P::Mode,P::LoopMode});
+ add("GRANULAR",c::cyan,{{"Nuvem",{P::Position,P::Scan,P::GrainSize,P::Density,P::Spray},{P::Position}},
+                         {juce::String::fromUTF8("GR\xc3\x83OS"),{P::GrainPitch,P::GrainReverse,P::GrainSpread,P::LfoPosition}}},176,{});
+ add("FILTRO",c::violet,{{"Filtro",{P::Cutoff,P::Resonance,P::FilterEnv,P::Keytrack,P::Drive},{P::Cutoff}},
+                         {"Envelope",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}}},120,{P::FilterMode});
+ add("ENVELOPE",c::green,{{"Volume",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}}},96,{});
+ add("VOZ",c::pink,{{"Voz",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
+ add("MOVIMENTO",c::blue,{{juce::String::fromUTF8("AFINA\xc3\x87\xc3\x83O"),{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
+                          {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}}},96,{});
+ add(juce::String::fromUTF8("MUTILA\xc3\x87\xc3\x83O"),c::orange,{{"Picote",{P::StutterMs,P::StutterDepth,P::Chaos}},
+                                                              {"Digital",{P::Crush,P::Downsample}}},104,{P::StutterSync,P::StutterDiv});
+ add(juce::String::fromUTF8("ESPA\xc3\x87O"),c::blue.interpolatedWith(c::violet,.5f),
+     {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze},{P::RevMix}}},104,{});
+ master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("LARGURA"),c::ink);
+ body.addAndMakeVisible(*master);
+
+ // The waveform lies over the SAMPLE screen; the load buttons sit in its header.
+ sample.addAndMakeVisible(view);
+ sample.addHeaderComponent(builtInButton,118);
+ sample.addHeaderComponent(loadButton,104);
+ loadButton.setTooltip("Escolher um arquivo (WAV, AIFF, FLAC, OGG, MP3)");
+ builtInButton.setTooltip("Voltar para a voz interna do ABISMO");
  loadButton.onClick=[this]{
   chooser=std::make_unique<juce::FileChooser>("Escolha um sample",juce::File(),"*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
   chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
    [this](const juce::FileChooser& fc){ if(fc.getResult()!=juce::File()) load(fc.getResult()); });
  };
- builtInButton.onClick=[this]{ processor.useBuiltInSample(); };
- addAndMakeVisible(loadButton);addAndMakeVisible(builtInButton);
- for(int i=0;i<processor.getNumPrograms();++i) presetBox.addItem(processor.getProgramName(i),i+1);
- presetBox.onChange=[this]{
-  const int index=presetBox.getSelectedItemIndex();
-  if(index>=0 && index!=processor.getCurrentProgram()) processor.setCurrentProgram(index);
+ builtInButton.onClick=[this]{ loadError.clear(); processor.useBuiltInSample(); };
+
+ auto& m=modules;
+ m[1]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  const bool granular=juce::roundToInt(value(P::Mode))==1;
+  const float pos=value(P::Position)*.01f,spray=value(P::Spray)*.01f,size=value(P::GrainSize),density=value(P::Density);
+  caption(g,r,abismo_ui::formatValue(specs()[P::GrainSize],size),abismo_ui::formatValue(specs()[P::Density],density));
+  auto plot=r.withTrimmedTop(14.f);
+  if(!granular){ notice(g,plot,juce::String::fromUTF8("MODO CL\xc3\x81SSICO  \xc2\xb7  MUDE O MODO NA TELA DO SAMPLE")); return; }
+  juce::Random rnd(77);
+  const int grains=juce::jlimit(6,90,juce::roundToInt(density*1.2f));
+  const float drift=std::fmod(animation*.15f*value(P::Scan)*.01f,1.f);
+  for(int i=0;i<grains;++i){
+   const float x=juce::jlimit(0.f,1.f,pos+drift+(rnd.nextFloat()*2.f-1.f)*spray*.5f);
+   const float y=rnd.nextFloat();
+   const float rad=2.f+std::sqrt(size)*.35f*rnd.nextFloat();
+   const bool back=rnd.nextFloat()<value(P::GrainReverse)*.01f;
+   g.setColour((back?c::pink:c::cyan).withAlpha(.25f+.5f*rnd.nextFloat()));
+   g.fillEllipse(juce::Rectangle<float>(rad*2.f,rad*2.f).withCentre({plot.getX()+x*plot.getWidth(),plot.getY()+y*plot.getHeight()}));
+  }
+  g.setColour(c::cyan);
+  g.fillRect(plot.getX()+juce::jlimit(0.f,1.f,pos+drift)*plot.getWidth()-1.f,plot.getY(),2.f,plot.getHeight());
  };
- previous.onClick=[this]{
-  const int n=processor.getNumPrograms();
-  processor.setCurrentProgram((processor.getCurrentProgram()+n-1)%n);
+ m[2]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  auto area=r.withTrimmedBottom(34.f);
+  if(page==1){
+   caption(g,area,"ENVELOPE DO FILTRO",juce::String(juce::roundToInt(value(P::FilterEnv)))+"%");
+   soft::glowStroke(g,adsr(area.withTrimmedTop(16.f).reduced(2.f,2.f),value(P::FAttack),value(P::FDecay),value(P::FSustain)*.01f,value(P::FRelease)),c::violet);
+   return;
+  }
+  const int mode=juce::roundToInt(value(P::FilterMode));
+  const float fc=value(P::Cutoff),k=2.f*(1.f-.97f*value(P::Resonance)*.01f);
+  caption(g,area,abismo_ui::formatValue(specs()[P::Cutoff],fc),"DRIVE "+juce::String(juce::roundToInt(value(P::Drive)))+"%");
+  auto plot=area.withTrimmedTop(14.f);
+  soft::glowStroke(g,curve(plot,180,[&](float t){
+   const float f=20.f*std::pow(1000.f,t),w=f/fc;
+   const float re=1.f-w*w,im=k*w,den=std::sqrt(re*re+im*im);
+   const float mag=mode==0?1.f/den:mode==1?(k*w)/den:(w*w)/den;
+   return (juce::jlimit(-42.f,24.f,20.f*std::log10(std::max(1e-6f,mag)))+9.f)/33.f;
+  }),c::violet);
  };
- next.onClick=[this]{ processor.setCurrentProgram((processor.getCurrentProgram()+1)%processor.getNumPrograms()); };
- addAndMakeVisible(presetBox);addAndMakeVisible(previous);addAndMakeVisible(next);
- setSize(1380,viewTop+viewHeight+12+panel->heightForWidth(1348)+40);
- panel->dimInactive([this](int param){return samplerControlActive(processor.apvts,param);});
- startTimerHz(25);
+ m[3]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  soft::glowStroke(g,adsr(r.reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::green);
+ };
+ m[4]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  const float mix=value(P::VoiceMix)*.01f,vowel=value(P::Vowel)*.01f,shift=value(P::FormantShift);
+  const char* letters[5]={"A","E","I","O","U"};
+  auto row=r.withTrimmedTop(12.f);
+  caption(g,r,"FORMANTE "+juce::String(shift>0?"+":"")+juce::String(shift,1)+" st");
+  for(int i=0;i<5;++i){
+   const float x=row.getX()+row.getWidth()*(static_cast<float>(i)+.5f)/5.f;
+   const float near=1.f-juce::jlimit(0.f,1.f,std::abs(vowel*4.f-static_cast<float>(i)));
+   g.setFont(soft::uiFont(16.f+near*8.f,true));
+   g.setColour(near>0.f && mix>0.f?c::pink.withAlpha(.35f+.65f*near):c::screenMuted.withAlpha(.6f));
+   g.drawText(letters[i],juce::Rectangle<float>(40.f,row.getHeight()).withCentre({x,row.getCentreY()}),juce::Justification::centred);
+  }
+  if(mix<=0.f) notice(g,row.withTrimmedTop(row.getHeight()*.62f),"VOZ EM 0%");
+ };
+ m[5]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  if(page==1){
+   const float rate=value(P::LfoRate);
+   caption(g,r,abismo_ui::formatValue(specs()[P::LfoRate],rate));
+   const float cycles=juce::jlimit(.5f,12.f,rate*2.f),phase=animation*rate;
+   soft::glowStroke(g,curve(r.withTrimmedTop(12.f),160,[&](float t){return .8f*std::sin((t*cycles-phase)*6.2831853f);}),c::blue);
+   return;
+  }
+  const float gl=value(P::PitchEnv),drift=value(P::Drift)*.01f;
+  caption(g,r,juce::String::fromUTF8("GLISSANDO ")+(gl>0?"+":"")+juce::String(gl,1)+" st","DERIVA "+juce::String(juce::roundToInt(drift*100.f))+"%");
+  const float timeShare=juce::jlimit(.1f,1.f,std::log10(1.f+value(P::PitchTime)/10.f)/3.4f);
+  soft::glowStroke(g,curve(r.withTrimmedTop(12.f),160,[&](float t){
+   return juce::jlimit(0.f,1.f,t/timeShare)*gl/24.f+drift*.12f*std::sin(t*23.f+std::sin(t*7.f)*2.f);
+  }),c::blue);
+ };
+ m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+  auto area=r.withTrimmedBottom(34.f);
+  if(page==1){
+   const float crush=value(P::Crush)*.01f,ds=value(P::Downsample)*.01f;
+   const float levels=std::exp2(9.f-crush*7.f),hold=1.f+ds*ds*30.f;
+   soft::glowStroke(g,curve(area,240,[&](float t){
+    const float tt=std::floor(t*240.f/hold)*hold/240.f;
+    return .8f*std::round(std::sin(tt*6.2831853f*2.f)*levels)/levels;
+   }),c::orange);
+   return;
+  }
+  const int div=juce::roundToInt(value(P::StutterDiv));
+  const bool free=juce::roundToInt(value(P::StutterSync))==1;
+  const float depth=value(P::StutterDepth)*.01f,chaos=value(P::Chaos)*.01f;
+  if(div==0){ notice(g,area,"STUTTER DESLIGADO"); return; }
+  static const char* divs[7]={"","1/4","1/8","1/16","1/32","1/8T","1/16T"};
+  caption(g,area,free?abismo_ui::formatValue(specs()[P::StutterMs],value(P::StutterMs)):juce::String(divs[div]));
+  auto grid=area.withTrimmedTop(16.f);
+  const float w=grid.getWidth()/16.f;
+  juce::Random rnd(1234);
+  for(int i=0;i<16;++i){
+   const float a=rnd.nextFloat();
+   auto cell=juce::Rectangle<float>(grid.getX()+w*static_cast<float>(i),grid.getY(),w,grid.getHeight()).reduced(2.f,4.f);
+   const bool dropped=a<chaos*.45f,repeated=!dropped && a<chaos*.9f;
+   g.setColour(c::screenMuted.withAlpha(.18f));
+   g.fillRoundedRectangle(cell,2.f);
+   g.setColour(c::orange.withAlpha(dropped?.25f:repeated?.55f:.9f));
+   g.fillRoundedRectangle(cell.withWidth(cell.getWidth()*(1.f-.85f*depth)),2.f);
+  }
+ };
+ m[7]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay),dark=value(P::RevDamp)*.01f;
+  const bool frozen=value(P::Freeze)>=.5f;
+  caption(g,r,frozen?juce::String("CONGELADO"):abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
+  const auto colour=c::blue.interpolatedWith(c::violet,.5f).interpolatedWith(c::screenMuted,dark*.5f);
+  const float span=juce::jlimit(.05f,1.f,std::log10(1.f+decay)/1.5f);
+  soft::glowStroke(g,curve(r.withTrimmedTop(14.f),160,[&](float t){
+   return (frozen?.7f:.8f*std::exp(-t/(span*.35f)))*2.f-1.f;
+  }),colour.withAlpha(mix>0.f?1.f:.35f));
+ };
+
+ setResizable(true,true);
+ setResizeLimits(designW*6/10,designH*6/10,designW*3/2,designH*3/2);
+ getConstrainer()->setFixedAspectRatio(static_cast<double>(designW)/designH);
+ setSize(designW*9/10,designH*9/10);
+ refreshFromProcessor();
+ startTimerHz(30);
 }
 
 InversoAbismoSamplerEditor::~InversoAbismoSamplerEditor(){ setLookAndFeel(nullptr); }
 
 void InversoAbismoSamplerEditor::load(const juce::File& file){
- if(!processor.loadSampleFile(file)) status="Nao foi possivel ler: "+file.getFileName();
+ if(!processor.loadSampleFile(file)) loadError=juce::String::fromUTF8("N\xc3\x83O FOI POSS\xc3\x8d" "VEL LER: ")+file.getFileName();
+ else loadError.clear();
+ shownVersion=-1;
 }
 
 bool InversoAbismoSamplerEditor::isInterestedInFileDrag(const juce::StringArray& files){
@@ -174,52 +363,45 @@ static bool samplerControlActive(const juce::AudioProcessorValueTreeState& apvts
 }
 
 void InversoAbismoSamplerEditor::refreshFromProcessor(){
- panel->dimInactive([this](int p){return samplerControlActive(processor.apvts,p);});
- presetBox.setSelectedItemIndex(processor.getCurrentProgram(),juce::dontSendNotification);
+ animation+=1.f/30.f;
+ presets.refresh();
+ for(auto& m:modules){
+  m->dimInactive([this](int p){return samplerControlActive(processor.apvts,p);});
+  m->screen.repaint();
+ }
  if(shownVersion!=processor.sampleVersion.load()){
   shownVersion=processor.sampleVersion.load();
   const auto missing=processor.getMissingPath();
-  if(missing.isNotEmpty()) status="ARQUIVO NAO ENCONTRADO: "+missing+"  (tocando a voz interna)";
+  view.statusIsError=missing.isNotEmpty() || loadError.isNotEmpty();
+  if(loadError.isNotEmpty()) view.status=loadError;
+  else if(missing.isNotEmpty()) view.status=juce::String::fromUTF8("ARQUIVO N\xc3\x83O ENCONTRADO: ")+missing+"  (tocando a voz interna)";
   else if(const auto s=processor.getDisplaySample())
-   status=juce::String::fromUTF8(s->name.c_str())+"   "+juce::String(s->length()/s->sampleRate,2)+" s   "+
-          juce::String(s->sampleRate/1000.,1)+" kHz   "+(s->right.empty()?"mono":"estereo");
+   view.status=juce::String::fromUTF8(s->name.c_str())+"   "+juce::String(s->length()/s->sampleRate,2)+" s   "+
+               juce::String(s->sampleRate/1000.,1)+" kHz   "+(s->right.empty()?"mono":juce::String::fromUTF8("est\xc3\xa9reo"));
   view.refresh();
-  repaint(0,headerHeight,getWidth(),viewTop-headerHeight);
  }
  view.repaint();
- const float peak=processor.outputPeak.load();
- const int voices=processor.voicesSounding.load();
- if(std::abs(peak-shownPeak)>.001f || voices!=shownVoices){
-  shownPeak=peak;shownVoices=voices;
-  repaint(0,0,getWidth(),headerHeight);
- }
+ master->setReadout(processor.outputPeak.load(),juce::String("VOZES ")+juce::String(processor.voicesSounding.load())+" / 16");
 }
 
-void InversoAbismoSamplerEditor::paint(juce::Graphics& g){
- g.fillAll(bg);
- g.setColour(text);
- g.setFont(juce::FontOptions(28.f,juce::Font::bold));
- g.drawText("INVERSO   /   ABISMO SAMPLER",22,12,560,40,juce::Justification::centredLeft);
- g.setColour(muted);g.setFont(12.f);
- g.drawText("MANIPULACAO DE SAMPLES PARA TRILHA   /   ARRASTE UM ARQUIVO DE AUDIO PARA CA   /   MOD WHEEL = TENSION",24,48,820,18,juce::Justification::centredLeft);
- const float db=juce::Decibels::gainToDecibels(shownPeak,-90.f);
- g.setColour(shownPeak>.89f?juce::Colours::salmon:bone);
- g.drawText("VOZES "+juce::String(shownVoices)+"/16    PICO "+juce::String(db,1)+" dBFS",getWidth()-290,48,268,18,juce::Justification::centredRight);
- g.setColour(status.startsWith("ARQUIVO")||status.startsWith("Nao")?juce::Colours::salmon:text);
- g.setFont(juce::FontOptions(13.f,juce::Font::bold));
- g.drawText(status,330,headerHeight+6,getWidth()-350,26,juce::Justification::centredLeft);
- g.setColour(muted.withAlpha(.8f));g.setFont(11.f);
- g.drawText("CLIQUE NA ONDA: inicio (classico) ou posicao dos graos (granular)   |   SHIFT + RODA: ajuste fino",
-  22,getHeight()-26,900,18,juce::Justification::centredLeft);
- if(dragging){g.setColour(blood);g.drawRect(getLocalBounds(),3);}
+void InversoAbismoSamplerEditor::paintOverChildren(juce::Graphics& g){
+ if(dragging){ g.setColour(c::amber); g.drawRect(getLocalBounds(),4); }
 }
 
 void InversoAbismoSamplerEditor::resized(){
- presetBox.setBounds(getWidth()-372,14,270,28);
- previous.setBounds(getWidth()-96,14,34,28);
- next.setBounds(getWidth()-56,14,34,28);
- loadButton.setBounds(16,headerHeight+4,170,30);
- builtInButton.setBounds(194,headerHeight+4,124,30);
- view.setBounds(16,viewTop,getWidth()-32,viewHeight);
- panel->setBounds(16,viewTop+viewHeight+12,getWidth()-32,getHeight()-(viewTop+viewHeight+12)-34);
+ body.setBounds(0,0,designW,designH);
+ body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth())/designW));
+ presets.setBounds(designW/2-210,14,420,72);
+ const int x0=10,y0=88,mainW=1150,r1=350,r2=280,r3=280;
+ auto place=[](juce::Component& comp,int x,int y,int w,int h){comp.setBounds(x,y,w,h);};
+ place(*modules[0],x0,y0,640,r1);
+ place(*modules[1],x0+640,y0,mainW-640,r1);
+ place(*modules[2],x0,y0+r1,350,r2);
+ place(*modules[3],x0+350,y0+r1,290,r2);
+ place(*modules[4],x0+640,y0+r1,190,r2);
+ place(*modules[5],x0+830,y0+r1,mainW-830,r2);
+ place(*modules[6],x0,y0+r1+r2,560,r3);
+ place(*modules[7],x0+560,y0+r1+r2,mainW-560,r3);
+ place(*master,x0+mainW,y0,designW-(x0+mainW)-10,r1+r2+r3);
+ view.setBounds(modules[0]->screen.getBounds().withTrimmedBottom(34));
 }

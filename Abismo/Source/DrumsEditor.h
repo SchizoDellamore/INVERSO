@@ -1,35 +1,33 @@
 #pragma once
 #include <JuceHeader.h>
-#include "AbismoUI.h"
+#include "SoftUI.h"
 #include "DrumsProcessor.h"
 #include <array>
 
-// One of the 16 pads: note name, object name, a flash when it sounds.
-class PadButton final : public juce::Component {
+// The 16 pads as raised keys on a card: note, object name, a glow when they sound.
+class PadGrid final : public juce::Component {
 public:
- PadButton(int index,std::function<void(int)> onPress);
- void setObjectName(const juce::String&,bool userSample,bool missing);
- void setSelected(bool);
- void flash();
- bool decay(); // returns true while still lit
+ std::function<void(int)> onPress;
+ void setPad(int pad,const juce::String& name,bool userSample,bool missing);
+ void setSelected(int pad);
+ void flash(int pad);
+ void decay();
+ void setDropping(int pad);
+ int padAt(juce::Point<int>) const;
  void paint(juce::Graphics&) override;
  void mouseDown(const juce::MouseEvent&) override;
 private:
- int index;
- std::function<void(int)> onPress;
- juce::String objectName;
- bool userSample=false,missing=false,dropping=false;
- bool selected=false;
-public:
- void setDropping(bool d){ if(d!=dropping){dropping=d;repaint();} }
- float light=0.f;
+ juce::Rectangle<float> keyBounds(int pad) const;
+ struct Key { juce::String name; bool user=false,missing=false; float light=0.f; };
+ std::array<Key,inverso_abismo::drums::numPads> keys;
+ int selected=0,dropping=-1;
+ juce::Image cardCache;
 };
 
 class InversoAbismoDrumsEditor final : public juce::AudioProcessorEditor,public juce::FileDragAndDropTarget,private juce::Timer {
 public:
  explicit InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor&);
  ~InversoAbismoDrumsEditor() override;
- void paint(juce::Graphics&) override;
  void resized() override;
  void selectPad(int);
  int selectedPad() const {return selected;}
@@ -42,19 +40,21 @@ private:
  void loadFiles(int pad,const juce::StringArray&);
  void chooseFiles();
  void timerCallback() override;
+ float value(int param) const;
+ void drawPadScreen(juce::Graphics&,juce::Rectangle<float>,int pad);
  InversoAbismoDrumsProcessor& processor;
- abismo_ui::Look look;
- std::vector<std::unique_ptr<PadButton>> pads;
- std::vector<std::unique_ptr<abismo_ui::ParameterPanel>> padPanels;
- std::unique_ptr<abismo_ui::ParameterPanel> globals;
- juce::ComboBox kitBox;
- juce::TextButton previous{"<"},next{">"};
+ soft::Look look;
+ soft::Body body;
+ soft::PresetBar kits;
+ PadGrid grid;
+ std::vector<std::unique_ptr<soft::Module>> padModules,modules;
+ std::unique_ptr<soft::Master> master;
  juce::TextButton loadButton{"CARREGAR SAMPLE"},clearButton{"VOLTAR AO OBJETO"};
- juce::Label sampleLabel;
+ juce::TooltipWindow tooltips{this,600};
  std::unique_ptr<juce::FileChooser> chooser;
- int shownVersion=-1;
+ juce::String loadError;
+ std::array<float,inverso_abismo::drums::numPads> padLight{};
  int selected=0;
- float shownPeak=0.f;
- int shownHits=0;
+ float animation=0.f;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoAbismoDrumsEditor)
 };

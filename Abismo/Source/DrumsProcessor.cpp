@@ -144,6 +144,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
 
 void InversoAbismoDrumsProcessor::queuePad(int pad,std::shared_ptr<SampleSet> set,const juce::StringArray& paths) {
  auto& slot=slots[static_cast<std::size_t>(pad)];
+ std::shared_ptr<const SampleSet> display=set;
  {
   const juce::SpinLock::ScopedLockType lock(swapLock);
   slot.pending=std::move(set); // an older, never-played pending set is freed here, off the audio thread
@@ -160,6 +161,7 @@ void InversoAbismoDrumsProcessor::queuePad(int pad,std::shared_ptr<SampleSet> se
   const juce::ScopedLock lock(pathLock);
   slot.paths=paths;
   slot.missing.clear();
+  slot.display=std::move(display);
  }
  ++sampleVersion;
 }
@@ -241,6 +243,11 @@ juce::String InversoAbismoDrumsProcessor::getPadSampleName(int pad) const {
  if (paths.isEmpty()) return {};
  return paths.size()==1?juce::File(paths[0]).getFileNameWithoutExtension()
                        :juce::File(paths[0]).getParentDirectory().getFileName()+" ("+juce::String(paths.size())+")";
+}
+std::shared_ptr<const SampleSet> InversoAbismoDrumsProcessor::getPadDisplay(int pad) const {
+ if (pad<0 || pad>=numPads) return {};
+ const juce::ScopedLock lock(pathLock);
+ return slots[static_cast<std::size_t>(pad)].display;
 }
 juce::String InversoAbismoDrumsProcessor::getPadMissing(int pad) const {
  if (pad<0 || pad>=numPads) return {};

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.8.1 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.9.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -34,8 +34,11 @@ endif()
 set(ABISMO_SOURCES
  Source/PluginProcessor.cpp Source/PluginProcessor.h
  Source/PluginEditor.cpp Source/PluginEditor.h
- Source/AbismoUI.cpp Source/AbismoUI.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoEngine.h Source/DSP/AbismoReverb.h Source/DSP/AbismoMutilator.h)
+# Embedded typefaces for the soft UI (Poppins and IBM Plex Mono, SIL OFL; see Fonts/).
+juce_add_binary_data(AbismoFonts HEADER_NAME AbismoFonts.h NAMESPACE AbismoFonts
+ SOURCES Fonts/Poppins-Medium.ttf Fonts/Poppins-SemiBold.ttf Fonts/IBMPlexMono-Medium.ttf)
 juce_add_plugin(InversoAbismo
  COMPANY_NAME "Inverso Studios"
  BUNDLE_ID "net.inversostudios.abismo"
@@ -55,6 +58,7 @@ juce_generate_juce_header(InversoAbismo)
 target_sources(InversoAbismo PRIVATE ${ABISMO_SOURCES})
 target_compile_definitions(InversoAbismo PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismo PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
@@ -67,6 +71,7 @@ juce_generate_juce_header(InversoAbismoHostSmoke)
 target_sources(InversoAbismoHostSmoke PRIVATE Tests/test_host.cpp ${ABISMO_SOURCES})
 target_compile_definitions(InversoAbismoHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoHostSmoke PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
 add_test(NAME abismo_host_smoke COMMAND InversoAbismoHostSmoke)
@@ -75,7 +80,7 @@ add_test(NAME abismo_host_smoke COMMAND InversoAbismoHostSmoke)
 set(SAMPLER_SOURCES
  Source/SamplerProcessor.cpp Source/SamplerProcessor.h
  Source/SamplerEditor.cpp Source/SamplerEditor.h
- Source/AbismoUI.cpp Source/AbismoUI.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoEngine.h Source/DSP/AbismoReverb.h
  Source/DSP/AbismoMutilator.h Source/DSP/SamplerParams.h Source/DSP/SamplerEngine.h Source/DSP/SamplerDefault.h)
 juce_add_plugin(InversoAbismoSampler
@@ -97,6 +102,7 @@ juce_generate_juce_header(InversoAbismoSampler)
 target_sources(InversoAbismoSampler PRIVATE ${SAMPLER_SOURCES})
 target_compile_definitions(InversoAbismoSampler PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoSampler PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
@@ -107,6 +113,7 @@ juce_generate_juce_header(InversoAbismoSamplerHostSmoke)
 target_sources(InversoAbismoSamplerHostSmoke PRIVATE Tests/test_sampler_host.cpp ${SAMPLER_SOURCES})
 target_compile_definitions(InversoAbismoSamplerHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoSamplerHostSmoke PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
 add_test(NAME abismo_sampler_host_smoke COMMAND InversoAbismoSamplerHostSmoke)
@@ -115,7 +122,7 @@ add_test(NAME abismo_sampler_host_smoke COMMAND InversoAbismoSamplerHostSmoke)
 set(DRUMS_SOURCES
  Source/DrumsProcessor.cpp Source/DrumsProcessor.h
  Source/DrumsEditor.cpp Source/DrumsEditor.h
- Source/AbismoUI.cpp Source/AbismoUI.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
  Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoReverb.h Source/DSP/AbismoMutilator.h
  Source/DSP/DrumsParams.h Source/DSP/DrumsEngine.h)
 juce_add_plugin(InversoAbismoDrums
@@ -137,6 +144,7 @@ juce_generate_juce_header(InversoAbismoDrums)
 target_sources(InversoAbismoDrums PRIVATE ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrums PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrums PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp
  juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags
@@ -147,6 +155,7 @@ juce_generate_juce_header(InversoAbismoDrumsHostSmoke)
 target_sources(InversoAbismoDrumsHostSmoke PRIVATE Tests/test_drums_host.cpp ${DRUMS_SOURCES})
 target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(InversoAbismoDrumsHostSmoke PRIVATE
+ AbismoFonts
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
 add_test(NAME abismo_drums_host_smoke COMMAND InversoAbismoDrumsHostSmoke)
