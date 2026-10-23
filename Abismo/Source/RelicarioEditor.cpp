@@ -27,7 +27,7 @@ const char* const* shortNames(){
   "MIX","RATE","DEPTH","FEEDBACK",
   "DEPTH","RATE","SHAPE",
   "DEPTH","RATE",
-  "SYNC","TONE","DARKNESS","AT KNOB"};
+  "SYNC","TONE","DARKNESS","AT KNOB","AGE"};
  return names;
 }
 
@@ -96,7 +96,7 @@ float InversoRelicarioEditor::value(int param) const {
 InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&look);
  body.title="RELICARIO";
- body.subtitle=juce::String::fromUTF8("FOUR FORGOTTEN MACHINES   \xc2\xb7   MOD WHEEL: TAPE WEAR + ORGAN TREMOLO\nAFTERTOUCH: BELLOWS + SPARK   \xc2\xb7   EFFECTS RUN TOP TO BOTTOM, LEFT TO RIGHT");
+ body.subtitle=juce::String::fromUTF8("FOUR FORGOTTEN MACHINES   \xc2\xb7   MOD WHEEL: TAPE WEAR + ORGAN TREMOLO\nAFTERTOUCH (OR A LEARNED KNOB): BELLOWS + SPARK   \xc2\xb7   KEYS > AGE: HOW WORN AND ALIVE THE MACHINES ARE");
  addAndMakeVisible(body);
  presets.getCount=[this]{return processor.getNumPrograms();};
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -121,7 +121,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
                             {"Sound",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}}},112,{P::UpperInterval});
  // ---- keys and the effects rack, in signal order
  add("KEYS",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
-                       {"Tuning",{P::Fine,P::Glide,P::BendRange}}},96,{P::Octave});
+                       {"Age",{P::Age,P::Fine,P::Glide,P::BendRange},{P::Age}}},96,{P::Octave});
  add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Crush,P::Downsample},{P::Drive}},
                          {"Ring",{P::RingMix,P::RingFreq}}},96,{P::DriveType});
  add("FILTER",c::orange,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::FilterDecay},{P::Cutoff}},
@@ -241,12 +241,20 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  m[4]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
   if(page==1){
-   caption(g,area,"GLIDE "+abismo_ui::formatValue(specs()[P::Glide],value(P::Glide)),"BEND "+juce::String(juce::roundToInt(value(P::BendRange)))+" st");
-   const float glide=juce::jlimit(0.f,1.f,std::log10(1.f+value(P::Glide)/10.f)/2.3f);
-   soft::glowStroke(g,curve(area.withTrimmedTop(16.f).reduced(2.f,4.f),160,[&](float t){
-    const float k=glide>0.f?juce::jlimit(0.f,1.f,(t-.3f)/(glide*.7f)):(t<.3f?0.f:1.f);
-    return t<.3f?-.6f:-.6f+1.2f*(1.f-std::exp(-4.f*k))/(1.f-std::exp(-4.f));
-   }),c::violet);
+   // AGE: twelve keys, each a little off and drifting, more so as the machines get older.
+   const float a=value(P::Age)*.01f;
+   caption(g,area,"AGE "+juce::String(juce::roundToInt(a*100.f))+"%",a<.05f?juce::String("FACTORY NEW"):a<.5f?juce::String("WELL KEPT"):a<.85f?juce::String("LIVED IN"):juce::String("WORN OUT"));
+   auto plot=area.withTrimmedTop(16.f).reduced(2.f,4.f);
+   g.setColour(c::screenMuted.withAlpha(.3f));
+   g.drawHorizontalLine(juce::roundToInt(plot.getCentreY()),plot.getX(),plot.getRight());
+   juce::Random rnd(77);
+   for(int k=0;k<12;++k){
+    const float x=plot.getX()+plot.getWidth()*(static_cast<float>(k)+.5f)/12.f;
+    const float off=rnd.nextFloat()*2.f-1.f,ph=rnd.nextFloat()*6.28f;
+    const float y=plot.getCentreY()-a*plot.getHeight()*.42f*(.55f*off+.45f*std::sin(animation*(.6f+.5f*rnd.nextFloat())+ph));
+    juce::Path tick; tick.startNewSubPath(x,plot.getCentreY()); tick.lineTo(x,y);
+    soft::glowStroke(g,tick,c::violet,2.f);
+   }
    return;
   }
   soft::glowStroke(g,adsr(area.reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::violet);

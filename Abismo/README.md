@@ -114,6 +114,7 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 - **TUNING FORK** (à la Spark Gap): garfo mantido por eletroímã. CLANG é a pancada inicial; DRIVE é quanto o circuito mantém o garfo soando (em 0% ele morre como um diapasão batido); SPARK é o estalo do contato; BEAT é um segundo garfo desafinado.
 - **SOVIET ORGAN** (à la Junost/Lel): ondas quadradas divididas de um oscilador só. Registros 16', 8', 4' e UPPER (Octave, Fifth ou Third). Em SOUND: TONE, TREMOLO e RATE do próprio órgão, SPEAKER (o falante rasgado) e HUM (50 Hz da rede).
 - **KEYS**: envelope ADSR das quatro máquinas, velocity, oitava, afinação fina, glide e bend.
+- **AGE** (KEYS › Age, 0.10.1): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
 
 **O rack de efeitos** (0.10; o som passa por eles nesta ordem)
 1. **DESTROY**: DRIVE com cinco tipos (Tape, Fuzz, Fold, Rectify, Shatter), CRUSH (bits) e DOWNSAMPLE. Na página RING, um modulador em anel com frequência fixa (20 Hz a 3 kHz).

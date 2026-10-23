@@ -41,6 +41,8 @@ enum : int {
  EchoSync, EchoTone, RevDamp,
  // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
  PressureCC,
+ // How worn and alive the machines are: per-key tuning, drift, imperfect parts (0 = factory new).
+ Age,
  Count
 };
 }
@@ -138,6 +140,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"ECHO_TONE","Echo tone",0,100,50,0,.01f,Kind::Float,nullptr,"%"},
   {"REV_DAMP","Reverb darkness",0,100,45,0,.01f,Kind::Float,nullptr,"%"},
   {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
+  {"AGE","Analog age",0,100,60,0,.01f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -172,9 +175,9 @@ inline const std::array<Preset, 29>& presets() {
    {TapeSat,70},{Wear,20},{Wow,10},{Attack,5},{Decay,800},{Sustain,70},{Release,300},{RevMix,10},{Output,-10.5f},{-1,0}}},
   // HARMONIO
   {"Bakelite", {{FitaLevel,0},{HarmLevel,90},{Era,0},{Breath,35},{Motor,35},{Sag,50},{Speak,70},{Attack,20},
-   {Release,400},{RevMix,25},{Output,-10},{-1,0}}},
+   {Release,400},{RevMix,25},{Output,-8},{-1,0}}},
   {"Plastic 1974", {{FitaLevel,0},{HarmLevel,90},{Era,100},{Breath,20},{Motor,25},{Sag,40},{Speak,40},{Release,300},
-   {RevMix,20},{Ensemble,10},{Output,-6.5f},{-1,0}}},
+   {RevMix,20},{Ensemble,10},{Output,-4.5f},{-1,0}}},
   {"Empty Church Harmonium", {{FitaLevel,0},{HarmLevel,90},{Era,30},{Breath,45},{Motor,50},{Sag,70},{Speak,120},
    {Attack,200},{Release,1500},{RevMix,60},{RevSize,90},{RevDecay,8},{Output,-6},{-1,0}}},
   {"Ghost Accordion", {{FitaLevel,0},{HarmLevel,85},{Era,60},{Breath,30},{Sag,35},{Ensemble,60},{EchoMix,20},

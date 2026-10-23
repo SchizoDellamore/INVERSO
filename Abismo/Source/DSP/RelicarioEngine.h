@@ -76,8 +76,9 @@ struct TapeLoop {
    for (auto& x : *a) x /= big;
   }
  }
- float read(const std::array<float, points>& t) const {
-  const float pos = phase * points;
+ float read(const std::array<float, points>& t) const { return readAt(t, phase); }
+ float readAt(const std::array<float, points>& t, float at) const {
+  const float pos = (at - std::floor(at)) * points;
   const auto i = static_cast<std::size_t>(pos) % points;
   const float f = pos - std::floor(pos);
   return t[i] + f * (t[(i + 1) % points] - t[i]);
@@ -94,6 +95,7 @@ struct Controls {
  int upper = 0;
  float organCutoff = 4000.f, tremDepth = .3f, tremRate = 6.f, speakerBreak = 0.f, hum = .15f;
  float velSens = .4f, octaveSt = 0.f, fineSt = 0.f, glideMs = 0.f, bendRange = 2.f;
+ float age = .6f;
 };
 
 // Values every voice reads at control rate, computed once by the engine.
@@ -102,6 +104,9 @@ struct Shared {
  float pressure = 1.f, pressureWobble = 0.f;
  float tremPitch = 0.f, tremAmp = 1.f;
  float vibCents = 0.f; // global vibrato, every machine
+ const TapeLoop* tape1 = nullptr; // the loops' flaws; each key reads its own stretch
+ const TapeLoop* tape2 = nullptr;
+ float wear = 0.f;
 };
 
 class Voice {
@@ -124,6 +129,21 @@ public:
   }
   sparkEnv = 0.f;
   clickEnv = 1.f;
+  // Analog life. Each key has its own tuning error and its own stretch of tape;
+  // every note gets a fresh drift and imperfect parts.
+  std::uint32_t h = static_cast<std::uint32_t>(midiNote + 1) * 2654435761u;
+  h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+  keyCents = static_cast<float>(h & 0xFFFFu) / 32767.5f - 1.f;
+  keyCents2 = static_cast<float>((h >> 16) & 0xFFFFu) / 32767.5f - 1.f;
+  tapeOff1 = .5f * (rng.next() + 1.f);
+  tapeOff2 = .5f * (rng.next() + 1.f);
+  driftNow = .5f * rng.next(); driftTarget = rng.next(); driftTicks = 0;
+  levelNow = .5f * rng.next(); levelTarget = rng.next();
+  for (auto& d : orgDuty) d = .5f + .025f * rng.next();
+  for (auto& s : orgRound) s = 0.f;
+  bounceLeft = 1 + static_cast<int>(2.99f * .5f * (rng.next() + 1.f));
+  bounceWait = 30 + static_cast<int>(150.f * .5f * (rng.next() + 1.f));
+  if (!stolen) { reed2Ph = .5f * (rng.next() + 1.f); lp1b = lp2b = 0.f; }
   amp.gateOn();
  }
  void release() { released = true; amp.gateOff(); }
@@ -140,30 +160,59 @@ public:
   const float f = 440.f * detail::semitoneRatio(pitch);
   const float nyq = .45f * static_cast<float>(sr);
   const auto srf = static_cast<float>(sr);
-  // FITA
-  const float tapeF = f * detail::semitoneRatio(sh.fitaCents * .01f);
+  // Slow wandering of pitch and level, new course every 0.3-1.5 s.
+  ageAmt = c.age;
+  if (--driftTicks <= 0) {
+   driftTarget = rng.next(); levelTarget = rng.next();
+   driftTicks = static_cast<int>((.3f + .6f * (rng.next() + 1.f)) / dt);
+  }
+  const float follow = std::min(1.f, dt * 1.6f);
+  driftNow += follow * (driftTarget - driftNow);
+  levelNow += follow * (levelTarget - levelNow);
+  level = 1.f + ageAmt * .09f * levelNow;
+  // FITA: this key's own stretch of each loop (its flaws, dropouts and bends).
+  if (sh.tape1 && sh.tape2) {
+   const float p1 = sh.tape1->phase + tapeOff1, p2 = sh.tape2->phase + tapeOff2;
+   tapeAmp1 = std::max(0.f, 1.f + sh.wear * .45f * sh.tape1->readAt(sh.tape1->amp, p1));
+   tapeAmp2 = std::max(0.f, 1.f + sh.wear * .45f * sh.tape2->readAt(sh.tape2->amp, p2));
+   tapeTone1 = std::clamp(1.f + sh.wear * .45f * sh.tape1->readAt(sh.tape1->tone, p1), .15f, 1.5f);
+   tapeTone2 = std::clamp(1.f + sh.wear * .45f * sh.tape2->readAt(sh.tape2->tone, p2), .15f, 1.5f);
+   tapeBend = sh.wear * 9.f * sh.tape1->readAt(sh.tape1->bend, p1);
+  }
+  const float tapeCents = sh.fitaCents + tapeBend + ageAmt * (4.f * keyCents + 7.f * driftNow);
+  const float tapeF = f * detail::semitoneRatio(tapeCents * .01f);
   inc1 = std::min(tapeF, nyq) / srf;
   inc1b = std::min(tapeF * detail::semitoneRatio(.08f), nyq) / srf;
   inc2 = std::min(tapeF * c.loop2Ratio, nyq) / srf;
   inc2b = std::min(tapeF * c.loop2Ratio * detail::semitoneRatio(.08f), nyq) / srf;
-  lpCoef1 = dsp::onePoleCoef(c.fitaCutoff * sh.loop1Tone, sr);
-  lpCoef2 = dsp::onePoleCoef(c.fitaCutoff * sh.loop2Tone, sr);
+  lpCoef1 = dsp::onePoleCoef(c.fitaCutoff * tapeTone1, sr);
+  lpCoef2 = dsp::onePoleCoef(c.fitaCutoff * tapeTone2, sr);
   // HARMONIO: the reed speaks flat and rises into pitch; low bellows pressure flattens it.
   const float speak = std::min(1.f, seconds * 1000.f / std::max(5.f, c.speakMs));
   speakLevel = speak * speak * (3.f - 2.f * speak);
-  const float reedCents = -22.f * (1.f - speakLevel) - 14.f * c.sag * (1.f - sh.pressure);
+  const float reedCents = -22.f * (1.f - speakLevel) - 14.f * c.sag * (1.f - sh.pressure) + ageAmt * (2.5f * keyCents + 3.f * driftNow);
   reedInc = std::min(f * detail::semitoneRatio(reedCents * .01f), nyq) / srf;
+  // A second reed tuned a little sharp, as on most reed organs: the slow beating between them.
+  reed2Inc = std::min(f * detail::semitoneRatio((reedCents + 3.f + 3.f * std::abs(keyCents2)) * .01f), nyq) / srf;
   reedDuty = .2f - .08f * c.era;
   reedCoef = dsp::onePoleCoef(f * (2.5f + 7.f * sh.pressure) * (1.f + 1.2f * c.era), sr);
   // DIAPASAO: the strike pitch falls back ("boing"), the electric drive builds the sustain.
   const float boing = 1.f + .012f * c.clang * std::exp(-seconds / .06f);
-  forkInc = std::min(f * boing, nyq) / srf;
+  forkInc = std::min(f * boing * detail::semitoneRatio(ageAmt * (.4f * keyCents + .5f * driftNow) * .01f), nyq) / srf;
+  forkBreath = 1.f + ageAmt * .06f * levelNow; // the maintaining circuit never holds the swing perfectly still
   beatInc = std::min(f + c.beatHz, nyq) / srf;
   clangInc = f * 6.267f < nyq ? f * 6.267f / srf : 0.f;
   forkAmp = c.maintain * (.55f + .45f * (1.f - std::exp(-seconds / .25f))) + (1.f - c.maintain) * std::exp(-seconds / 3.5f);
   clangAmp = c.clang * .5f * std::exp(-seconds / .09f);
   // ORGAO: one master oscillator at 16'; every register divides from it.
-  orgInc = std::min(f * .5f * detail::semitoneRatio(sh.tremPitch * .01f), nyq / 10.f) / srf;
+  orgInc = std::min(f * .5f * detail::semitoneRatio((sh.tremPitch + ageAmt * (.8f * keyCents + 1.2f * driftNow)) * .01f), nyq / 10.f) / srf;
+  // Transistor stages and the RC output filters round each register's square: older, rounder.
+  {
+   static const float upperMult[3] = {8.f, 6.f, 10.f};
+   const float mult[4] = {1.f, 2.f, 4.f, upperMult[std::clamp(c.upper, 0, 2)]};
+   for (int k = 0; k < 4; ++k)
+    orgRoundCoef[static_cast<std::size_t>(k)] = dsp::onePoleCoef(f * .5f * mult[k] * (40.f - 30.f * ageAmt), sr);
+  }
   velScale = std::pow(1.f - c.velSens + c.velSens * velocity, 1.3f);
   seconds += dt;
  }
@@ -176,25 +225,37 @@ public:
   for (int i = 0; i < n; ++i) {
    const float e = amp.next() * velScale;
    if (c.fita > 0.f) {
-    const float a = wave(c.wave1, ph1, inc1, ph1b, inc1b, static1);
-    const float b = wave(c.wave2, ph2, inc2, ph2b, inc2b, static2);
-    lp1 += lpCoef1 * (a - lp1);
-    lp2 += lpCoef2 * (b - lp2);
-    const float g = e * c.fita * .11f;
-    const float x1 = lp1 * sh.loop1Amp * (1.f - c.loopMix) * 2.f * g, x2 = lp2 * sh.loop2Amp * c.loopMix * 2.f * g;
+    // The tape runs a hair unevenly under the head, cycle to cycle.
+    const float jitter = 1.f + ageAmt * .0008f * rng.next();
+    float a = wave(c.wave1, ph1, inc1 * jitter, ph1b, inc1b * jitter, static1);
+    float b = wave(c.wave2, ph2, inc2 * jitter, ph2b, inc2b * jitter, static2);
+    // Recorded through a preamp that leans one way (even harmonics), then the
+    // head's gentle two-pole roll-off instead of a hard digital edge.
+    a += ageAmt * .2f * (a * a - .33f);
+    b += ageAmt * .2f * (b * b - .33f);
+    lp1 += lpCoef1 * (a - lp1); lp1b += lpCoef1 * (lp1 - lp1b);
+    lp2 += lpCoef2 * (b - lp2); lp2b += lpCoef2 * (lp2 - lp2b);
+    const float g = e * c.fita * .11f * level;
+    const float x1 = lp1b * tapeAmp1 * (1.f - c.loopMix) * 2.f * g, x2 = lp2b * tapeAmp2 * c.loopMix * 2.f * g;
     fitaL[i] += .75f * x1 + .25f * x2;
     fitaR[i] += .25f * x1 + .75f * x2;
    }
    if (c.harm > 0.f) {
-    const float raw = dsp::pulse(reedPh, reedInc, reedDuty);
+    float raw = dsp::pulse(reedPh, reedInc, reedDuty);
     reedPh += reedInc; if (reedPh >= 1.f) reedPh -= 1.f;
+    if (ageAmt > 0.f) {
+     raw = (raw + ageAmt * .45f * dsp::pulse(reed2Ph, reed2Inc, reedDuty * 1.07f)) / (1.f + ageAmt * .3f);
+     reed2Ph += reed2Inc; if (reed2Ph >= 1.f) reed2Ph -= 1.f;
+     flutter += .003f * (rng.next() - flutter); // the reed tongue never vibrates quite evenly
+     raw *= 1.f + ageAmt * .5f * flutter;
+    }
     reedLp += reedCoef * (raw - reedLp);
     reedLp2 += reedCoef * (reedLp - reedLp2);
     const float noise = rng.next();
     const float hp = noise - breathHp;
     breathHp += .15f * (noise - breathHp);
     const float p = sh.pressure * (1.f + sh.pressureWobble);
-    harm[i] += e * c.harm * speakLevel * (.12f * reedLp2 * p * std::sqrt(p) + c.breath * .03f * hp * (.5f + .5f * p));
+    harm[i] += e * level * c.harm * speakLevel * (.12f * reedLp2 * p * std::sqrt(p) + c.breath * .03f * hp * (.5f + .5f * p));
    }
    if (c.fork > 0.f) {
     float x = detail::sine(forkPh) * forkAmp;
@@ -207,23 +268,31 @@ public:
     beatPh += beatInc; if (beatPh >= 1.f) beatPh -= 1.f;
     x += sparkEnv * rng.next() * .5f;
     sparkEnv *= .82f;
-    fork[i] += e * c.fork * .16f * x;
+    fork[i] += e * c.fork * .16f * forkBreath * x;
    }
    if (c.organ > 0.f) {
     float x = 0.f;
     const float t16 = orgPh;
-    if (c.reg[0] > 0.f) x += c.reg[0] * dsp::square(t16, orgInc);
-    if (c.reg[1] > 0.f) x += c.reg[1] * dsp::square(dsp::frac(t16 * 2.f), orgInc * 2.f);
-    if (c.reg[2] > 0.f) x += c.reg[2] * dsp::square(dsp::frac(t16 * 4.f), orgInc * 4.f);
-    if (c.reg[3] > 0.f) {
-     const float m = upperMult[std::clamp(c.upper, 0, 2)];
-     x += c.reg[3] * .8f * dsp::square(dsp::frac(t16 * m), orgInc * m);
+    const float mult[4] = {1.f, 2.f, 4.f, upperMult[std::clamp(c.upper, 0, 2)]};
+    for (int k = 0; k < 4; ++k) {
+     const auto u = static_cast<std::size_t>(k);
+     if (c.reg[u] <= 0.f) continue;
+     const float duty = .5f + ageAmt * (orgDuty[u] - .5f); // no two dividers are quite symmetrical
+     const float sq = dsp::pulse(dsp::frac(t16 * mult[k]), orgInc * mult[k], duty) - (1.f - 2.f * duty);
+     orgRound[u] += orgRoundCoef[u] * (sq - orgRound[u]);
+     x += c.reg[u] * (k == 3 ? .8f : 1.f) * orgRound[u];
     }
     orgPh += orgInc; if (orgPh >= 1.f) orgPh -= 1.f;
-    // The key contacts click as they close.
-    x = x * regNorm + clickEnv * rng.next() * .5f;
-    clickEnv *= .996f;
-    organ[i] += e * c.organ * .075f * sh.tremAmp * x;
+    // The key contacts click as they close, and bounce once or twice.
+    if (bounceLeft > 0 && --bounceWait <= 0) {
+     clickEnv = .35f + .4f * std::abs(rng.next());
+     --bounceLeft;
+     bounceWait = 40 + static_cast<int>(220.f * std::abs(rng.next()));
+    }
+    clickLp += .35f * (rng.next() - clickLp);
+    x = x * regNorm + clickEnv * clickLp * .9f;
+    clickEnv *= .993f;
+    organ[i] += e * level * c.organ * .075f * sh.tremAmp * x;
    }
   }
   age += n;
@@ -264,7 +333,13 @@ private:
  SVF static1, static2;
  float reedPh = 0.f, reedInc = 0.f, reedDuty = .2f, reedLp = 0.f, reedLp2 = 0.f, reedCoef = 1.f, breathHp = 0.f, speakLevel = 0.f;
  float forkPh = 0.f, beatPh = 0.f, clangPh = 0.f, forkInc = 0.f, beatInc = 0.f, clangInc = 0.f, forkAmp = 0.f, clangAmp = 0.f, sparkEnv = 0.f;
- float orgPh = 0.f, orgInc = 0.f, clickEnv = 0.f;
+ float orgPh = 0.f, orgInc = 0.f, clickEnv = 0.f, clickLp = 0.f;
+ // Analog life.
+ float ageAmt = .6f, keyCents = 0.f, keyCents2 = 0.f, driftNow = 0.f, driftTarget = 0.f, levelNow = 0.f, levelTarget = 0.f, level = 1.f;
+ int driftTicks = 0, bounceLeft = 0, bounceWait = 0;
+ float tapeOff1 = 0.f, tapeOff2 = 0.f, tapeAmp1 = 1.f, tapeAmp2 = 1.f, tapeTone1 = 1.f, tapeTone2 = 1.f, tapeBend = 0.f;
+ float lp1b = 0.f, lp2b = 0.f, reed2Ph = 0.f, reed2Inc = 0.f, flutter = 0.f, forkBreath = 1.f;
+ std::array<float, 4> orgDuty{.5f, .5f, .5f, .5f}, orgRound{}, orgRoundCoef{1.f, 1.f, 1.f, 1.f};
 };
 
 class Engine {
@@ -280,6 +355,18 @@ public:
   chorusL.prepare(static_cast<int>(sr * .04)); chorusR.prepare(static_cast<int>(sr * .04));
   echoL.prepare(static_cast<int>(sr * 1.4)); echoR.prepare(static_cast<int>(sr * 1.4));
   flangerL.prepare(static_cast<int>(sr * .02)); flangerR.prepare(static_cast<int>(sr * .02));
+  erL.prepare(static_cast<int>(sr * .04)); erR.prepare(static_cast<int>(sr * .04));
+  diffuser[0].prepare(static_cast<int>(sr * .0031), .62f);
+  diffuser[1].prepare(static_cast<int>(sr * .0047), .58f);
+  diffuser[2].prepare(static_cast<int>(sr * .0073), .55f);
+  sideHpCoef = dsp::onePoleCoef(250.f, sr);
+  {
+   static const float msL[5] = {7.3f, 11.9f, 17.1f, 23.7f, 31.3f}, msR[5] = {8.9f, 13.3f, 19.7f, 26.1f, 29.3f};
+   for (int t = 0; t < 5; ++t) {
+    erTapL[static_cast<std::size_t>(t)] = msL[t] * .001f * static_cast<float>(sr);
+    erTapR[static_cast<std::size_t>(t)] = msR[t] * .001f * static_cast<float>(sr);
+   }
+  }
   chop.prepare(sr);
   clearEffects();
   smoothed = target;
@@ -353,13 +440,16 @@ public:
    const float anyActivity = std::max({activity[0], activity[1], activity[2], activity[3]});
    for (int i = 0; i < n; ++i) {
     const auto k = static_cast<std::size_t>(i);
-    float l = 0.f, r = 0.f;
+    float l = 0.f, r = 0.f, mono = 0.f;
     // FITA bus: saturation and hiss.
     {
      const float drive = 1.f + controls.sat * 4.f;
      const float hiss = rng.next() * controls.wear * .006f * activity[0];
-     l += detail::softTanh(busFitaL[k] * drive) / std::sqrt(drive) * 1.2f + hiss;
-     r += detail::softTanh(busFitaR[k] * drive) / std::sqrt(drive) * 1.2f + hiss;
+     // Head bump: the playback head lifts the low end around 90 Hz.
+     const float bl = busFitaL[k] + bumpGain * bumpL.process(busFitaL[k], bumpA1, bumpA2, bumpA3, bumpK, 1);
+     const float br = busFitaR[k] + bumpGain * bumpR.process(busFitaR[k], bumpA1, bumpA2, bumpA3, bumpK, 1);
+     l += detail::softTanh(bl * drive) / std::sqrt(drive) * 1.2f + hiss;
+     r += detail::softTanh(br * drive) / std::sqrt(drive) * 1.2f + hiss;
     }
     // HARMONIO bus: the cabinet (bakelite boxy, plastic nasal) and the fan motor.
     {
@@ -370,10 +460,10 @@ public:
      harmLp += harmLpCoef * (x - harmLp); x = harmLp;
      humPhase += static_cast<float>(59.0 / sr); if (humPhase >= 1.f) humPhase -= 1.f;
      x += controls.motor * activity[1] * .012f * (detail::sine(humPhase) + .5f * detail::sine(dsp::frac(humPhase * 2.f)) + .25f * detail::sine(dsp::frac(humPhase * 3.f)));
-     l += x; r += x;
+     mono += x;
     }
     // DIAPASAO bus.
-    l += busFork[k]; r += busFork[k];
+    mono += busFork[k];
     // ORGAO bus: tone filter, mains hum, cabinet or broken case speaker.
     {
      float x = busOrgan[k];
@@ -396,7 +486,17 @@ public:
      brLp2 += brLpCoef * (brLp - brLp2);
      br = brLp2 * 1.1f;
      x = (1.f - sb) * cab + sb * br;
-     l += x; r += x;
+     mono += x;
+    }
+    // The reed organ, fork and organ are mono machines. In a room they never
+    // reach both ears the same: a diffused copy above ~250 Hz opens them up,
+    // while the low end stays centred.
+    {
+     float side = mono - sideHp;
+     sideHp += sideHpCoef * (mono - sideHp);
+     for (auto& ap : diffuser) side = ap.process(side);
+     l += mono + width3 * side;
+     r += mono - width3 * side;
     }
     // ---- effects rack
     if (fx.drive > 0.f) { l = driveL.process(l, fx.driveType, fx.drive); r = driveR.process(r, fx.driveType, fx.drive); }
@@ -463,6 +563,19 @@ public:
      crackle *= .6f;
      l += c; r += c * .8f;
     }
+    // A room around the machines: a few early reflections, different on each side.
+    erL.push(l); erR.push(r);
+    if (erMix > 0.f) {
+     float el = 0.f, rr2 = 0.f;
+     for (int t = 0; t < 5; ++t) {
+      const auto u = static_cast<std::size_t>(t);
+      el += erGain[u] * erL.read(erTapL[u]);
+      rr2 += erGain[u] * erR.read(erTapR[u]);
+     }
+     erLpL += .45f * (rr2 * .4f + el * .6f - erLpL);
+     erLpR += .45f * (el * .4f + rr2 * .6f - erLpR);
+     l += erMix * erLpL; r += erMix * erLpR;
+    }
     float wl = 0.f, wr = 0.f;
     reverb.process(l, r, wl, wr);
     float ol = l * dryGain + wl * wetGain, orr = r * dryGain + wr * wetGain;
@@ -497,7 +610,8 @@ private:
   wowPhase = dsp::frac(wowPhase + dt * .63f);
   flutterPhase = dsp::frac(flutterPhase + dt * 7.3f);
   wowValue = detail::sine(wowPhase);
-  shared.fitaCents = controls.wow * (14.f * wowValue + 3.f * detail::sine(flutterPhase)) + wear * 9.f * loop1.read(loop1.bend);
+  shared.fitaCents = controls.wow * (14.f * wowValue + 3.f * detail::sine(flutterPhase));
+  shared.tape1 = &loop1; shared.tape2 = &loop2; shared.wear = wear;
   // Filter: envelope (restarted by every note) and LFO move the cutoff.
   if (filterAttack) { filterEnv += .35f * (1.f - filterEnv); if (filterEnv > .98f) filterAttack = false; }
   else filterEnv *= std::exp(-dt / std::max(.005f, smoothed[P::FilterDecay] * .001f / 2.3f));
@@ -562,6 +676,11 @@ private:
   c.bendRange = s[P::BendRange];
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
   reverb.configure(pct(P::RevSize), s[P::RevDecay], .1f + .8f * pct(P::RevDamp), false);
+  c.age = pct(P::Age);
+  erMix = .22f * c.age;
+  width3 = .15f + .35f * c.age;
+  bumpGain = .45f * c.age;
+  setBand(90.f, 1.3f, bumpA1, bumpA2, bumpA3, bumpK);
   fx.driveType = choice(P::DriveType); fx.drive = pct(P::Drive);
   fx.filterMode = choice(P::FilterMode); fx.resonance = pct(P::Resonance);
   fx.filterEnvAmt = pct(P::FilterEnv); fx.filterLfo = pct(P::FilterLfo);
@@ -631,6 +750,9 @@ private:
  void clearEffects() {
   driveL.clear(); driveR.clear(); filterL.reset(); filterR.reset(); phaserL.clear(); phaserR.clear();
   flangerL.clear(); flangerR.clear(); chop.clear();
+  erL.clear(); erR.clear(); erLpL = erLpR = 0.f; bumpL.reset(); bumpR.reset();
+  for (auto& ap : diffuser) ap.clear();
+  sideHp = 0.f;
   filterEnv = 0.f; filterAttack = false;
  }
  Drive driveL, driveR;
@@ -641,6 +763,28 @@ private:
  float fa1 = 1.f, fa2 = 0.f, fa3 = 0.f, fk = 2.f, filterEnv = 0.f, filterLfoPhase = 0.f, vibPhase = 0.f;
  float ringPhase = 0.f, tremoloPhase = 0.f, phaserPhase = 0.f, flangerPhase = 0.f;
  double tempo = 120.0;
+ // Stereo diffusion for the mono machines.
+ struct Allpass {
+  std::vector<float> buf; int at = 0; float g = .6f;
+  void prepare(int n, float gain) { buf.assign(static_cast<std::size_t>(std::max(2, n)), 0.f); at = 0; g = gain; }
+  void clear() { std::fill(buf.begin(), buf.end(), 0.f); }
+  float process(float x) {
+   const float d = buf[static_cast<std::size_t>(at)];
+   const float y = -g * x + d;
+   buf[static_cast<std::size_t>(at)] = x + g * y;
+   at = (at + 1) % static_cast<int>(buf.size());
+   return y;
+  }
+ };
+ std::array<Allpass, 3> diffuser;
+ float sideHp = 0.f, sideHpCoef = .03f, width3 = 0.f;
+ // Room reflections and the tape head bump (amount follows AGE).
+ DelayLine erL, erR;
+ std::array<float, 5> erTapL{}, erTapR{};
+ std::array<float, 5> erGain{.42f, .34f, .27f, .21f, .16f};
+ float erMix = 0.f, erLpL = 0.f, erLpR = 0.f, bumpGain = 0.f;
+ SVF bumpL, bumpR;
+ float bumpA1 = 1.f, bumpA2 = 0.f, bumpA3 = 0.f, bumpK = 1.f;
  bool filterAttack = false;
  int controlCountdown = 0, lastNote = -1;
  bool sustainPedal = false;

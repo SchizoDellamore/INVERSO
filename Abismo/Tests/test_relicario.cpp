@@ -73,7 +73,8 @@ static void tuning() {
  using namespace R::P;
  for (int sr : {44100, 48000, 96000}) {
   for (int machine : {FitaLevel, HarmLevel, ForkLevel, OrganLevel}) {
-   R::Engine e; e.setValues(only(machine)); e.prepare(sr);
+   R::Values v = only(machine); v[Age] = 0; // a factory-new instrument is exactly in tune
+   R::Engine e; e.setValues(v); e.prepare(sr);
    e.noteOn(69, 1.f);
    auto s = render(e, sr);
    const double f = peakFrequency(s.l, sr, 440.0, static_cast<std::size_t>(sr / 2), static_cast<std::size_t>(sr));
