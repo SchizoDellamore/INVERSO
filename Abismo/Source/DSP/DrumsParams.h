@@ -106,6 +106,7 @@ enum : int {
  Megaphone, Gramophone, RoomMix, RoomSize, RoomDecay, RoomDamp,
  SawLevel, SawAttack, SawRelease, SawVibrato, SawVibRate, SawGlide, SawTone, SawWobble,
  VelSens, Output,
+ StutterSync, StutterMs,
  Count
 };
 }
@@ -156,6 +157,8 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   set(P::SawWobble, {"SAW_WOBBLE","Saw wobble",0,100,30,0,.01f,Kind::Float,nullptr,"%"});
   set(P::VelSens, {"VEL_SENS","Velocity sensitivity",0,100,70,0,.01f,Kind::Float,nullptr,"%"});
   set(P::Output, {"OUTPUT","Output",-36,6,-3,0,.01f,Kind::Float,nullptr,"dB"});
+  set(P::StutterSync, {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Livre",""});
+  set(P::StutterMs, {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"});
   return t;
  }();
  return table;

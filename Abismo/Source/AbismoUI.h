@@ -38,6 +38,8 @@ public:
  ParameterPanel(juce::AudioProcessorValueTreeState&,const inverso_abismo::ParamSpec* specs,
                 std::vector<Section> sections,const char* const* shortNames);
  int heightForWidth(int width) const;
+ // Dims the controls that currently have no effect (they stay adjustable).
+ void dimInactive(const std::function<bool(int)>& isActive);
  void paint(juce::Graphics&) override;
  void resized() override;
 private:

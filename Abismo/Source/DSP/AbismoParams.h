@@ -40,6 +40,7 @@ enum : int {
  // 0.8: a deeper resonator and more ways to break the sound.
  ResMaterialB, ResMorph, ResTune, ResKeytrack, ResStretch, ResBright, ResStereo, ResInput, ResRattle,
  DriveMode, RingMix, RingPitch, Reverse, RevReverse, Warp,
+ StutterSync, StutterMs,
  Count
 };
 }
@@ -120,6 +121,8 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"REVERSE","Reverse slices",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"REV_REVERSE","Reverse reverb",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"WARP","Tape warp",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Livre",""},
+  {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
  }};
  return table;
 }

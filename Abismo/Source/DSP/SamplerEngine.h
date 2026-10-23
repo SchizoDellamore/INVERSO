@@ -417,6 +417,7 @@ private:
   static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
   mutilator.configure(divisions[std::clamp(choice(P::StutterDiv), 0, 6)], pct(P::StutterDepth),
                       std::min(1.f, pct(P::Chaos) + tension * .3f), pct(P::Crush), pct(P::Downsample));
+  mutilator.setFreeTime(choice(P::StutterSync) == 1, s[P::StutterMs]);
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
   filterShape.set(s[P::FAttack], s[P::FDecay], pct(P::FSustain), s[P::FRelease], sr);
   reverb.configure(pct(P::RevSize), s[P::RevDecay], pct(P::RevDamp), s[P::Freeze] >= .5f);

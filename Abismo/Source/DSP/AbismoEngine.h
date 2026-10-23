@@ -603,6 +603,7 @@ private:
   c.ringMix = pct(P::RingMix);
   c.ringSt = s[P::RingPitch];
   mutilator.setReverse(pct(P::Reverse));
+  mutilator.setFreeTime(choice(P::StutterSync) == 1, s[P::StutterMs]);
   static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
   const int division = std::clamp(choice(P::StutterDiv), 0, 6);
   mutilator.configure(divisions[division], pct(P::StutterDepth), std::min(1.f, pct(P::Chaos) + tension * .3f),

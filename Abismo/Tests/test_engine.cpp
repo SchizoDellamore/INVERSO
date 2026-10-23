@@ -270,6 +270,22 @@ static void destruction() {
   std::printf("reverse: %d of 6 steps fall in pitch\n", falling);
   verify(falling >= 5, "reversed steps must play backwards");
  }
+ // Free stutter time: a 200 ms gate is the same at 60 and at 180 BPM.
+ for (double bpm : {60.0, 180.0}) {
+  Values v = pureSine(); v[P::StutterDiv] = 1; v[P::StutterSync] = 1; v[P::StutterMs] = 200; v[P::StutterDepth] = 100; v[P::Chaos] = 0;
+  Engine e; e.setValues(v); e.prepare(sr);
+  e.setTransport(bpm, 0.0, true);
+  e.noteOn(69, 1.f);
+  auto s = render(e, sr * 2);
+  const auto step = static_cast<std::size_t>(sr / 5);
+  double open = 0, closed = 0;
+  for (std::size_t k = 1; k < 9; ++k) {
+   open += rms(s.l, k * step + step / 20, k * step + step / 8);
+   closed += rms(s.l, k * step + step / 2, k * step + step - step / 10);
+  }
+  std::printf("free stutter 200 ms at %.0f BPM: open %.3f closed %.5f\n", bpm, open, closed);
+  verify(open > .1 && closed < open * .01, "free stutter must ignore the tempo");
+ }
  // Reverse reverb: a short note's tail swells instead of decaying.
  {
   Values v = pureSine(); v[P::RevMix] = 100; v[P::RevReverse] = 100; v[P::RevDecay] = 1.5f; v[P::Release] = 30; v[P::Decay] = 60; v[P::Sustain] = 0;

@@ -5,6 +5,7 @@ using namespace inverso_abismo::sampler;
 using namespace abismo_ui;
 
 namespace { constexpr int headerHeight=72, viewTop=112, viewHeight=150; }
+static bool samplerControlActive(const juce::AudioProcessorValueTreeState&,int);
 
 SampleView::SampleView(InversoAbismoSamplerProcessor& p):processor(p){ setMouseCursor(juce::MouseCursor::PointingHandCursor); }
 
@@ -95,7 +96,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   "GLISSANDO","GLISS TIME","DRIFT","BEND",
   "RATE","PITCH","FILTER","AMP","POSITION",
   "TENSION","CRUSH","DOWNSAMPLE","STUTTER","DEPTH","CHAOS",
-  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT"};
+  "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT","TEMPO","TIME"};
  panel=std::make_unique<ParameterPanel>(p.apvts,specs().data(),std::vector<ParameterPanel::Section>{
   {"SAMPLE",{P::RootNote,P::Tune,P::Start,P::Reverse,P::LoopMode,P::LoopStart,P::LoopEnd,P::Xfade}},
   {"GRANULAR",{P::Mode,P::Position,P::Scan,P::GrainSize,P::Density,P::Spray,P::GrainPitch,P::GrainReverse,P::GrainSpread}},
@@ -105,7 +106,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   {"ENVELOPE DO FILTRO",{P::FAttack,P::FDecay,P::FSustain,P::FRelease}},
   {"AFINACAO / MOVIMENTO",{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
   {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp,P::LfoPosition}},
-  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterDiv,P::StutterDepth,P::Chaos}},
+  {"MUTILACAO",{P::Crush,P::Downsample,P::StutterSync,P::StutterDiv,P::StutterMs,P::StutterDepth,P::Chaos}},
   {"ESPACO",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze,P::Width,P::Output}},
  },shortNames);
  addAndMakeVisible(*panel);
@@ -129,6 +130,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  next.onClick=[this]{ processor.setCurrentProgram((processor.getCurrentProgram()+1)%processor.getNumPrograms()); };
  addAndMakeVisible(presetBox);addAndMakeVisible(previous);addAndMakeVisible(next);
  setSize(1380,viewTop+viewHeight+12+panel->heightForWidth(1348)+40);
+ panel->dimInactive([this](int param){return samplerControlActive(processor.apvts,param);});
  startTimerHz(25);
 }
 
@@ -147,7 +149,32 @@ void InversoAbismoSamplerEditor::filesDropped(const juce::StringArray& files,int
  for(const auto& f:files) if(processor.isAudioFile(f)){ load(juce::File(f)); break; }
 }
 
+// A control whose effect depends on another one is dimmed while it does nothing.
+static bool samplerControlActive(const juce::AudioProcessorValueTreeState& apvts,int p){
+ auto v=[&](int i){return apvts.getRawParameterValue(specs()[static_cast<std::size_t>(i)].id)->load();};
+ const bool granular=juce::roundToInt(v(P::Mode))==1, loop=juce::roundToInt(v(P::LoopMode))>0;
+ const bool stutter=juce::roundToInt(v(P::StutterDiv))>0, free=juce::roundToInt(v(P::StutterSync))==1;
+ switch(p){
+  case P::Start: case P::LoopMode: return !granular;
+  case P::LoopStart: case P::LoopEnd: case P::Xfade: return !granular && loop;
+  case P::Position: case P::Scan: case P::GrainSize: case P::Density: case P::Spray: case P::GrainPitch:
+  case P::GrainReverse: case P::GrainSpread: case P::LfoPosition: return granular;
+  case P::FAttack: case P::FDecay: case P::FSustain: case P::FRelease: return std::abs(v(P::FilterEnv))>1e-4f;
+  case P::PitchTime: return std::abs(v(P::PitchEnv))>1e-4f;
+  case P::Decay: return v(P::Sustain)<100.f;
+  case P::Vowel: case P::FormantShift: return v(P::VoiceMix)>0.f;
+  case P::LfoRate: return v(P::LfoPitch)>0.f || v(P::LfoFilter)>0.f || v(P::LfoAmp)>0.f || (granular && v(P::LfoPosition)>0.f);
+  case P::StutterSync: return stutter;
+  case P::StutterMs: return free && stutter;
+  case P::StutterDepth: case P::Chaos: return stutter;
+  case P::RevSize: case P::RevDamp: case P::Freeze: return v(P::RevMix)>0.f;
+  case P::RevDecay: return v(P::RevMix)>0.f && v(P::Freeze)<.5f;
+  default: return true;
+ }
+}
+
 void InversoAbismoSamplerEditor::refreshFromProcessor(){
+ panel->dimInactive([this](int p){return samplerControlActive(processor.apvts,p);});
  presetBox.setSelectedItemIndex(processor.getCurrentProgram(),juce::dontSendNotification);
  if(shownVersion!=processor.sampleVersion.load()){
   shownVersion=processor.sampleVersion.load();

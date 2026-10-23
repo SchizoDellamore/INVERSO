@@ -664,6 +664,7 @@ private:
   static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
   mutilator.configure(divisions[std::clamp(static_cast<int>(std::lround(s[P::StutterDiv])), 0, 6)], s[P::StutterDepth] * .01f,
                       s[P::Chaos] * .01f, s[P::Crush] * .01f, 0.f);
+  mutilator.setFreeTime(std::lround(s[P::StutterSync]) == 1, s[P::StutterMs]);
   reverb.configure(s[P::RoomSize] * .01f, s[P::RoomDecay], s[P::RoomDamp] * .01f, false);
   outGain = std::pow(10.f, s[P::Output] / 20.f);
  }

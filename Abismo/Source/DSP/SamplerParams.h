@@ -17,6 +17,7 @@ enum : int {
  LfoRate, LfoPitch, LfoFilter, LfoAmp, LfoPosition,
  Tension, Crush, Downsample, StutterDiv, StutterDepth, Chaos,
  RevMix, RevSize, RevDecay, RevDamp, Freeze, Width, Output,
+ StutterSync, StutterMs,
  Count
 };
 }
@@ -80,6 +81,8 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"FREEZE","Reverb freeze",0,1,0,0,1,Kind::Bool,nullptr,""},
   {"WIDTH","Width",0,200,100,0,.01f,Kind::Float,nullptr,"%"},
   {"OUTPUT","Output",-36,12,0,0,.01f,Kind::Float,nullptr,"dB"},
+  {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Livre",""},
+  {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
  }};
  return table;
 }

@@ -18,7 +18,7 @@ const char* const* shortNames(){
    {P::Megaphone,"MEGAPHONE"},{P::Gramophone,"GRAMOPHONE"},{P::RoomMix,"MIX"},{P::RoomSize,"SIZE"},{P::RoomDecay,"DECAY"},
    {P::RoomDamp,"DARKNESS"},{P::SawLevel,"LEVEL"},{P::SawAttack,"BOW"},{P::SawRelease,"RELEASE"},{P::SawVibrato,"VIBRATO"},
    {P::SawVibRate,"VIB RATE"},{P::SawGlide,"GLIDE"},{P::SawTone,"BOW NOISE"},{P::SawWobble,"WOBBLE"},{P::VelSens,"VELOCITY"},
-   {P::Output,"OUTPUT"}};
+   {P::Output,"OUTPUT"},{P::StutterSync,"TEMPO"},{P::StutterMs,"TIME"}};
   for(const auto& [i,s]:rest) n[static_cast<std::size_t>(i)]=s;
   return n;
  }();
@@ -72,7 +72,7 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
   addChildComponent(*padPanels.back());
  }
  globals=std::make_unique<ParameterPanel>(p.apvts,specs().data(),std::vector<ParameterPanel::Section>{
-  {"MAQUINA QUEBRADA",{P::Stumble,P::StutterDiv,P::StutterDepth,P::Chaos,P::Crush}},
+  {"MAQUINA QUEBRADA",{P::Stumble,P::StutterSync,P::StutterDiv,P::StutterMs,P::StutterDepth,P::Chaos,P::Crush}},
   {"CARATER",{P::Megaphone,P::Gramophone}},
   {"SALA",{P::RoomMix,P::RoomSize,P::RoomDecay,P::RoomDamp}},
   {"SAIDA",{P::VelSens,P::Output}},
@@ -155,7 +155,24 @@ void InversoAbismoDrumsEditor::chooseFiles(){
   });
 }
 
+// A control whose effect depends on another one is dimmed while it does nothing.
+static bool drumsControlActive(const juce::AudioProcessorValueTreeState& apvts,int p){
+ auto v=[&](int i){return apvts.getRawParameterValue(specs()[static_cast<std::size_t>(i)].id)->load();};
+ const bool stutter=juce::roundToInt(v(P::StutterDiv))>0, free=juce::roundToInt(v(P::StutterSync))==1;
+ const bool saw=v(P::SawLevel)>0.f, room=v(P::RoomMix)>0.f;
+ switch(p){
+  case P::StutterSync: return stutter;
+  case P::StutterMs: return free && stutter;
+  case P::StutterDepth: case P::Chaos: return stutter;
+  case P::RoomSize: case P::RoomDecay: case P::RoomDamp: return room;
+  case P::SawAttack: case P::SawRelease: case P::SawVibrato: case P::SawGlide: case P::SawTone: case P::SawWobble: return saw;
+  case P::SawVibRate: return saw && v(P::SawVibrato)>0.f;
+  default: return true;
+ }
+}
+
 void InversoAbismoDrumsEditor::timerCallback(){
+ globals->dimInactive([this](int p){return drumsControlActive(processor.apvts,p);});
  kitBox.setSelectedItemIndex(processor.getCurrentProgram(),juce::dontSendNotification);
  const auto lights=processor.takePadLights();
  for(int i=0;i<numPads;++i){
@@ -206,7 +223,7 @@ void InversoAbismoDrumsEditor::paint(juce::Graphics& g){
   "OBJECT troca o objeto do pad; os 48 primeiros sao gravacoes reais, os (sint) sao sintetizados.\n"
   "RATTLE: pecas soltas vibrando junto.   RUST: o objeto torto, desafinado do jeito dele.\n"
   "VARIATION: cada batida diferente da anterior (afinacao, decay, volume).\n"
-  "STUMBLE atrasa batidas ao acaso (ate 80 ms); STUTTER repete como disco arranhado.\n"
+  "STUMBLE atrasa batidas ao acaso (ate 80 ms); STUTTER repete como disco arranhado (TEMPO: BPM ou LIVRE em ms).\n"
   "MEGAPHONE e GRAMOPHONE colocam o kit dentro de um alto-falante velho ou de um disco de 78 rpm.\n"
   "O serrote e monofonico: toque legato para ele deslizar entre as notas.";
  g.drawMultiLineText(help,x+4,y+14,getWidth()-x-24,juce::Justification::left,4.f);

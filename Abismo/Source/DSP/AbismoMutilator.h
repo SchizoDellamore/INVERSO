@@ -34,6 +34,13 @@ public:
   downsample = std::clamp(downsampleAmount, 0.f, 1.f);
  }
 
+ // Free time: steps last a fixed number of milliseconds instead of following
+ // the host's tempo and bar position.
+ void setFreeTime(bool isFree, float milliseconds) {
+  free = isFree;
+  freeMs = std::clamp(milliseconds, 5.f, 4000.f);
+ }
+
  // Probability (0..1) that a step plays the previous step backwards. With the
  // stutter off, reversing still runs on its own 1/8 grid, without the gate.
  void setReverse(float amount) { reverse = std::clamp(amount, 0.f, 1.f); }
@@ -46,7 +53,7 @@ public:
  // musical position; stopped, it free-runs at the last known tempo.
  void setTransport(double bpm, double ppq, bool playing) {
   if (std::isfinite(bpm) && bpm >= 20.0 && bpm <= 999.0) tempo = bpm;
-  if (playing && std::isfinite(ppq) && std::abs(ppq - beat) > 1e-3) beat = ppq;
+  if (!free && playing && std::isfinite(ppq) && std::abs(ppq - beat) > 1e-3) beat = ppq;
  }
 
  void process(float& l, float& r) {
@@ -56,7 +63,8 @@ public:
   history[write * 2 + 1] = r;
   const bool reverseOnly = division <= 0.0 && reverse > 0.f;
   if (division > 0.0 || reverseOnly) {
-   const double stepBeats = reverseOnly ? .5 : division;
+   // In free time a step is freeMs long whatever the tempo (beats advance at the tempo).
+   const double stepBeats = free ? static_cast<double>(freeMs) * .001 * tempo / 60.0 : reverseOnly ? .5 : division;
    const auto step = static_cast<long long>(std::floor(beat / stepBeats));
    const double stepSamples = stepBeats * 60.0 / tempo * sr;
    const double phase = beat / stepBeats - static_cast<double>(step);
@@ -127,7 +135,8 @@ private:
  std::size_t write = 0, repeatOffset = 0, stepStart = 0, stepPos = 0;
  long long lastStep = -1;
  bool layeredRepeats = false;
- float reverse = 0.f;
+ float reverse = 0.f, freeMs = 125.f;
+ bool free = false;
  int holdCount = 0;
  Mode mode = Mode::Pass;
  std::uint32_t state = 0x1234567u;

@@ -145,6 +145,15 @@ ParameterPanel::ParameterPanel(juce::AudioProcessorValueTreeState& apvts,const P
  }
 }
 
+void ParameterPanel::dimInactive(const std::function<bool(int)>& isActive){
+ for(auto& c:controls){
+  const float alpha=isActive(c.param)?1.f:.32f;
+  for(juce::Component* comp:{static_cast<juce::Component*>(c.label.get()),static_cast<juce::Component*>(c.knob.get()),
+                             static_cast<juce::Component*>(c.combo.get()),static_cast<juce::Component*>(c.toggle.get())})
+   if(comp!=nullptr && std::abs(comp->getAlpha()-alpha)>.01f) comp->setAlpha(alpha);
+ }
+}
+
 int ParameterPanel::naturalWidth(int param) const {return specs[param].kind==Kind::Choice?choiceWidth:knobWidth;}
 int ParameterPanel::naturalWidth(const Section& s) const {int w=16;for(int p:s.params)w+=naturalWidth(p);return w;}
 
