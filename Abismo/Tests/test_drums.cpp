@@ -208,6 +208,17 @@ int main(int argc, char** argv) {
  variationAndStumble();
  saw();
  const int sr = 48000;
+ // Every pad of every kit must sound on its own: broken-machine effects may
+ // mangle a hit, never swallow it.
+ for (std::size_t k = 0; k < D::kits().size(); ++k) {
+  for (int pad = 0; pad < D::numPads; ++pad) {
+   D::Engine e; e.setValues(D::kitValues(k)); e.prepare(sr); e.setLibrary(&library);
+   e.noteOn(D::firstPadNote + pad, .8f);
+   const float p = peak(play(e, sr));
+   if (p < .04f) std::printf("kit %s pad %d peak %.3f\n", D::kits()[k].name, pad + 1, p);
+   verify(p >= .04f, "a kit pad is silent");
+  }
+ }
  for (std::size_t k = 0; k < D::kits().size(); ++k) {
   D::Engine e; e.setValues(D::kitValues(k)); e.prepare(sr); e.setLibrary(&library);
   e.setTransport(84.0, 0.0, true);

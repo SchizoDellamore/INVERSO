@@ -509,6 +509,7 @@ public:
   saw.prepare(sr);
   character.prepare(sr);
   mutilator.prepare(sr);
+  mutilator.setLayeredRepeats(true);
   reverb.prepare(sr);
   airL.reset(); airR.reset();
   {

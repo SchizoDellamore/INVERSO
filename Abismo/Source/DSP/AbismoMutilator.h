@@ -28,6 +28,10 @@ public:
   downsample = std::clamp(downsampleAmount, 0.f, 1.f);
  }
 
+ // Percussion: a repeated step is layered over the live signal instead of
+ // replacing it, so a hit that lands on a repeat is never swallowed.
+ void setLayeredRepeats(bool layered) { layeredRepeats = layered; }
+
  // Called once per host block. While the host plays, the step grid follows its
  // musical position; stopped, it free-runs at the last known tempo.
  void setTransport(double bpm, double ppq, bool playing) {
@@ -53,8 +57,13 @@ public:
    }
    if (mode == Mode::Repeat && repeatOffset > 0) {
     const std::size_t read = (write + frames - repeatOffset) % frames;
-    l = history[read * 2];
-    r = history[read * 2 + 1];
+    if (layeredRepeats) {
+     l += .8f * history[read * 2];
+     r += .8f * history[read * 2 + 1];
+    } else {
+     l = history[read * 2];
+     r = history[read * 2 + 1];
+    }
    }
    // Gate: open for the first part of each step; depth shortens the open part.
    const double open = 1.0 - .85 * static_cast<double>(stutterDepth);
@@ -92,6 +101,7 @@ private:
  std::vector<float> history;
  std::size_t write = 0, repeatOffset = 0;
  long long lastStep = -1;
+ bool layeredRepeats = false;
  int holdCount = 0;
  Mode mode = Mode::Pass;
  std::uint32_t state = 0x1234567u;

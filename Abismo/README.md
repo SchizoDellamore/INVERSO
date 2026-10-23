@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.7.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.7.1: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -60,10 +60,11 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Serrote**: do C3 (MIDI 60) para cima, monofônico, desliza no legato.
 - **MÁQUINA QUEBRADA** (STUMBLE de até 80 ms, stutter de disco arranhado, CRUSH), **CARÁTER** (MEGAPHONE, GRAMOPHONE) e **SALA**.
 - **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina de Graxa, Chain Gang (só corpo: pisão, palma, peito, estalo, calcanhar), Rádio de Válvula, Bateria Enferrujada (no layout General MIDI, com sucata no lugar dos pratos), Fábrica, Porão e Ferro-Velho Sintético (os 16 objetos sintetizados).
+- **Correção da 0.7.1**: com CHAOS ligado, o stutter podia trocar uma batida pelo trecho anterior (silêncio) e o pad parecia não tocar, principalmente nos kits Oficina de Graxa e Fábrica. Agora a repetição se soma à batida, e um teste verifica que todos os pads de todos os kits soam.
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## Instalação
-No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.7.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.7.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.7.1** e baixe `INVERSO_ABISMO_Setup_0.7.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.7.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
