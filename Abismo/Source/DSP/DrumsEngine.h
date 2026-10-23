@@ -23,6 +23,34 @@ struct PadSettings {
  float tune = 0.f, decay = 1.f, tone = .5f, rattle = 0.f, rust = .2f, variation = .35f, gain = 1.f, pan = 0.f;
 };
 
+constexpr int maxModes = 48;
+constexpr int maxLoose = 10;
+constexpr int maxEvents = 16;
+
+// Mode-frequency ratio k (0-based) for a shape: the physics of plates, bars,
+// shells, heads and wood, with a little of the object's own irregularity.
+inline float shapeRatio(Shape shape, int k, detail::Random& r) {
+ static const float bessel[16] = {1.f, 1.594f, 2.136f, 2.296f, 2.653f, 2.918f, 3.156f, 3.501f,
+                                  3.600f, 3.652f, 4.060f, 4.154f, 4.601f, 4.832f, 4.903f, 5.131f};
+ static const float freeBar[8] = {1.f, 2.756f, 5.404f, 8.933f, 13.34f, 18.64f, 24.81f, 31.87f};
+ static const float ring[6] = {1.f, 2.83f, 5.43f, 8.78f, 12.9f, 17.8f};
+ static const float axial[5] = {1.f, 1.13f, 1.34f, 1.62f, 1.95f};
+ const float u = r.next();
+ switch (shape) {
+  case Shape::Membrane: return (k < 16 ? bessel[k] : bessel[15] + .32f * static_cast<float>(k - 15)) * (k ? 1.f + .015f * u : 1.f);
+  case Shape::Plate: return k ? (1.f + .55f * std::pow(static_cast<float>(k), 1.35f)) * (1.f + .04f * u) : 1.f;
+  case Shape::Bar: {
+   // Transverse bending modes, with torsional modes between them.
+   const float base = freeBar[std::min(k / 2, 7)] * (k / 2 >= 8 ? 1.f + .5f * static_cast<float>(k / 2 - 7) : 1.f);
+   return (k % 2 ? base * 1.47f : base) * (k ? 1.f + .01f * u : 1.f);
+  }
+  case Shape::Shell: return k ? ring[k % 6] * axial[(k / 6) % 5] * (1.f + .02f * u) : 1.f;
+  case Shape::Wood: return k ? (1.f + .9f * std::pow(static_cast<float>(k), 1.1f)) * (1.f + .08f * u) : 1.f;
+  case Shape::Irregular: return k ? std::exp(.5f * (u + 1.f) * std::log(25.f)) : 1.f;
+ }
+ return 1.f;
+}
+
 class Hit {
 public:
  void seed(std::uint32_t s) { rng.state = s * 2654435761u + 99u; }
@@ -37,54 +65,84 @@ public:
   alive = true;
   age = 0;
   elapsed = 0;
-  const auto& m = objects()[static_cast<std::size_t>(std::clamp(p.object, 0, 15))];
-  model = &m;
+  quiet = 0;
+  const int objectIndex = std::clamp(p.object, 0, 15);
+  const auto& m = objects()[static_cast<std::size_t>(objectIndex)];
   const float v = p.variation;
-  const float tuneVar = v * 1.5f * rng.next();             // up to +-1.5 st
-  const float decayVar = 1.f + .3f * v * rng.next();
-  const float levelVar = std::pow(10.f, (3.f * v * rng.next()) / 20.f);
-  const float ratio = detail::semitoneRatio(p.tune + tuneVar);
+  // The pad's own random identity (fixed) and this hit's randomness.
+  detail::Random fixed;
+  fixed.state = 0x5EED0000u + static_cast<std::uint32_t>(padIndex * 131 + objectIndex * 7);
+  const float tuneRatio = detail::semitoneRatio(p.tune + v * .4f * rng.next()); // +-0.4 st
+  const float decayMul = p.decay * (1.f + .2f * v * rng.next());
   const float velScale = 1.f - velSens + velSens * velocity;
-  gain = p.gain * levelVar * velScale * velScale * objectGain(p.object);
+  gain = p.gain * std::pow(10.f, 2.f * v * rng.next() / 20.f) * velScale * velScale * m.gain;
   const float rad = (std::clamp(p.pan, -1.f, 1.f) + 1.f) * .785398f;
   panL = std::cos(rad) * 1.4142f;
   panR = std::sin(rad) * 1.4142f;
-  // Harder strikes and higher TONE: shorter, brighter excitation.
-  hardness = std::clamp(.25f + .5f * p.tone + .35f * velocity, .05f, 1.f);
-  burstLeft = std::max(1, static_cast<int>(m.burstMs * (1.5f - hardness) * .001f * static_cast<float>(sr)));
-  excLowpass = 0.f;
-  clicksLeft = m.clicks;
-  nextClick = 0.0;
-  clickInterval = m.clicks > 1 ? sr / std::max(1.f, m.clickRate) : 0.0;
-  modeCount = m.modes;
+  const float hardness = std::clamp(.6f * p.tone + .4f * velocity, 0.f, 1.f);
+  static const float pieceMul[3] = {1.f, 1.37f, .79f};
+  const float nyquist = std::min(14000.f, .45f * static_cast<float>(sr));
+  modeCount = 0;
   float longest = .05f;
-  for (int i = 0; i < modeCount; ++i) {
-   const auto idx = static_cast<std::size_t>(i);
-   // RUST pushes modes away from their clean ratios (fixed per pad); variation jiggles them per hit.
-   const float spread = 1.f + p.rust * .08f * rustOffsets[idx] + v * .015f * rng.next();
-   const float t60 = m.decays[idx] * p.decay * decayVar;
-   modes[idx].reset();
-   modes[idx].set(m.modeBase * ratio * m.ratios[idx] * (i ? spread : 1.f), t60, sr);
-   modeAmp[idx] = m.amps[idx];
+  for (int k = 0; k < std::min(m.modes, maxModes); ++k) {
+   const int piece = k % std::max(1, m.pieces);
+   float ratio = shapeRatio(m.shape, k / std::max(1, m.pieces), fixed) * pieceMul[piece];
+   if (k) ratio *= 1.f + p.rust * .06f * rustOffsets[static_cast<std::size_t>(k % 8)];
+   ratio *= 1.f + v * .006f * rng.next();
+   const float f = m.f0 * tuneRatio * ratio;
+   if (f >= nyquist) continue;
+   const float t60 = std::max(.008f, m.t60 * decayMul * std::pow(std::max(1.f, ratio), -m.dampPow) * (1.f + .2f * fixed.next()));
+   const float fixedAmp = .35f + .65f * std::abs(fixed.next());
+   const float hitAmp = .35f + .65f * std::abs(rng.next());
+   float amp = (fixedAmp * (1.f - .6f * v) + hitAmp * .6f * v) * std::pow(std::max(1.f, ratio), -m.tilt);
+   if (m.shape == Shape::Bar && (k / std::max(1, m.pieces)) % 2) amp *= .4f; // torsional modes are weaker
+   auto& mode = modes[static_cast<std::size_t>(modeCount++)];
+   mode.res.reset();
+   mode.res.set(f, t60, sr);
+   mode.amp = amp;
+   mode.piece = piece;
    longest = std::max(longest, t60);
   }
+  // Loose part: a small rattling piece (rivets, snare wires, a crack).
+  rattle = p.rattle;
+  for (int k = 0; k < maxLoose; ++k) {
+   const float ratio = shapeRatio(Shape::Plate, k, fixed);
+   const float f = std::min(m.looseF * tuneRatio * ratio, nyquist - 1.f);
+   loose[static_cast<std::size_t>(k)].reset();
+   loose[static_cast<std::size_t>(k)].set(f, .03f / std::sqrt(ratio), sr);
+   looseAmp[static_cast<std::size_t>(k)] = (.4f + .6f * std::abs(fixed.next())) / (1.f + .3f * static_cast<float>(k));
+  }
+  follower = 0.f;
+  // Contact events: the strike, its bounces, and for bundles a shaken train.
+  eventCount = 0;
+  pulseLen = std::max(1, static_cast<int>(m.contactMs * (1.4f - .7f * hardness) * (1.f + .25f * v * rng.next()) * .001f * static_cast<float>(sr)));
+  auto addEvent = [&](double t, float a, int piece) {
+   if (eventCount >= maxEvents) return;
+   events[static_cast<std::size_t>(eventCount++)] = {static_cast<long long>(t * sr), a, piece};
+  };
+  addEvent(0.0, 1.f, 0);
+  double t = 0.0, interval = m.impactRate > 0.f ? 1.0 / m.impactRate : 0.0;
+  for (int i = 1; i < m.impacts; ++i) {
+   const double u = .5 * (rng.next() + 1.f);
+   t += interval * (.4 + 1.2 * u);
+   interval *= m.impactDecel;
+   addEvent(t, .3f + .7f * std::abs(rng.next()), static_cast<int>(.5f * (rng.next() + 1.f) * static_cast<float>(m.pieces)) % std::max(1, m.pieces));
+  }
+  if (m.bounces > 0) {
+   double bt = m.bounceMs * .001 * (.7 + .3 * (rng.next() + 1.f));
+   addEvent(bt, .35f, 0);
+   if (m.bounces > 1) addEvent(bt * 1.6, .12f, 0);
+  }
+  for (auto& pc : piecePulse) pc = 0.f;
   memLevel = m.membrane;
-  memFreq = m.baseFreq * ratio;
+  memFreq = m.memBase * tuneRatio;
   memStart = m.memStart;
   memDrop = static_cast<float>(std::exp(-1.0 / std::max(1.0, m.memDropMs * .001 * sr)));
-  memDecay = static_cast<float>(std::exp(-6.9078 / std::max(1.0, m.memDecay * p.decay * decayVar * sr)));
-  memEnv = 1.f; memPitch = 1.f; memPhase = 0.f;
-  if (memLevel > 0.f) longest = std::max(longest, m.memDecay * p.decay);
-  noiseLevel = m.noise;
-  noiseEnv = 1.f;
-  noiseDecay = static_cast<float>(std::exp(-6.9078 / std::max(1.0, m.noiseDecay * p.decay * sr)));
-  noiseCoef = 1.f - std::exp(-twoPi * std::min(m.noiseCutoff * (.6f + .8f * p.tone), 18000.f) / static_cast<float>(sr));
-  noiseLp = 0.f; noiseHp = 0.f;
-  rattle = p.rattle;
-  follower = 0.f; buzzGate = 0.f; buzzHold = 0; rattleHp = 0.f;
-  const float trainSeconds = m.clicks > 1 ? static_cast<float>(m.clicks) / std::max(1.f, m.clickRate) * 2.f : 0.f;
-  lifetime = static_cast<long long>((longest * 1.1f + trainSeconds + .05f) * static_cast<float>(sr));
-  const float cutoff = std::clamp(600.f * std::exp2(p.tone * 5.f), 200.f, .45f * static_cast<float>(sr));
+  memDecay = static_cast<float>(std::exp(-6.9078 / std::max(1.0, m.memDecay * decayMul * sr)));
+  memEnv = 1.f; memPhase = 0.f; memDropState = 1.f;
+  if (memLevel > 0.f) longest = std::max(longest, m.memDecay * decayMul);
+  lifetime = static_cast<long long>((longest * 1.2f + static_cast<float>(t) + .05f) * static_cast<float>(sr));
+  const float cutoff = std::clamp(2000.f * std::exp2(p.tone * 3.f), 200.f, .45f * static_cast<float>(sr));
   const float g = std::tan(3.14159265f * cutoff / static_cast<float>(sr));
   toneA1 = 1.f / (1.f + g * (g + 1.2f)); toneA2 = g * toneA1; toneA3 = g * toneA2;
   toneFilter.reset();
@@ -92,78 +150,70 @@ public:
 
  void render(float* outL, float* outR, int n) {
   if (!alive) return;
-  const auto& m = *model;
+  const float pulseAmp = 3.14159265f / (2.f * static_cast<float>(pulseLen)); // unit impulse area
   for (int i = 0; i < n; ++i) {
-   float exc = 0.f;
-   if (burstLeft > 0) { exc += rng.next() * 2.5f; --burstLeft; }
-   if (clicksLeft > 1) {
-    if (nextClick <= 0.0) {
-     exc += rng.next() * 4.f + (rng.next() > 0.f ? 3.f : -3.f);
-     --clicksLeft;
-     clickInterval *= m.clickDecel;
-     nextClick += clickInterval * (1.0 + m.clickJitter * rng.next());
-    }
-    nextClick -= 1.0;
+   // Half-sine contact force for every event that is touching right now.
+   piecePulse[0] = piecePulse[1] = piecePulse[2] = 0.f;
+   for (int e = 0; e < eventCount; ++e) {
+    const auto& ev = events[static_cast<std::size_t>(e)];
+    const long long d = elapsed - ev.at;
+    if (d >= 0 && d < pulseLen)
+     piecePulse[static_cast<std::size_t>(ev.piece)] += ev.amp * pulseAmp * detail::sine(.5f * static_cast<float>(d) / static_cast<float>(pulseLen));
    }
-   excLowpass += hardness * (exc - excLowpass);
    float body = 0.f;
-   for (int k = 0; k < modeCount; ++k)
-    body += modes[static_cast<std::size_t>(k)].process(excLowpass) * modeAmp[static_cast<std::size_t>(k)];
-   body *= .6f;
+   for (int k = 0; k < modeCount; ++k) {
+    auto& mode = modes[static_cast<std::size_t>(k)];
+    body += mode.res.process(piecePulse[static_cast<std::size_t>(mode.piece)]) * mode.amp;
+   }
+   body *= 2.f;
    float mem = 0.f;
    if (memLevel > 0.f) {
-    memPitch = 1.f + (memStart - 1.f) * memEnvPitch();
-    memPhase += memFreq * memPitch / static_cast<float>(sr);
+    memDropState *= memDrop;
+    memPhase += memFreq * (1.f + (memStart - 1.f) * memDropState) / static_cast<float>(sr);
     if (memPhase >= 1.f) memPhase -= 1.f;
     mem = detail::sine(memPhase) * memEnv * memLevel;
     memEnv *= memDecay;
    }
-   float nz = 0.f;
-   if (noiseLevel > 0.f && noiseEnv > 1e-4f) {
-    noiseLp += noiseCoef * (rng.next() - noiseLp);
-    nz = noiseLp * noiseEnv * noiseLevel * 1.5f;
-    noiseEnv *= noiseDecay;
-   }
-   const float core = body + mem + nz;
-   // Rattle: buzzing loose parts, driven by how loud the object is right now.
+   // Loose part: sparse collisions whose rate follows how hard the body moves.
    float rat = 0.f;
    if (rattle > 0.f) {
-    const float a = std::abs(core);
-    follower += (a > follower ? .05f : .0015f) * (a - follower);
-    if (--buzzHold <= 0) { buzzGate = rng.next() > -.2f ? 1.f : 0.f; buzzHold = 8 + static_cast<int>((rng.next() + 1.f) * 40.f); }
-    const float raw = rng.next();
-    rattleHp += .25f * (raw - rattleHp);
-    rat = (raw - rattleHp) * follower * buzzGate * rattle * 3.f;
+    const float a = std::abs(body) + std::abs(mem);
+    follower += (a > follower ? .02f : .002f) * (a - follower);
+    float hit = 0.f;
+    const float p = rattle * std::min(1.f, follower * 30.f) * .2f;
+    if (.5f * (rng.next() + 1.f) < p) hit = follower * (.5f + std::abs(rng.next())) * 6.f;
+    for (int k = 0; k < maxLoose; ++k) rat += loose[static_cast<std::size_t>(k)].process(hit) * looseAmp[static_cast<std::size_t>(k)];
+    rat *= rattle;
    }
-   float x = toneFilter.process(core + rat, toneA1, toneA2, toneA3, 1.2f, 0) * gain;
+   const float x = toneFilter.process(body + mem + rat, toneA1, toneA2, toneA3, 1.2f, 0) * gain;
    outL[i] += x * panL;
    outR[i] += x * panR;
    ++elapsed;
+   quiet = std::abs(x) < 2e-6f ? quiet + 1 : 0;
   }
   age += n;
-  if (elapsed > lifetime) alive = false;
+  if (elapsed > lifetime || (elapsed > sr * .1 && quiet > static_cast<long long>(sr * .05))) alive = false;
  }
  void stop() { alive = false; }
 
 private:
- float memEnvPitch() { memDropState *= memDrop; return memDropState; }
- const ObjectModel* model = nullptr;
+ struct ModeState { Resonator res; float amp = 0.f; int piece = 0; };
+ struct Event { long long at = 0; float amp = 0.f; int piece = 0; };
  detail::Random rng;
- std::array<Resonator, 8> modes{};
- std::array<float, 8> modeAmp{};
+ std::array<ModeState, maxModes> modes{};
+ std::array<Resonator, maxLoose> loose{};
+ std::array<float, maxLoose> looseAmp{};
+ std::array<Event, maxEvents> events{};
+ std::array<float, 3> piecePulse{};
  SVF toneFilter;
- double sr = 48000.0, nextClick = 0.0, clickInterval = 0.0;
- long long elapsed = 0, lifetime = 0;
- int burstLeft = 0, clicksLeft = 0, modeCount = 0, buzzHold = 0;
+ double sr = 48000.0;
+ long long elapsed = 0, lifetime = 0, quiet = 0;
+ int modeCount = 0, eventCount = 0, pulseLen = 1;
  bool alive = false;
- float gain = 1.f, panL = 1.f, panR = 1.f, hardness = .5f, excLowpass = 0.f;
- float memLevel = 0.f, memFreq = 100.f, memStart = 1.f, memDrop = .99f, memDecay = .999f, memEnv = 0.f, memPitch = 1.f;
+ float gain = 1.f, panL = 1.f, panR = 1.f, rattle = 0.f, follower = 0.f;
+ float memLevel = 0.f, memFreq = 100.f, memStart = 1.f, memDrop = .99f, memDecay = .999f, memEnv = 0.f;
  float memPhase = 0.f, memDropState = 1.f;
- float noiseLevel = 0.f, noiseEnv = 0.f, noiseDecay = .99f, noiseCoef = .5f, noiseLp = 0.f, noiseHp = 0.f;
- float rattle = 0.f, follower = 0.f, buzzGate = 0.f, rattleHp = 0.f;
  float toneA1 = 1.f, toneA2 = 0.f, toneA3 = 0.f;
-public:
- void resetMembraneDrop() { memDropState = 1.f; }
 };
 
 // Monophonic musical saw: a near-sine "singing" tone with bow noise, vibrato,
@@ -315,6 +365,11 @@ public:
   character.prepare(sr);
   mutilator.prepare(sr);
   reverb.prepare(sr);
+  airL.reset(); airR.reset();
+  {
+   const float g = std::tan(3.14159265f * std::min(9500.f, .45f * static_cast<float>(sr)) / static_cast<float>(sr));
+   airA1 = 1.f / (1.f + g * (g + 1.1f)); airA2 = g * airA1; airA3 = g * airA2;
+  }
   pendingCount = 0;
   // Fixed per-pad "rust" offsets: each pad's object is bent its own way.
   detail::Random r; r.state = 0xBADC0DEu;
@@ -374,6 +429,9 @@ public:
    const float dryGain = std::cos(mix * 1.5707963f), wetGain = std::sin(mix * 1.5707963f) * 1.4f;
    const float mega = smoothed[P::Megaphone] * .01f, gram = smoothed[P::Gramophone] * .01f;
    for (int i = 0; i < n; ++i) {
+    // Like a recording, not a synth: air absorbs the top, the tape rounds peaks.
+    l[i] = airL.process(detail::softTanh(l[i] * 1.2f) / 1.2f, airA1, airA2, airA3, 1.1f, 0);
+    r[i] = airR.process(detail::softTanh(r[i] * 1.2f) / 1.2f, airA1, airA2, airA3, 1.1f, 0);
     character.process(l[i], r[i], mega, gram);
     mutilator.process(l[i], r[i]);
     float wl = 0.f, wr = 0.f;
@@ -393,7 +451,6 @@ private:
   Hit* chosen = nullptr;
   for (auto& h : hits) if (!h.active()) { chosen = &h; break; }
   if (!chosen) for (auto& h : hits) if (!chosen || h.age > chosen->age) chosen = &h;
-  chosen->resetMembraneDrop();
   chosen->start(pad, pads[static_cast<std::size_t>(pad)], rust[static_cast<std::size_t>(pad)], velocity, velSens, sr);
   triggered |= 1u << pad;
  }
@@ -444,6 +501,8 @@ private:
  Character character;
  Mutilator mutilator;
  Reverb reverb;
+ SVF airL, airR;
+ float airA1 = 1.f, airA2 = 0.f, airA3 = 0.f;
  detail::Random rng;
  float bend = 0.f, velSens = .7f, outGain = .7f;
  bool sustainPedal = false;

@@ -14,56 +14,58 @@ constexpr int numPads = 16;
 constexpr int firstPadNote = 36;   // C1 (Cubase / Studio One naming)
 constexpr int firstSawNote = 60;   // C3 and up: melodic musical saw
 
-// One struck / scraped / rattled object. Frequencies in Hz at TUNE 0.
+// How an object's vibration modes are spread: the physics of its shape.
+enum class Shape { Membrane, Plate, Bar, Shell, Wood, Irregular };
+
+// One struck / shaken object. Frequencies in Hz at TUNE 0.
 struct ObjectModel {
  const char* name;
- int clicks;             // 1 = single strike; >1 = train (chain, ratchet, typewriter)
- float clickRate, clickDecel, clickJitter;
- float burstMs;          // strike length: short = hard mallet
- float baseFreq;         // membrane pitch (and mode reference unless modeBase set)
- float membrane, memStart, memDropMs, memDecay; // membrane level 0 = none
- float modeBase;         // first mode frequency
- int modes;
- float ratios[8], decays[8], amps[8];
- float noise, noiseDecay, noiseCutoff;
- float rattle;           // default RATTLE for pads that start with this object
+ Shape shape;
+ float f0;              // lowest mode
+ int modes;             // dense banks: 12-44 modes
+ float t60;             // decay of the lowest mode (s); higher modes die faster
+ float dampPow;         // how fast decay shortens with frequency (metal ~0.8, wood ~1.3)
+ float tilt;            // spectral tilt of mode amplitudes (higher = darker)
+ float contactMs;       // stick / hand contact time: longer = softer, darker hit
+ int pieces;            // separate parts struck at random (cutlery, chain links): 1-3
+ int impacts;           // 1 = single hit; >1 = a shaken / dropped bundle
+ float impactRate, impactDecel;
+ int bounces; float bounceMs; // the object jumping back onto the stick / floor
+ float membrane, memBase, memStart, memDropMs, memDecay; // pitched head (drums only)
+ float looseF;          // loose part / wires that rattle against the body
+ float rattle;          // default RATTLE for pads that start with this object
+ float gain;            // level calibration, measured: full-velocity hit peaks near -6 dBFS
+                        // (-9 to -11 dBFS for cutlery, chain and long-ringing metal)
 };
 
 inline const std::array<ObjectModel, 16>& objects() {
+ using S = Shape;
  static const std::array<ObjectModel, 16> table{{
-  {"Lata de Lixo",1,0,1,0, 2.f, 52,1.f,3.f,40,.35f, 210,6,{1,1.47f,2.09f,2.56f,3.14f,3.9f},{.5f,.4f,.35f,.3f,.25f,.2f},{.35f,.3f,.25f,.2f,.18f,.15f}, .3f,.05f,3000, 30},
-  {"Tambor de Fanfarra",1,0,1,0, 1.f, 185,.8f,1.6f,15,.18f, 185,5,{1,1.59f,2.14f,2.3f,2.65f},{.12f,.1f,.09f,.08f,.07f},{.3f,.25f,.2f,.18f,.15f}, 1.f,.22f,7000, 55},
-  {"Mala-Bumbo",1,0,1,0, 3.f, 70,1.f,2.f,25,.25f, 175,4,{1,1.9f,2.8f,4.1f},{.08f,.07f,.06f,.05f},{.4f,.3f,.2f,.15f}, .25f,.03f,1500, 15},
-  {"Freio de Carro",1,0,1,0, 1.f, 520,0,1,1,0, 520,7,{1,2.32f,2.92f,4.16f,5.4f,6.9f,8.2f},{2.5f,1.8f,1.5f,1.2f,1.f,.8f,.6f},{1,.8f,.7f,.6f,.5f,.4f,.3f}, .2f,.02f,9000, 5},
-  {"Cano",1,0,1,0, 1.5f, 330,0,1,1,0, 330,4,{1,2.76f,5.4f,8.93f},{1.6f,1.f,.6f,.4f},{1,.5f,.3f,.2f}, .1f,.02f,6000, 0},
-  {"Bigorna",1,0,1,0, .7f, 1150,0,1,1,0, 1150,5,{1,2.52f,4.18f,6.33f,8.7f},{3.f,2.2f,1.6f,1.f,.7f},{1,.7f,.5f,.4f,.3f}, .3f,.015f,12000, 0},
-  {"Tampa de Panela",1,0,1,0, 1.f, 300,0,1,1,0, 300,8,{1,1.59f,2.14f,2.65f,3.16f,3.5f,4.15f,4.9f},{1.4f,1.2f,1.f,.9f,.8f,.7f,.6f,.5f},{1,.8f,.7f,.6f,.5f,.4f,.35f,.3f}, .3f,.1f,8000, 70},
-  {"Corrente",14,35,1.f,.45f, .5f, 2400,0,1,1,0, 2400,4,{1,1.4f,2.3f,3.1f},{.12f,.1f,.08f,.06f},{1,.7f,.5f,.4f}, .2f,.3f,9000, 40},
-  {"Garrafa",1,0,1,0, 1.f, 820,0,1,1,0, 820,4,{1,2.32f,4.25f,6.63f},{1.2f,.8f,.5f,.3f},{1,.5f,.3f,.15f}, .05f,.01f,8000, 0},
-  {"Caixote",1,0,1,0, 2.f, 90,.5f,1.5f,20,.12f, 140,5,{1,1.58f,2.4f,3.6f,4.9f},{.18f,.12f,.09f,.06f,.05f},{.6f,.45f,.35f,.25f,.2f}, .4f,.04f,2500, 20},
-  {"Ossos",2,28,1.f,.1f, .4f, 1600,0,1,1,0, 1600,3,{1,2.6f,4.8f},{.05f,.03f,.02f},{1,.5f,.3f}, .3f,.01f,6000, 0},
-  {"Engrenagem",12,45,1.12f,.15f, .3f, 1900,0,1,1,0, 1900,3,{1,2.2f,3.7f},{.04f,.03f,.02f},{1,.6f,.4f}, .2f,.4f,5000, 10},
-  {"Maquina de Escrever",5,14,1.f,.6f, .3f, 2900,0,1,1,0, 2900,4,{1,1.5f,2.7f,3.3f},{.03f,.025f,.02f,.015f},{1,.6f,.4f,.3f}, .5f,.3f,7000, 15},
-  {"Mola",1,0,1,0, 1.f, 110,.8f,7.f,120,.7f, 240,3,{1,1.21f,1.53f},{.8f,.7f,.6f},{.3f,.25f,.2f}, .05f,.05f,4000, 50},
-  {"Porta Batendo",1,0,1,0, 4.f, 55,1.f,1.4f,30,.2f, 110,3,{1,1.7f,2.9f},{.25f,.2f,.15f},{.5f,.4f,.3f}, .9f,.12f,1800, 45},
-  {"Chocalho de Tampinhas",22,110,1.03f,.5f, .3f, 3300,0,1,1,0, 3300,4,{1,1.3f,1.7f,2.2f},{.02f,.02f,.015f,.015f},{1,.8f,.6f,.5f}, .6f,.25f,11000, 30},
+  //  name                 shape        f0   modes t60  damp tilt contact pcs imp rate decel bnc bMs  memb base start drop decay looseF rattle gain
+  {"Tambor de Oleo",       S::Shell,    95,  24, .45f,.9f, .8f, 3.5f, 1, 1, 0,  1,    0, 0,   1.f, 48, 2.2f, 35, .4f,  900, 15, 0.63f},
+  {"Colheres",             S::Bar,    1300,  16, .25f,1.f, .6f, .6f,  2, 2, 22, 1,    0, 0,   0,   1,  1,    1,  0,  2600,  0, 5.1f},
+  {"Caixa de Fanfarra",    S::Membrane,190,  20, .2f, .8f, .5f, 1.2f, 1, 1, 0,  1,    0, 0,  .5f, 190, 1.3f, 12, .12f,3200, 75, 0.67f},
+  {"Porta de Garagem",     S::Plate,    70,  30, .5f, 1.1f,1.f, 6.f,  1, 1, 0,  1,    0, 0,  .6f,  50, 1.4f, 30, .15f, 600, 50, 0.74f},
+  {"Tampa de Lixo",        S::Plate,   260,  36, .9f, .9f, .7f, 1.5f, 1, 1, 0,  1,    1, 40,  0,   1,  1,    1,  0,  1500, 45, 6.25f},
+  {"Caixote",              S::Wood,    110,  14, .22f,1.3f,.9f, 3.f,  1, 1, 0,  1,    0, 0,  .4f,  85, 1.3f, 20, .12f, 800, 15, 0.9f},
+  {"Talheres",             S::Bar,    1900,  24, .3f, 1.1f,.75f,.6f,  3, 3, 60, 1,    0, 0,   0,   1,  1,    1,  0,  3000,  0, 7.f},
+  {"Panela",               S::Plate,   210,  28, .7f, .9f, .8f, 2.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1200, 20, 7.1f},
+  {"Corrente",             S::Irregular,1400,24, .12f,1.2f,.7f, .4f,  3, 9, 70, 1.1f, 0, 0,   0,   1,  1,    1,  0,  2200, 10, 1.42f},
+  {"Cano de Ferro",        S::Bar,     280,  18, 1.1f,.8f, .7f, 1.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  1800,  0, 8.8f},
+  {"Mola de Cama",         S::Irregular,300, 16, .5f, 1.f, .8f, 1.5f, 1, 1, 0,  1,    0, 0,  .7f, 120, 5.f,  90, .5f, 1800, 50, 0.59f},
+  {"Lata de Lixo",         S::Shell,   160,  30, .6f, .9f, .8f, 2.5f, 1, 1, 0,  1,    0, 0,  .5f,  70, 1.8f, 25, .25f,1400, 30, 0.77f},
+  {"Chapa de Metal",       S::Plate,    45,  40, 1.8f,.7f, .9f, 8.f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,   700, 20, 5.8f},
+  {"Prato Rachado",        S::Plate,   420,  44, 1.6f,.75f,.55f,.8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2500, 70, 6.5f},
+  {"Bigorna",              S::Bar,     900,  16, .9f, 1.1f,.8f, .4f,  1, 1, 0,  1,    2, 70,  0,   1,  1,    1,  0,  2000,  0, 6.8f},
+  {"Garrafa",              S::Shell,   700,  12, .5f, 1.1f,1.f, .8f,  1, 1, 0,  1,    0, 0,   0,   1,  1,    1,  0,  2000,  0, 6.7f},
  }};
  return table;
 }
 
-// Level calibration per object, measured so a full-velocity hit peaks near
-// -7 dBFS (sharp, short objects) or -9 dBFS (long-ringing metal and glass).
-inline float objectGain(int object) {
- static const float gain[16] = {.48f, .39f, .5f, 1.8f, 4.4f, 2.3f, 1.67f, 1.07f, 4.07f, 1.08f, .65f, .58f, .92f, .53f, .35f, .37f};
- return gain[std::clamp(object, 0, 15)];
-}
-
 // Default object per pad, laid out like General MIDI drums so DAW drum maps
-// make sense: C1 kick, C#1 side stick, D1 snare, D#1 clap, F#1 closed hat...
-inline int defaultObject(int pad) {
- static const int map[16] = {0, 10, 1, 14, 6, 9, 7, 2, 15, 4, 11, 8, 3, 5, 13, 12};
- return map[std::clamp(pad, 0, 15)];
-}
+// make sense: C1 kick (oil drum), D1 snare (parade drum), F#1 closed hat
+// (cutlery), G#1 pedal hat (chain), C#2 crash (cracked cymbal)...
+inline int defaultObject(int pad) { return std::clamp(pad, 0, 15); }
 
 namespace P {
 // Per-pad parameter offsets: index = pad * PadCount + offset.
@@ -146,16 +148,16 @@ inline const std::array<Kit, 6>& kits() {
  static const std::array<Kit, 6> table{{
   {"Ferro-Velho", {{-1, -1, 0}}},
   {"Galpao Abandonado", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
-   {0,Tune,-3},{0,Decay,160},{2,Decay,140},{3,Decay,180},{8,Rattle,40},{12,Decay,200},{13,Decay,220},{-1,Output,-2},{-1,-1,0}}},
-  {"Fanfarra Bebada", {{-1,Stumble,65},{-1,Gramophone,35},{-1,RoomMix,25},{0,Object,2},{2,Rattle,80},{2,Tune,2},
-   {4,Object,1},{4,Tune,-5},{5,Object,1},{5,Tune,-9},{7,Object,1},{7,Tune,-12},{1,Object,10},{-1,Output,0},{-1,-1,0}}},
-  {"Cozinha Assombrada", {{0,Object,9},{0,Tune,-7},{2,Object,6},{2,Tune,5},{4,Object,8},{4,Tune,-2},{5,Object,8},{5,Tune,3},
-   {7,Object,4},{7,Tune,7},{9,Object,6},{9,Tune,-5},{11,Object,8},{11,Tune,7},{-1,RoomMix,30},{-1,RoomSize,25},
-   {-1,Megaphone,0},{-1,Stumble,15},{-1,Output,-7},{-1,-1,0}}},
-  {"Oficina Quebrada", {{-1,StutterDiv,3},{-1,StutterDepth,40},{-1,Chaos,55},{-1,Crush,20},{-1,Stumble,30},
-   {6,Object,11},{8,Object,12},{10,Object,7},{12,Object,5},{12,Tune,-5},{-1,RoomMix,15},{-1,Output,-4},{-1,-1,0}}},
+   {0,Tune,-3},{0,Decay,140},{3,Decay,150},{12,Decay,160},{13,Decay,130},{-1,Output,-3},{-1,-1,0}}},
+  {"Fanfarra Bebada", {{-1,Stumble,60},{-1,Gramophone,35},{-1,RoomMix,25},{2,Rattle,85},{2,Tune,2},
+   {5,Object,2},{5,Tune,-7},{7,Object,2},{7,Tune,-4},{9,Object,2},{9,Tune,-10},{11,Object,2},{11,Tune,-12},{-1,Output,-2},{-1,-1,0}}},
+  {"Cozinha Assombrada", {{0,Object,5},{0,Tune,-6},{2,Object,4},{2,Tune,3},{4,Object,7},{4,Tune,4},{5,Object,7},{5,Tune,-5},
+   {7,Object,7},{9,Object,15},{9,Tune,-3},{11,Object,15},{11,Tune,4},{-1,RoomMix,28},{-1,RoomSize,25},{-1,Stumble,15},{-1,Output,-3},{-1,-1,0}}},
+  {"Oficina de Graxa", {{-1,StutterDiv,3},{-1,StutterDepth,35},{-1,Chaos,45},{-1,Crush,12},{-1,Stumble,25},
+   {3,Object,12},{4,Object,9},{4,Tune,5},{6,Object,8},{6,Tune,4},{10,Object,14},{10,Tune,-5},{13,Object,12},{13,Tune,7},
+   {-1,RoomMix,18},{-1,RoomSize,40},{-1,Output,-3},{-1,-1,0}}},
   {"Radio de Valvula", {{-1,Megaphone,70},{-1,Gramophone,60},{-1,RoomMix,12},{-1,RoomSize,20},{-1,Stumble,25},
-   {-1,SawVibrato,55},{-1,Output,-5},{-1,-1,0}}},
+   {-1,SawVibrato,55},{-1,Output,-4},{-1,-1,0}}},
  }};
  return table;
 }

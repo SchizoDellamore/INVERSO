@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.4.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.5.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala três instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -43,18 +43,24 @@ Toca qualquer áudio seu (WAV, AIFF, FLAC, OGG ou MP3, de até 10 minutos, mono 
 - **Sessões**: o projeto guarda o **caminho** do arquivo, não o áudio em si. Se você mover ou apagar o arquivo, o plugin avisa "ARQUIVO NAO ENCONTRADO", toca a voz interna e continua lembrando o caminho original. Guarde seus samples numa pasta fixa.
 
 ## ABISMO DRUMS
-Percussão de ferro-velho na linha de Tom Waits (*Swordfishtrombones*, *Rain Dogs*, *Bone Machine*). Não usa nenhum sample: cada batida é sintetizada por modelagem física, então nenhuma batida é igual à anterior.
-- **16 objetos**: Lata de Lixo, Tambor de Fanfarra, Mala-Bumbo, Freio de Carro, Cano, Bigorna, Tampa de Panela, Corrente, Garrafa, Caixote, Ossos, Engrenagem, Máquina de Escrever, Mola, Porta Batendo e Chocalho de Tampinhas.
-- **Notas**: os pads ficam em C1 a D#2 (MIDI 36–51), no layout General MIDI. C1 é o bumbo (Lata de Lixo), D1 a caixa (Tambor de Fanfarra) e F#1 o "chimbal" (Corrente), então mapas de bateria e grooves MIDI prontos já caem em lugares que fazem sentido.
-- **Por pad**: OBJECT (qualquer pad aceita qualquer objeto), TUNE, DECAY, TONE (dureza da baqueta e brilho), RATTLE (peças soltas vibrando junto), RUST (desvia os modos de vibração das proporções limpas, de um jeito fixo e próprio de cada pad), VARIATION (afinação, decay, volume e espaçamento dos modos mudam a cada batida), LEVEL e PAN. Clicar num pad toca o objeto e mostra os controles dele.
-- **Serrote**: do C3 (MIDI 60) para cima, um serrote melódico tocado com arco. É monofônico e desliza entre as notas quando tocado legato, com vibrato que se firma conforme o arco assenta, ruído de arco e WOBBLE (a lâmina flexionando).
-- **MÁQUINA QUEBRADA**: STUMBLE atrasa batidas ao acaso, em até 80 ms; o stutter repete trechos como disco arranhado; CRUSH reduz a resolução.
-- **CARÁTER**: MEGAPHONE coloca o kit dentro de um alto-falante saturado; GRAMOPHONE dá banda estreita, wow e flutter, chiado e estalos. **SALA** é um reverb curto, de banheiro a galpão.
-- **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina Quebrada e Rádio de Válvula.
-- O sequenciamento fica com a DAW. Para padrões internos, use o INVERSO DRUM.
+Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e música industrial. Não usa nenhum sample: cada batida é sintetizada pela física do objeto, e nenhuma sai igual à anterior.
+- **Como cada objeto soa**:
+  - 12 a 44 modos de vibração por objeto, distribuídos pela forma dele: pele (modos de Bessel), chapa, barra (modos de flexão e de torção), cilindro (anel × axial), madeira ou peça irregular.
+  - Os agudos morrem bem mais rápido que os graves, então nada fica estridente.
+  - A baqueta é um pulso de contato: baqueta macia dá contato mais longo e som mais escuro; os objetos podem quicar.
+  - Talheres e corrente são várias peças batendo em sequência aleatória.
+  - RATTLE são peças soltas (rebites, esteira, rachadura) colidindo com o objeto conforme ele vibra. Não é ruído branco.
+  - Na saída, uma leve saturação de fita e corte de ar em 9,5 kHz.
+- **16 objetos**: Tambor de Óleo, Colheres, Caixa de Fanfarra, Porta de Garagem, Tampa de Lixo, Caixote, Talheres, Panela, Corrente, Cano de Ferro, Mola de Cama, Lata de Lixo, Chapa de Metal, Prato Rachado, Bigorna e Garrafa.
+- **Notas**: os pads ficam em C1 a D#2 (MIDI 36–51), no layout General MIDI. C1 é o bumbo (Tambor de Óleo), D1 a caixa (Caixa de Fanfarra), F#1 o "chimbal" (Talheres), G#1 o chimbal de pé (Corrente) e C#2 o prato de ataque (Prato Rachado).
+- **Por pad**: OBJECT (qualquer pad aceita qualquer objeto), TUNE, DECAY, TONE (baqueta macia ou dura), RATTLE, RUST (o objeto entortado de um jeito fixo e próprio do pad), VARIATION (cada batida muda afinação, decay, volume, ponto de contato e espaçamento dos modos), LEVEL e PAN. Clicar num pad toca o objeto e mostra os controles dele.
+- **Serrote**: do C3 (MIDI 60) para cima, monofônico, desliza no legato.
+- **MÁQUINA QUEBRADA** (STUMBLE de até 80 ms, stutter de disco arranhado, CRUSH), **CARÁTER** (MEGAPHONE, GRAMOPHONE) e **SALA**.
+- **Kits**: Ferro-Velho, Galpão Abandonado, Fanfarra Bêbada, Cozinha Assombrada, Oficina de Graxa e Rádio de Válvula.
+- **Mudança da 0.5**: a lista de objetos mudou (saíram Engrenagem, Máquina de Escrever, Ossos e Chocalho; entraram Colheres, Talheres, Panela, Chapa de Metal, Prato Rachado e Tambor de Óleo). Projetos salvos com a 0.4 abrem com os objetos novos nos mesmos números.
 
 ## Instalação
-No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.4.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.4.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Actions > Build INVERSO ABISMO Windows VST3**, escolha a execução verde mais recente e baixe `INVERSO_ABISMO_Setup_0.5.0_x64` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.5.0_NO_EXE` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
@@ -91,6 +97,7 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
   - abre o editor.
 - `abismo_drums` verifica:
   - que os 16 objetos são audíveis, terminam sozinhos e chegam ao silêncio;
+  - que um groove em shuffle lento (84 BPM) com todos os kits fica abaixo de 0 dBFS;
   - que batidas consecutivas variam e que STUMBLE atrasa em até 80 ms;
   - que o serrote afina (A4 = 440 Hz), desliza e para no release, e que as notas dele não disparam pads;
   - que os kits num groove 6/8 com serrote ficam abaixo de 0 dBFS;

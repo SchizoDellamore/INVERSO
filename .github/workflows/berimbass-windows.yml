@@ -39,11 +39,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Berimbass'
           $bundle = Join-Path $root 'build\InversoBerimbass_artefacts\Release\VST3\INVERSO BERIMBASS.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_BERIMBASS_PORTABLE_VST3_0.1.0'
+          $portable = Join-Path $root 'dist\INVERSO_BERIMBASS_PORTABLE_VST3_0.2.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           $instructions = @'
-          INVERSO BERIMBASS v0.1.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
+          INVERSO BERIMBASS v0.2.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
           PORTABLE INSTALL (no EXE required)
           1. Close your DAW.
           2. Extract this GitHub artifact ZIP.
@@ -66,14 +66,14 @@ jobs:
       - name: Publish installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_BERIMBASS_Setup_0.1.0_x64
-          path: Berimbass/dist/INVERSO_BERIMBASS_Setup_0.1.0_x64.exe
+          name: INVERSO_BERIMBASS_Setup_0.2.0_x64
+          path: Berimbass/dist/INVERSO_BERIMBASS_Setup_0.2.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_BERIMBASS_PORTABLE_VST3_0.1.0_NO_EXE
-          path: Berimbass/dist/INVERSO_BERIMBASS_PORTABLE_VST3_0.1.0/
+          name: INVERSO_BERIMBASS_PORTABLE_VST3_0.2.0_NO_EXE
+          path: Berimbass/dist/INVERSO_BERIMBASS_PORTABLE_VST3_0.2.0/
           if-no-files-found: error
       - name: Publish raw VST3 bundle
         uses: actions/upload-artifact@v4

@@ -55,7 +55,8 @@ static void variationAndStumble() {
  v[static_cast<std::size_t>(D::P::padBase(3) + D::P::Variation)] = 0;
  D::Engine still; still.setValues(v); still.prepare(sr);
  still.noteOn(D::firstPadNote + 3, 1.f);
- verify(onset(play(still, 4800).l) < 5, "no stumble: hit starts immediately");
+ const auto base = onset(play(still, 4800).l, 2e-3f); // the object's own attack time
+ verify(base < static_cast<std::size_t>(.01 * sr), "no stumble: hit starts immediately");
 
  v[D::P::Stumble] = 100;
  D::Engine drunk; drunk.setValues(v); drunk.prepare(sr);
@@ -63,9 +64,11 @@ static void variationAndStumble() {
  for (int k = 0; k < 40; ++k) {
   drunk.noteOn(D::firstPadNote + 3, 1.f);
   const auto at = onset(play(drunk, 6000).l, 2e-3f);
-  if (at > 48) ++late;
-  maxDelay = std::max(maxDelay, at);
+  const std::size_t delay = at > base ? at - base : 0;
+  if (delay > 48) ++late;
+  maxDelay = std::max(maxDelay, delay);
   drunk.allSoundOff();
+  play(drunk, 480); // let the output filters settle before the next try
  }
  std::printf("stumble: %zu of 40 hits late, max %.1f ms\n", late, maxDelay * 1000.0 / sr);
  verify(late >= 10 && maxDelay <= static_cast<std::size_t>(.081 * sr), "stumble must delay hits by up to 80 ms");
@@ -92,20 +95,27 @@ static void saw() {
  verify(e.activeHits() == 0, "saw notes must not trigger pads");
 }
 
-static void groove(D::Engine& e, Stereo& all, int sr, int bars, int stumbleSeed) {
- // 6/8 junkyard waltz at 92 BPM, eighth = 0.326 s: kick, rim, snare, chain, lid.
- const double eighth = 60.0 / 92.0 / 2.0;
- const int pattern[6][4] = {{36, 44, -1, -1}, {42, -1, -1, -1}, {38, 42, -1, -1}, {36, 44, -1, -1}, {37, 46, -1, -1}, {38, 48, -1, -1}};
- detail::Random r; r.state = static_cast<std::uint32_t>(stumbleSeed);
+static void groove(D::Engine& e, Stereo& all, int sr, int bars, int seed) {
+ // Slow junkyard shuffle at 84 BPM on a triplet grid (12 steps per bar):
+ // oil-drum kick, parade snare, cutlery as the hat, cracked cymbal only on the downbeat.
+ const double step = 60.0 / 84.0 / 3.0;
+ detail::Random r; r.state = static_cast<std::uint32_t>(seed);
+ auto vel = [&](float base) { return std::clamp(base + .08f * r.next(), .1f, 1.f); };
  for (int bar = 0; bar < bars; ++bar)
-  for (int step = 0; step < 6; ++step) {
-   for (int n : pattern[step]) if (n > 0) e.noteOn(n, .65f + .3f * (r.next() + 1.f) * .5f);
-   if (bar % 2 == 1 && step == 5) e.noteOn(49, .8f);
-   if (bar == bars - 1 && step == 0) e.noteOn(50, 1.f);
-   auto s = play(e, static_cast<int>(eighth * sr));
-   all.l.insert(all.l.end(), s.l.begin(), s.l.end());
-   all.r.insert(all.r.end(), s.r.begin(), s.r.end());
+  for (int s = 0; s < 12; ++s) {
+   if (s == 0 || s == 5 || (bar % 2 == 1 && s == 7)) e.noteOn(36, vel(s == 0 ? .9f : .7f));
+   if (s == 3 || s == 9) e.noteOn(bar == 2 && s == 9 ? 40 : 38, vel(.8f));
+   if (s % 3 == 0 || s % 3 == 2) e.noteOn(42, vel(s % 3 == 0 ? .45f : .3f));
+   if (s == 11 && bar % 2 == 0) e.noteOn(44, vel(.4f));
+   if (bar == bars - 1 && s == 8) e.noteOn(43, vel(.75f));
+   if (bar == bars - 1 && (s == 10 || s == 11)) e.noteOn(41, vel(.8f));
+   if (s == 0 && (bar == 0 || bar == bars - 1)) e.noteOn(49, vel(.75f));
+   if (bar == 1 && s == 6) e.noteOn(45, vel(.6f));
+   auto out = play(e, static_cast<int>(step * sr));
+   all.l.insert(all.l.end(), out.l.begin(), out.l.end());
+   all.r.insert(all.r.end(), out.r.begin(), out.r.end());
   }
+ e.noteOn(36, .9f); e.noteOn(49, .7f); e.noteOn(50, .6f);
 }
 
 int main(int argc, char** argv) {
@@ -115,9 +125,10 @@ int main(int argc, char** argv) {
  const int sr = 48000;
  for (std::size_t k = 0; k < D::kits().size(); ++k) {
   D::Engine e; e.setValues(D::kitValues(k)); e.prepare(sr);
-  e.setTransport(92.0, 0.0, true);
+  e.setTransport(84.0, 0.0, true);
   Stereo all;
   groove(e, all, sr, 4, 11);
+  auto ring = play(e, sr); all.l.insert(all.l.end(), ring.l.begin(), ring.l.end()); all.r.insert(all.r.end(), ring.r.begin(), ring.r.end());
   // Saw melody over the last bars.
   e.noteOn(64, .8f);
   auto s1 = play(e, sr * 2); all.l.insert(all.l.end(), s1.l.begin(), s1.l.end()); all.r.insert(all.r.end(), s1.r.begin(), s1.r.end());

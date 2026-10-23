@@ -77,10 +77,11 @@ InversoBerimbassEditor::InversoBerimbassEditor(InversoBerimbassProcessor& p):Aud
   "TECHNIQUE","DECAY","BRIGHTNESS","POSITION","STIFFNESS","BUZZ","PRESSURE","BOW ATTACK","RELEASE",
   "BODY","BODY MIX","GOURD","GOURD RATE","GOURD DEPTH","BODY TUNE",
   "OCTAVE","FINE","MODE","GLIDE","BEND","STONE BEND","VIBRATO","VIB RATE",
-  "SUB","DRIVE","TONE","VELOCITY","REVERB","SIZE","DECAY","OUTPUT"};
+  "SUB","DRIVE","TONE","VELOCITY","REVERB","SIZE","DECAY","OUTPUT",
+  "CAXIXI"};
  panel=std::make_unique<abismo_ui::ParameterPanel>(p.apvts,specs().data(),std::vector<abismo_ui::ParameterPanel::Section>{
   {"CORDA",{P::Technique,P::Decay,P::Brightness,P::Position,P::Stiffness,P::Buzz,P::Pressure,P::Attack,P::Release}},
-  {"CORPO",{P::Body,P::BodyMix,P::Gourd,P::GourdRate,P::GourdDepth,P::BodyTune}},
+  {"CORPO",{P::Body,P::BodyMix,P::Gourd,P::GourdRate,P::GourdDepth,P::BodyTune,P::Caxixi}},
   {"AFINACAO",{P::Octave,P::Tune,P::VoiceMode,P::Glide,P::BendRange,P::StoneBend,P::Vibrato,P::VibRate}},
   {"SAIDA",{P::Sub,P::Drive,P::Tone,P::VelSens,P::RevMix,P::RevSize,P::RevDecay,P::Output}},
  },shortNames);

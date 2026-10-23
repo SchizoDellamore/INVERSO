@@ -1,4 +1,4 @@
-#define Ver "0.1.0"
+#define Ver "0.2.0"
 #define Plugin "INVERSO BERIMBASS.vst3"
 #define SourcePlugin "..\build\InversoBerimbass_artefacts\Release\VST3\" + Plugin
 [Setup]
