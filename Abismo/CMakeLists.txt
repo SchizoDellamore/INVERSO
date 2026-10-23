@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.9.0 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.10.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -9,7 +9,8 @@ add_executable(abismo_presets Tests/test_presets.cpp)
 add_executable(abismo_stress Tests/test_stress.cpp)
 add_executable(abismo_sampler Tests/test_sampler.cpp)
 add_executable(abismo_drums Tests/test_drums.cpp)
-foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums)
+add_executable(relicario_engine Tests/test_relicario.cpp)
+foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -22,6 +23,7 @@ add_test(NAME abismo_presets COMMAND abismo_presets)
 add_test(NAME abismo_stress COMMAND abismo_stress)
 add_test(NAME abismo_sampler COMMAND abismo_sampler)
 add_test(NAME abismo_drums COMMAND abismo_drums)
+add_test(NAME relicario_engine COMMAND relicario_engine)
 target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
  return()
@@ -169,3 +171,44 @@ add_custom_command(TARGET InversoAbismoDrums_VST3 POST_BUILD
 # Development builds and the host smoke test find the library in the source tree.
 target_compile_definitions(InversoAbismoDrums PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(InversoAbismoDrumsHostSmoke PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
+
+# RELICARIO: four forgotten machines (tape loops, reed organ, tuning fork, Soviet organ).
+set(RELICARIO_SOURCES
+ Source/RelicarioProcessor.cpp Source/RelicarioProcessor.h
+ Source/RelicarioEditor.cpp Source/RelicarioEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoReverb.h
+ Source/DSP/RelicarioParams.h Source/DSP/RelicarioEngine.h)
+juce_add_plugin(InversoRelicario
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.relicario"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvRl
+ PRODUCT_NAME "INVERSO RELICARIO"
+ FORMATS VST3
+ VST3_CATEGORIES Instrument Synth
+ IS_SYNTH TRUE
+ NEEDS_MIDI_INPUT TRUE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoRelicario)
+target_sources(InversoRelicario PRIVATE ${RELICARIO_SOURCES})
+target_compile_definitions(InversoRelicario PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoRelicario PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ juce::juce_recommended_lto_flags)
+juce_add_console_app(InversoRelicarioHostSmoke PRODUCT_NAME "INVERSO Relicario Host Smoke")
+juce_generate_juce_header(InversoRelicarioHostSmoke)
+target_sources(InversoRelicarioHostSmoke PRIVATE Tests/test_relicario_host.cpp ${RELICARIO_SOURCES})
+target_compile_definitions(InversoRelicarioHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoRelicarioHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags juce::juce_recommended_lto_flags)
+add_test(NAME relicario_host_smoke COMMAND InversoRelicarioHostSmoke)

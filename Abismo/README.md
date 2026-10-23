@@ -1,11 +1,12 @@
-# INVERSO ABISMO v0.9.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.10.0: instrumentos de tensão para trilha (VST3i)
 
-Este pacote instala três instrumentos VST3 para Windows x64:
+Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
 - **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular.
 - **INVERSO ABISMO DRUMS**: sampler de percussão de ferro-velho (gravações reais em domínio público, ou as suas) e serrote melódico.
+- **INVERSO RELICÁRIO** (0.10): quatro máquinas esquecidas num instrumento só: loops de fita, harmônio de fole elétrico, diapasão eletromagnético e órgão transistorizado soviético.
 
-O SAMPLER e o DRUMS têm seções próprias mais adiante.
+O SAMPLER, o DRUMS e o RELICÁRIO têm seções próprias mais adiante.
 
 Instrumento VST3 para Windows x64, feito em JUCE 8. É um sintetizador polifônico (16 vozes) voltado para trilha de terror e suspense: clusters dissonantes, metal friccionado, vidro, sinos, drones, glissandos e afinação instável. É um instrumento independente; os outros plugins INVERSO não são alterados.
 
@@ -100,8 +101,22 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Mudança da 0.8 no ABISMO**: o ressonador passou de 6 para 12 modos. Os materiais antigos mantêm os mesmos 6 primeiros parciais e o mesmo volume, mas ganham brilho nos agudos.
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
+## RELICÁRIO
+Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da Rhythmic Robot (Loopscape, Magnus, Spark Gap, órgãos soviéticos). Não usa gravações nem copia nada deles: as quatro máquinas são sintetizadas, imitando o mecanismo de cada uma. Cada máquina tem seu próprio NÍVEL; em 0% ela fica desligada e os controles dela aparecem apagados. Dá para tocar uma de cada vez ou as quatro juntas.
+
+- **FITA** (à la Loopscape/Mellotron caseiro): duas formas de onda gravadas em loops de fita (Serra, Serra dupla, Triângulo, Quadrada, Seno, Estática). Os dois loops têm comprimentos diferentes (L e L×1,37), então os defeitos nunca se repetem no mesmo ponto. DESGASTE espalha quedas de volume, de brilho e de afinação ao longo da fita (com alguns buracos onde o óxido sumiu). WOW faz a oscilação lenta e o flutter rápido. SATURAÇÃO e TOM dão o caráter da fita, e o chiado acompanha o desgaste. LOOP 2 pode ir uma oitava abaixo ou acima, com DESAFINA 2 em cents. Na tela, as duas fitas passam pelo cabeçote.
+- **HARMÔNIO** (à la Magnus, órgão de palhetas de fole elétrico): BAQUELITE vai do modelo antigo, mais escuro, ao de plástico dos anos 70, mais estridente. SOPRO é o ar passando na palheta, e FALA é quanto tempo a palheta leva para "falar" (entra baixa e sobe à afinação). No FOLE, cada nota a mais segurada puxa ar e o motor não dá conta: o som perde força e cai de afinação (FOLE CANSA). MOTOR é o zumbido do ventilador. A tela mostra a pressão do fole em tempo real.
+- **DIAPASÃO** (à la Spark Gap): um garfo de metal mantido vibrando por eletroímã. GOLPE é a pancada inicial, com o clangor metálico agudo. ELETRICIDADE é quanto o circuito mantém o garfo soando: em 0% ele morre como um diapasão batido. FAÍSCA é o estalo do contato abrindo e fechando a cada ciclo. BATIMENTO é um segundo garfo levemente desafinado.
+- **ÓRGÃO SOVIÉTICO** (à la Junost/Lel/Faemi): ondas quadradas divididas a partir de um oscilador só, como nos órgãos transistorizados. Registros 16', 8' e 4', mais o SUPERIOR em Oitava, Quinta ou Terça. Em SOM ficam TOM, TREMOLO (profundidade e velocidade), FALANTE (o alto-falante rasgado da caixa, que zumbe) e ZUMBIDO (50 Hz da rede).
+- **TECLADO**: envelope ADSR comum às quatro máquinas, velocity, oitava, afinação fina, glide e faixa de pitch bend.
+- **ECOS**: eco de fita (tempo, repetições), ENSEMBLE (chorus de fita) e POEIRA (estalos de vinil). **ESPAÇO**: reverb com mix, tamanho e duração.
+- **Mod wheel** aumenta o desgaste e o wow da fita e o tremolo do órgão. **Aftertouch** enche o fole e aumenta a faísca do diapasão.
+
+### Presets do RELICÁRIO (23)
+Init, Fita de Eno, Loop Gasto, Estática do Porão, Fitas Desencontradas, Baixo de Fita, Baquelite, Plástico 1974, Harmônio da Igreja Vazia, Acordeão Fantasma, Diapasão de Laboratório, Faísca, Dois Garfos Batendo, Boing, Junost no Salão, Case Quebrado, Quinta Soviética, Terça Torta, Baixo do Clube, Órgão e Fita, Garfo sobre Harmônio, Relíquia Inteira e Sótão às 3 da Manhã.
+
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.9.0** e baixe `INVERSO_ABISMO_Setup_0.9.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.9.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os três aparecem como instrumentos da Inverso Studios: ABISMO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as três pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.10.0** e baixe `INVERSO_ABISMO_Setup_0.10.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.10.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os quatro aparecem como instrumentos da Inverso Studios: ABISMO e RELICÁRIO em *Synth*, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as quatro pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
@@ -136,6 +151,8 @@ Abismo/build-dsp/abismo_presets /caminho/para/pasta
   - confere a afinação e troca o sample no meio de uma nota;
   - testa o modo granular, salvar/restaurar a sessão com o caminho do arquivo e o arquivo apagado (que volta para a voz interna e continua lembrando o caminho);
   - abre o editor.
+- `relicario_engine` verifica a afinação das quatro máquinas (440 Hz em 44,1/48/96 kHz), que o desgaste da fita varia ao longo do loop, que o fole cede com muitas notas, que o diapasão sustenta com eletricidade e morre sem ela, a quinta do órgão, o zumbido do falante rasgado e o release até o silêncio. Também grava uma demo WAV de cada preset e faz automação aleatória de todos os parâmetros.
+- `relicario_host_smoke` (JUCE) toca todos os presets em vários tamanhos de bloco, cada máquina sozinha, o pedal de sustain, o all sound off e o salvamento do estado.
 - `abismo_drums` verifica (lê a biblioteca de `Library/drums.bin`):
   - que a biblioteca é lida, tem os 48 objetos e que um arquivo truncado é recusado;
   - que, sem a biblioteca, cada objeto gravado ainda toca pelo substituto sintetizado;
