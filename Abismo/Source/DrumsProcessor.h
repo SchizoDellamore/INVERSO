@@ -96,11 +96,12 @@ private:
   std::array<float,128> sawVelocity{};
   bool any=false;
   void clear(){ padHit.fill(0.f); sawCount=0; sawLetGo.fill(false); any=false; }
+  void pedalUp(){ for(int i=sawCount-1;i>=0;--i) if(sawLetGo[saw[static_cast<std::size_t>(i)]]) dropSaw(saw[static_cast<std::size_t>(i)]); } // what the pedal held goes
   bool holds(int note) const { for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note) return true; return false; }
   void dropSaw(int note){ for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note){ for(int k=i+1;k<sawCount;++k) saw[static_cast<std::size_t>(k-1)]=saw[static_cast<std::size_t>(k)]; --sawCount; return; } }
  } held;
- std::atomic<bool> dropHeld{false}; // a stop or re-prepare: the audio thread clears `held`
- void holdNotes(juce::MidiBuffer& midi,bool live);
+ std::atomic<bool> dropHeld{false}, dropNotes{false}; // a stop / a re-prepare, done by the audio thread
+ void hold(const juce::MidiMessage& m); // one message during a kit change
  bool playEngineState(const juce::MidiMessage& m);
  void applyKit(int index);
  int currentProgram=0;
