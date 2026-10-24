@@ -50,7 +50,7 @@ void InversoRelicarioProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
   midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
-  else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
+  else if (m.isPitchWheel()) engine.setPitchBend(abismo_ui::pitchBendOf(m.getPitchWheelValue()));
   else if (m.isControllerOfType(1)) engine.setModWheel(static_cast<float>(m.getControllerValue())/127.f);
   else if (m.isSustainPedalOn()) engine.setSustain(true);
   else if (m.isSustainPedalOff()) engine.setSustain(false);

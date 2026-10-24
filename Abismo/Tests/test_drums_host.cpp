@@ -122,7 +122,7 @@ int main(){
   verify(note2>1e-2f && p.getCurrentProgram()==6,"note at a double kit change was lost");
   // A MIDI flood during a kit change (1200 controllers between a saw note-on and its note-off):
   // the held note-on plays on the new kit (control: without the note-off the saw sounds), and
-  // the note-off after the flood is kept in the reserve (with it, the saw does not hang).
+  // the note-off after the flood is kept (with it, the saw does not hang).
   auto flood=[&](bool withNoteOff){
    for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); } // all rung out
    p.selectKit(1);
@@ -173,16 +173,32 @@ int main(){
   for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) control=std::max(control,b.getMagnitude(0,256)); }
   std::printf("sustain at a kit change: saw tail %.6f (same note, no change: %.6f)\n",ring,control);
   verify(ring<1e-3f,"sustain off at a kit change was lost: the saw keeps ringing");
-  // the pitch bend moved during a kit change reaches the new kit (the saw starts bent)
-  p.selectKit(4);
-  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::pitchWheel(1,16383),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),1); p.processBlock(b,m); }
-  juce::AudioBuffer<float> bent(2,48000);
-  for(int i=0;i<187;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); bent.copyFrom(0,i*256,b,0,0,256); }
-  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,69),0); m.addEvent(juce::MidiMessage::pitchWheel(1,8192),0); p.processBlock(b,m); }
-  int crossings=0; for(int i=24000;i<47000;++i) if(bent.getSample(0,i-1)<0.f && bent.getSample(0,i)>=0.f) ++crossings;
-  const double hz=crossings/(23000.0/48000.0);
-  std::printf("bend held at a kit change: A4 saw at %.1f Hz (440 unbent)\n",hz);
-  verify(hz>455.0,"the pitch bend moved during a kit change did not reach the new kit");
+  // the pitch bend moved during a kit change reaches the new kit: the same saw note measured
+  // with the bend (held during a kit change) and without it (control)
+  auto sawPitch=[&](bool bendIt){
+   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+   p.selectKit(4);
+   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::pitchWheel(1,bendIt?16383:8192),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),1); p.processBlock(b,m); }
+   juce::AudioBuffer<float> out(2,48000);
+   for(int i=0;i<187;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); out.copyFrom(0,i*256,b,0,0,256); }
+   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,69),0); m.addEvent(juce::MidiMessage::pitchWheel(1,8192),0); p.processBlock(b,m); }
+   int crossings=0; for(int i=24000;i<47000;++i) if(out.getSample(0,i-1)<0.f && out.getSample(0,i)>=0.f) ++crossings;
+   return crossings/(23000.0/48000.0);
+  };
+  const double flat=sawPitch(false), bentHz=sawPitch(true);
+  std::printf("bend held at a kit change: A4 saw %.1f Hz unbent, %.1f Hz bent (ratio %.3f, two semitones = 1.122)\n",flat,bentHz,bentHz/flat);
+  verify(bentHz/flat>1.08 && bentHz/flat<1.16,"the pitch bend moved during a kit change did not reach the new kit");
+  // the saw ends on the last note pressed during a kit change, as it would have played
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(5);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,81,1.f),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),10); p.processBlock(b,m); }
+  juce::AudioBuffer<float> last(2,48000);
+  for(int i=0;i<187;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); last.copyFrom(0,i*256,b,0,0,256); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::allNotesOff(1),0); p.processBlock(b,m); }
+  int lastCross=0; for(int i=24000;i<47000;++i) if(last.getSample(0,i-1)<0.f && last.getSample(0,i)>=0.f) ++lastCross;
+  const double lastHz=lastCross/(23000.0/48000.0);
+  std::printf("saw after A5 then A4 pressed at a kit change: %.1f Hz (A4 %.1f Hz)\n",lastHz,flat);
+  verify(std::abs(lastHz/flat-1.0)<.03,"the saw did not end on the last note pressed during a kit change");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }

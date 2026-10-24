@@ -32,16 +32,21 @@ MidiLearn* MidiLearn::find(const juce::AudioProcessor* p){
  for(std::size_t i=0;i<owners().size();++i) if(owners()[i]==p) return registry()[i];
  return nullptr;
 }
-void MidiLearn::handle(const juce::MidiMessage& m){
- if(!m.isController()) return;
+int MidiLearn::learn(const juce::MidiMessage& m){
+ if(!m.isController()) return -1;
  const int cc=m.getControllerNumber();
- if(cc<0 || cc>=120) return; // 120+ are channel mode messages
+ if(cc<0 || cc>=120) return -1; // 120+ are channel mode messages
  int want=armed.load(std::memory_order_relaxed);
  if(want>=0 && armed.compare_exchange_strong(want,-1)){
   for(auto& slot:map){ int same=want; slot.compare_exchange_strong(same,-1); } // one CC per parameter
   map[static_cast<std::size_t>(cc)].store(want);
  }
- if(map[static_cast<std::size_t>(cc)].load(std::memory_order_relaxed)>=0) pending[static_cast<std::size_t>(cc)].store(m.getControllerValue(),std::memory_order_relaxed);
+ return cc;
+}
+void MidiLearn::learnOnly(const juce::MidiMessage& m){ learn(m); }
+void MidiLearn::handle(const juce::MidiMessage& m){
+ const int cc=learn(m);
+ if(cc>=0 && map[static_cast<std::size_t>(cc)].load(std::memory_order_relaxed)>=0) pending[static_cast<std::size_t>(cc)].store(m.getControllerValue(),std::memory_order_relaxed);
 }
 void MidiLearn::flush(){
  const auto& params=processor.getParameters();

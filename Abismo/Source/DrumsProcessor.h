@@ -90,13 +90,18 @@ private:
  enum class KitStage { Playing, Faded }; // see processBlock
  KitStage kitStage=KitStage::Playing; // audio thread only
  struct Held { // what a kit change keeps for the new kit (see holdNotes); audio thread
-  std::array<float,128> velocity{}; // notes down: a pad hit, or a saw note held
+  struct Hit { std::uint8_t note; float velocity; };
+  std::array<Hit,64> hits{}; int hitCount=0;        // pad hits, in order (a roll stays a roll)
+  std::array<std::uint8_t,128> saw{}; int sawCount=0; // saw notes down, in the order pressed
+  std::array<bool,128> sawLetGo{};                    // released while the pedal was down: still sounding
+  std::array<float,128> sawVelocity{};
   int sustain=-1, bend=-1; // -1: unchanged
-  bool any=false;
-  void clear(){ velocity.fill(0.f); sustain=-1; bend=-1; any=false; }
+  bool allSoundOff=false, allNotesOff=false, any=false;
+  void clear(){ hitCount=0; sawCount=0; sawLetGo.fill(false); sustain=-1; bend=-1; allSoundOff=allNotesOff=any=false; }
+  void dropSaw(int note){ for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note){ for(int k=i+1;k<sawCount;++k) saw[static_cast<std::size_t>(k-1)]=saw[static_cast<std::size_t>(k)]; --sawCount; return; } }
  } held;
+ bool pedalDown=false; // audio thread: the sustain pedal as last seen (kept through kit changes)
  std::atomic<bool> dropHeld{false}; // a stop or re-prepare: the audio thread clears `held`
- static float bendOf(int wheel){ return (static_cast<float>(wheel)-8192.f)/8192.f; }
  void holdNotes(juce::MidiBuffer& midi);
  void applyKit(int index);
  int currentProgram=0;

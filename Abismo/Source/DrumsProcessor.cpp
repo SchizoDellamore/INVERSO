@@ -143,9 +143,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  auto* right=audio.getWritePointer(1);
  auto play=[&](const juce::MidiMessage& m){
   midiLearn.handle(m);
+  if (m.isSustainPedalOn()) pedalDown=true; else if (m.isSustainPedalOff()) pedalDown=false;
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
-  else if (m.isPitchWheel()) engine.setPitchBend(bendOf(m.getPitchWheelValue()));
+  else if (m.isPitchWheel()) engine.setPitchBend(abismo_ui::pitchBendOf(m.getPitchWheelValue()));
   else if (m.isSustainPedalOn()) engine.setSustain(true);
   else if (m.isSustainPedalOff()) engine.setSustain(false);
   else if (m.isAllNotesOff()) engine.allNotesOff();
@@ -153,10 +154,16 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  };
  // what was held, first, at the start of the block
  if (playHeld) {
-  if (held.bend>=0) engine.setPitchBend(bendOf(held.bend));
+  if (held.allSoundOff) engine.allSoundOff();
+  if (held.allNotesOff) engine.allNotesOff();
+  if (held.bend>=0) engine.setPitchBend(abismo_ui::pitchBendOf(held.bend));
   if (held.sustain>=0) engine.setSustain(held.sustain==1);
-  for (int note=0;note<128;++note)
-   if (held.velocity[static_cast<std::size_t>(note)]>0.f) engine.noteOn(note,held.velocity[static_cast<std::size_t>(note)]);
+  for (int i=0;i<held.sawCount;++i) { // in the order pressed: the saw ends on the last one
+   const int note=held.saw[static_cast<std::size_t>(i)];
+   engine.noteOn(note,held.sawVelocity[static_cast<std::size_t>(note)]);
+   if (held.sawLetGo[static_cast<std::size_t>(note)]) engine.noteOff(note); // the pedal holds it
+  }
+  for (int i=0;i<held.hitCount;++i) engine.noteOn(held.hits[static_cast<std::size_t>(i)].note,held.hits[static_cast<std::size_t>(i)].velocity);
   held.clear();
  }
  int position=0;
@@ -179,26 +186,40 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  padLights.fetch_or(engine.takeTriggeredPads(),std::memory_order_relaxed);
 }
 
-// What arrives during a kit change is kept for the new kit as state, not as a list of events, so
-// nothing can overflow or be lost: which notes are down (a pad hit, or a saw note held), the
-// sustain pedal and the last pitch bend. A pad's note-off does nothing (hits ring out); a saw
-// note played and released during the change is gone. Learned controllers are not replayed, so
-// the new kit comes up as designed, but a knob armed for MIDI learn still learns. Aftertouch,
-// clock and SysEx are not used by this instrument.
+// What arrives during a kit change is kept for the new kit as it would have played: pad hits in
+// order (up to 64: a roll stays a roll), saw notes down in the order pressed (a note let go with
+// the pedal down keeps sounding), the sustain pedal and the last pitch bend, all-notes/sound-off.
+// Fixed storage, no allocation. A saw note played and released during the change (pedal up) is
+// gone. Learned controllers are not applied, so the new kit comes up as designed, but a knob
+// armed for MIDI learn still learns. Aftertouch, clock and SysEx are not used by this instrument.
 void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
  for (const auto metadata : midi) {
   if (metadata.numBytes<1 || metadata.numBytes>3) continue;
   const auto m=metadata.getMessage(); // three bytes at most: stored inline, no allocation
+  if (m.isController()) midiLearn.learnOnly(m); // as in play(): every controller can complete a learn
   if (m.isNoteOn()) {
-   auto& v=held.velocity[static_cast<std::size_t>(m.getNoteNumber())];
-   v=std::max(v,m.getFloatVelocity());
+   const int note=m.getNoteNumber();
+   if (note>=firstSawNote) {
+    held.dropSaw(note);
+    held.saw[static_cast<std::size_t>(held.sawCount++)]=static_cast<std::uint8_t>(note);
+    held.sawVelocity[static_cast<std::size_t>(note)]=m.getFloatVelocity();
+    held.sawLetGo[static_cast<std::size_t>(note)]=false;
+   } else if (held.hitCount<static_cast<int>(held.hits.size()))
+    held.hits[static_cast<std::size_t>(held.hitCount++)]={static_cast<std::uint8_t>(note),m.getFloatVelocity()};
   }
-  else if (m.isNoteOff()) { if (m.getNoteNumber()>=firstSawNote) held.velocity[static_cast<std::size_t>(m.getNoteNumber())]=0.f; }
+  else if (m.isNoteOff()) {
+   const int note=m.getNoteNumber(); // a pad's note-off does nothing: hits ring out
+   if (note>=firstSawNote) { if (pedalDown) held.sawLetGo[static_cast<std::size_t>(note)]=true; else held.dropSaw(note); }
+  }
   else if (m.isPitchWheel()) held.bend=m.getPitchWheelValue();
-  else if (m.isSustainPedalOn()) held.sustain=1;
-  else if (m.isSustainPedalOff()) held.sustain=0;
-  else if (m.isAllNotesOff() || m.isAllSoundOff()) { held.velocity.fill(0.f); held.sustain=0; }
-  else { if (m.isController() && midiLearn.armedParameter()>=0) midiLearn.handle(m); continue; }
+  else if (m.isSustainPedalOn()) { held.sustain=1; pedalDown=true; }
+  else if (m.isSustainPedalOff()) { // what the pedal held goes
+   held.sustain=0; pedalDown=false;
+   for (int i=held.sawCount-1;i>=0;--i) if (held.sawLetGo[held.saw[static_cast<std::size_t>(i)]]) held.dropSaw(held.saw[static_cast<std::size_t>(i)]);
+  }
+  else if (m.isAllSoundOff()) { held.allSoundOff=true; held.hitCount=0; held.sawCount=0; }
+  else if (m.isAllNotesOff()) { held.allNotesOff=true; held.sawCount=0; } // the pedal stays as it is
+  else continue;
   held.any=true;
  }
  midi.clear();

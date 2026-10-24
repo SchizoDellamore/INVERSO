@@ -26,6 +26,8 @@ public:
  ~MidiLearn() override;
  // Audio thread: every MIDI message goes through here (controllers are used, the rest ignored).
  void handle(const juce::MidiMessage&);
+ // Audio thread: only completes an armed learn; mapped controllers are not applied.
+ void learnOnly(const juce::MidiMessage&);
  // Message thread.
  void arm(int parameterIndex);
  void disarm() { armed.store(-1); }
@@ -44,7 +46,11 @@ private:
  juce::AudioProcessor& processor;
  std::array<std::atomic<int>,128> map, pending;
  std::atomic<int> armed{-1};
+ int learn(const juce::MidiMessage&); // the CC (or -1), after completing an armed learn with it
 };
+
+// A MIDI pitch wheel (0..16383, centre 8192) as -1..+1, the way every instrument reads it.
+inline float pitchBendOf(int wheel) { return (static_cast<float>(wheel)-8192.f)/8192.f; }
 
 // Your own presets: XML files in Documents/INVERSO/<plugin>/Presets.
 juce::File userPresetFolder(const juce::String& plugin);
