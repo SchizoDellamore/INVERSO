@@ -483,3 +483,22 @@ target_link_libraries(InversoHaloHostSmoke PRIVATE
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags)
 add_test(NAME halo_host_smoke COMMAND InversoHaloHostSmoke)
+
+# The built VST3 bundles, hosted as a DAW hosts them, through every check in
+# Tests/test_vst3_conformance.cpp (state, programs, rates, block sizes, fuzz, threads, editor).
+juce_add_console_app(InversoVst3Conformance PRODUCT_NAME "INVERSO VST3 Conformance")
+target_sources(InversoVst3Conformance PRIVATE Tests/test_vst3_conformance.cpp)
+target_compile_definitions(InversoVst3Conformance PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(InversoVst3Conformance PRIVATE juce::juce_audio_utils juce::juce_audio_processors
+ juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+foreach(plugin IN ITEMS "InversoAbismo|INVERSO ABISMO" "InversoAbismoSampler|INVERSO ABISMO SAMPLER" "InversoAbismoDrums|INVERSO ABISMO DRUMS"
+                       "InversoRelicario|INVERSO RELICARIO" "InversoEnki|INVERSO ENKI" "InversoClear|INVERSO CLEAR" "InversoTide|INVERSO TIDE"
+                       "InversoNeon|INVERSO NEON" "InversoHalo|INVERSO HALO")
+ string(REPLACE "|" ";" parts "${plugin}")
+ list(GET parts 0 target)
+ list(GET parts 1 name)
+ add_test(NAME "${target}_vst3_conformance"
+          COMMAND InversoVst3Conformance "${CMAKE_CURRENT_BINARY_DIR}/${target}_artefacts/$<CONFIG>/VST3/${name}.vst3" 30)
+ # a plugin that hangs fails here instead of stalling the build
+ set_tests_properties("${target}_vst3_conformance" PROPERTIES TIMEOUT 1200)
+endforeach()

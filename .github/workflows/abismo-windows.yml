@@ -24,7 +24,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
-      - name: Build VST3 and installer and run DSP tests (host tests run on Linux before each push)
+      - name: Build VST3 and installer, run DSP tests and the VST3 conformance of every plugin
         shell: pwsh
         run: |
           .\Abismo\BUILD_ABISMO.ps1 -JucePath "${{ github.workspace }}\JUCE" -NoLto
@@ -50,14 +50,19 @@ jobs:
             $target, $name = $p -split '\\', 2
             $bundle = Join-Path $root "build\$($target)_artefacts\Release\VST3\$name.vst3"
             Write-Host "=== pluginval: $name"
-            # pluginval is a GUI program on Windows: start it and wait for its exit code
-            $log = Join-Path $logs "$name.txt"
-            $proc = Start-Process -FilePath $pv.FullName -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log `
-              -ArgumentList @('--strictness-level', '10', '--validate-in-process', '--timeout-ms', '900000', "`"$bundle`"")
-            # the failures in full (pluginval marks them with !!!), then the summary
-            Select-String -LiteralPath $log -Pattern '!!!|\*\*\* FAILED|Exception|Error' -Context 6,4 | ForEach-Object { Write-Host $_.ToString() }
-            Get-Content -LiteralPath $log | Select-Object -Last 8 | ForEach-Object { Write-Host $_ }
-            if ($proc.ExitCode -ne 0) { $failed += $name; Write-Host "FAILED: $name (exit $($proc.ExitCode))" } else { Write-Host "passed: $name" }
+            # pluginval is a GUI program on Windows: start it and wait for its exit code. Three fixed
+            # seeds: three different random draws, and the same three on every run
+            $exit = 0
+            foreach ($seed in @('1', '20261024', '987654321')) {
+              $log = Join-Path $logs "$name seed $seed.txt"
+              $proc = Start-Process -FilePath $pv.FullName -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log `
+                -ArgumentList @('--strictness-level', '10', '--validate-in-process', '--timeout-ms', '900000', '--random-seed', $seed, "`"$bundle`"")
+              # the failures in full (pluginval marks them with !!!), then the summary
+              Select-String -LiteralPath $log -Pattern '!!!|\*\*\* FAILED|Exception|Error' -Context 6,4 | ForEach-Object { Write-Host $_.ToString() }
+              Get-Content -LiteralPath $log | Select-Object -Last 3 | ForEach-Object { Write-Host "  [seed $seed] $_" }
+              if ($proc.ExitCode -ne 0) { $exit = $proc.ExitCode }
+            }
+            if ($exit -ne 0) { $failed += $name; Write-Host "FAILED: $name (exit $exit)" } else { Write-Host "passed: $name (3 seeds)" }
           }
           if ($failed.Count -gt 0) { throw "pluginval failed for: $($failed -join ', ')" }
       - name: Keep the pluginval reports
