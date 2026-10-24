@@ -15,7 +15,8 @@ add_executable(furnace_engine Tests/test_furnace.cpp)
 add_executable(clear_engine Tests/test_clear.cpp)
 add_executable(tide_engine Tests/test_tide.cpp)
 add_executable(neon_engine Tests/test_neon.cpp)
-foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine tide_engine neon_engine)
+add_executable(halo_engine Tests/test_halo.cpp)
+foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine tide_engine neon_engine halo_engine)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -34,6 +35,7 @@ add_test(NAME furnace_engine COMMAND furnace_engine)
 add_test(NAME clear_engine COMMAND clear_engine)
 add_test(NAME tide_engine COMMAND tide_engine)
 add_test(NAME neon_engine COMMAND neon_engine)
+add_test(NAME halo_engine COMMAND halo_engine)
 target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(enki_engine PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
@@ -441,3 +443,43 @@ target_link_libraries(InversoTideHostSmoke PRIVATE
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags)
 add_test(NAME tide_host_smoke COMMAND InversoTideHostSmoke)
+
+# HALO: 80s reverbs, gated reverb first (an effect).
+set(HALO_SOURCES
+ Source/HaloProcessor.cpp Source/HaloProcessor.h
+ Source/HaloEditor.cpp Source/HaloEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/HaloParams.h Source/DSP/HaloEngine.h)
+juce_add_plugin(InversoHalo
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.halo"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvHl
+ PRODUCT_NAME "INVERSO HALO"
+ FORMATS VST3
+ VST3_CATEGORIES Fx Reverb
+ IS_SYNTH FALSE
+ NEEDS_MIDI_INPUT FALSE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoHalo)
+target_sources(InversoHalo PRIVATE ${HALO_SOURCES})
+target_compile_definitions(InversoHalo PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoHalo PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoHaloHostSmoke PRODUCT_NAME "INVERSO Halo Host Smoke")
+juce_generate_juce_header(InversoHaloHostSmoke)
+target_sources(InversoHaloHostSmoke PRIVATE Tests/test_halo_host.cpp ${HALO_SOURCES})
+target_compile_definitions(InversoHaloHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoHaloHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME halo_host_smoke COMMAND InversoHaloHostSmoke)

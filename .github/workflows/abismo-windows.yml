@@ -43,7 +43,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $logs | Out-Null
           $plugins = @(
             'InversoAbismo\INVERSO ABISMO', 'InversoAbismoSampler\INVERSO ABISMO SAMPLER', 'InversoAbismoDrums\INVERSO ABISMO DRUMS',
-            'InversoRelicario\INVERSO RELICARIO', 'InversoEnki\INVERSO ENKI', 'InversoClear\INVERSO CLEAR', 'InversoTide\INVERSO TIDE')
+            'InversoRelicario\INVERSO RELICARIO', 'InversoEnki\INVERSO ENKI', 'InversoClear\INVERSO CLEAR', 'InversoTide\INVERSO TIDE',
+            'InversoNeon\INVERSO NEON', 'InversoHalo\INVERSO HALO')
           $failed = @()
           foreach ($p in $plugins) {
             $target, $name = $p -split '\\', 2
@@ -81,13 +82,15 @@ jobs:
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoEnki_artefacts\Release\VST3\INVERSO ENKI.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoClear_artefacts\Release\VST3\INVERSO CLEAR.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoTide_artefacts\Release\VST3\INVERSO TIDE.vst3') -Destination $portable -Recurse -Force
+          Copy-Item -LiteralPath (Join-Path $root 'build\InversoNeon_artefacts\Release\VST3\INVERSO NEON.vst3') -Destination $portable -Recurse -Force
+          Copy-Item -LiteralPath (Join-Path $root 'build\InversoHalo_artefacts\Release\VST3\INVERSO HALO.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'IRs\INVERSO CABS') -Destination $portable -Recurse -Force
           $instructions = @'
           INVERSO ABISMO v0.17.0  |  Windows x64  |  VST3 instrument (Cubase, Studio One, Ableton Live, Reaper)
           PORTABLE INSTALL (no EXE required)
           1. Close your DAW.
           2. Extract this GitHub artifact ZIP.
-          3. Copy all seven .vst3 folders (INVERSO ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICARIO, ENKI, CLEAR, TIDE) into:
+          3. Copy all nine .vst3 folders (INVERSO ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE, HALO) into:
              C:\Program Files\Common Files\VST3
           4. Reopen the DAW and rescan VST3 plugins if it does not appear (Instruments / Synth).
           Do not rename the .vst3 folder, or move only its internal binary.

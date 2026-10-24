@@ -14,6 +14,10 @@
 #define SourceClear "..\build\InversoClear_artefacts\Release\VST3\" + ClearPlugin
 #define TidePlugin "INVERSO TIDE.vst3"
 #define SourceTide "..\build\InversoTide_artefacts\Release\VST3\" + TidePlugin
+#define NeonPlugin "INVERSO NEON.vst3"
+#define SourceNeon "..\build\InversoNeon_artefacts\Release\VST3\" + NeonPlugin
+#define HaloPlugin "INVERSO HALO.vst3"
+#define SourceHalo "..\build\InversoHalo_artefacts\Release\VST3\" + HaloPlugin
 #define Cabs "..\..\IRs\INVERSO CABS"
 [Setup]
 AppId={{E14A7E1F-FB29-4908-9CAA-051298D6B3D9}
@@ -23,7 +27,7 @@ AppPublisher=Inverso Studios
 DefaultDirName={commoncf64}\VST3
 DisableDirPage=yes
 DisableProgramGroupPage=yes
-UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI, CLEAR e TIDE (VST3)
+UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE e HALO (VST3)
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
@@ -44,6 +48,8 @@ Source: "{#SourceRelicario}\*"; DestDir: "{commoncf64}\VST3\{#RelicarioPlugin}";
 Source: "{#SourceEnki}\*"; DestDir: "{commoncf64}\VST3\{#EnkiPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceClear}\*"; DestDir: "{commoncf64}\VST3\{#ClearPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceTide}\*"; DestDir: "{commoncf64}\VST3\{#TidePlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceNeon}\*"; DestDir: "{commoncf64}\VST3\{#NeonPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceHalo}\*"; DestDir: "{commoncf64}\VST3\{#HaloPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; INVERSO CABS: the impulse responses, in their own folder (Guitar and Bass), in Documents
 Source: "{#Cabs}\*"; DestDir: "{userdocs}\INVERSO\INVERSO CABS"; Flags: ignoreversion recursesubdirs createallsubdirs
 [InstallDelete]
@@ -58,3 +64,5 @@ Type: filesandordirs; Name: "{commoncf64}\VST3\{#EnkiPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#FurnacePlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#ClearPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#TidePlugin}"
+Type: filesandordirs; Name: "{commoncf64}\VST3\{#NeonPlugin}"
+Type: filesandordirs; Name: "{commoncf64}\VST3\{#HaloPlugin}"
