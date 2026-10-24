@@ -199,6 +199,41 @@ int main(){
   const double lastHz=lastCross/(23000.0/48000.0);
   std::printf("saw after A5 then A4 pressed at a kit change: %.1f Hz (A4 %.1f Hz)\n",lastHz,flat);
   verify(std::abs(lastHz/flat-1.0)<.03,"the saw did not end on the last note pressed during a kit change");
+  // pedal down, a saw note pressed and let go during a kit change: it keeps sounding (the pedal
+  // holds it) until the pedal is up, then fades
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0); p.processBlock(b,m); }
+  p.selectKit(6);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),0); m.addEvent(juce::MidiMessage::noteOff(1,69),100); p.processBlock(b,m); }
+  float pedalHeld=0.f;
+  for(int i=0;i<200;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>150) pedalHeld=std::max(pedalHeld,b.getMagnitude(0,256)); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,0),0); p.processBlock(b,m); }
+  float afterPedal=0.f;
+  for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) afterPedal=std::max(afterPedal,b.getMagnitude(0,256)); }
+  // control: the same gesture on the same kit, no kit change
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),0); m.addEvent(juce::MidiMessage::noteOff(1,69),100); p.processBlock(b,m); }
+  float controlHeld=0.f;
+  for(int i=0;i<200;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>150) controlHeld=std::max(controlHeld,b.getMagnitude(0,256)); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,0),0); p.processBlock(b,m); }
+  float controlAfter=0.f;
+  for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) controlAfter=std::max(controlAfter,b.getMagnitude(0,256)); }
+  std::printf("saw let go under the pedal at a kit change: %.4f while held, %.6f after the pedal (no change: %.4f, %.6f)\n",pedalHeld,afterPedal,controlHeld,controlAfter);
+  verify(pedalHeld>controlHeld*.5f,"a saw note held by the pedal during a kit change was lost");
+  verify(afterPedal<controlAfter*2.f+1e-4f,"a saw note held by the pedal did not stop when the pedal was released");
+  // several hits on one pad during a kit change: one hit, not a stacked burst
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  auto padPeak=[&](int hits){
+   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+   p.selectKit(2);
+   b.clear(); juce::MidiBuffer m; for(int k=0;k<hits;++k) m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),k*20); p.processBlock(b,m);
+   float pk=0.f; for(int i=0;i<40;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); pk=std::max(pk,b.getMagnitude(0,256)); }
+   return pk;
+  };
+  param(p,"STUMBLE",0);
+  const float one=padPeak(1), eight=padPeak(8);
+  std::printf("pad hit at a kit change: one hit %.3f, eight hits %.3f\n",one,eight);
+  verify(eight<one*1.3f && eight>one*.7f,"repeated hits on a pad at a kit change stacked into a burst");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }

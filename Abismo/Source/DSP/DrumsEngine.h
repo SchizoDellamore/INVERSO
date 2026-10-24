@@ -616,6 +616,7 @@ public:
  void setTransport(double bpm, double ppq, bool playing) { mutilator.setTransport(bpm, ppq, playing); }
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f) * 2.f; }
  void setSustain(bool down) { sustainPedal = down; if (!down) saw.sustainUp(); }
+ bool sustainDown() const { return sustainPedal; }
 
  void noteOn(int note, float velocity) {
   if (velocity <= 0.f) { noteOff(note); return; }

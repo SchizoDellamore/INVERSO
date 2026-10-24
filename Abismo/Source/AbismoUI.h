@@ -49,8 +49,8 @@ private:
  int learn(const juce::MidiMessage&); // the CC (or -1), after completing an armed learn with it
 };
 
-// A MIDI pitch wheel (0..16383, centre 8192) as -1..+1, the way every instrument reads it.
-inline float pitchBendOf(int wheel) { return (static_cast<float>(wheel)-8192.f)/8192.f; }
+// A MIDI pitch wheel (0..16383, centre 8192) as -1..+1 (both ends reached), the way every instrument reads it.
+inline float pitchBendOf(int wheel) { const float d=static_cast<float>(wheel)-8192.f; return d/(d>=0.f?8191.f:8192.f); }
 
 // Your own presets: XML files in Documents/INVERSO/<plugin>/Presets.
 juce::File userPresetFolder(const juce::String& plugin);
