@@ -90,9 +90,9 @@ private:
  enum class KitStage { Playing, Faded }; // see processBlock
  KitStage kitStage=KitStage::Playing; // audio thread only
  struct HeldEvent { std::uint8_t bytes[3]{}; std::uint8_t size=0; };
- static constexpr int heldCapacity=1024, releaseReserve=128; // see holdNotes
+ static constexpr int heldCapacity=512, releaseReserve=64; // see holdNotes
  std::array<HeldEvent,heldCapacity> held{}; // audio thread
- int heldCount=0;
+ int heldCount=0, heldBend=-1; // heldBend: the last pitch bend during a kit change, -1 none
  void holdNotes(juce::MidiBuffer& midi);
  void applyKit(int index);
  int currentProgram=0;

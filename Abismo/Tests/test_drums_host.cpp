@@ -139,6 +139,17 @@ int main(){
   };
   const float held=flood(false), released=flood(true);
   std::printf("MIDI flood at a kit change: saw %.4f without its note-off, %.6f with it\n",held,released);
+  // a pad hit after the flood still plays (controllers never take a note's place)
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(2);
+  { b.clear(); juce::MidiBuffer m;
+    for(int k=0;k<1500;++k) m.addEvent(juce::MidiMessage::controllerEvent(1,1+k%100,k%128),k%250);
+    for(int k=0;k<300;++k) m.addEvent(juce::MidiMessage::aftertouchChange(10,36,k%128),k%250);
+    m.addEvent(juce::MidiMessage::noteOn(10,36,1.f),255);
+    p.processBlock(b,m); }
+  float hit=0.f;
+  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); hit=std::max(hit,b.getMagnitude(0,256)); }
+  verify(hit>1e-2f,"a pad hit after a controller flood at a kit change was lost");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }

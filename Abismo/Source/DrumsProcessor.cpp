@@ -69,12 +69,14 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
- heldCount=0; // notes held at a kit change do not outlive a stop
  prepared=true;
  outputPeak.store(0.f);
 }
 
-void InversoAbismoDrumsProcessor::releaseResources() { prepared=false; }
+void InversoAbismoDrumsProcessor::releaseResources() {
+ prepared=false;
+ heldCount=0; heldBend=-1; // notes held at a kit change do not outlive a stop (a re-prepare keeps them)
+}
 
 void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
  juce::ScopedNoDenormals noDenormals;
@@ -88,13 +90,13 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  //           its pad recordings are swapped in: then Playing again, with that generation.
  // Pad recordings swap without freeing memory here: the replaced ones are parked in `retired`
  // and released by the message thread. Outside a kit change they swap at once; during one, only
- // when the new kit starts. kitBusy and kitGeneration are read under the lock: kitBusy is raised
- // before anything is queued, and the generation bumped before it is lowered.
- // read without the lock too, for when it is busy (a pad loading): enough to fade or to keep
- // the values, while the swaps wait for a block that gets the lock
- bool kitBeingWritten=kitBusy.load()>0, swapped=false;
- std::uint32_t generation=kitGeneration.load();
- if (swapLock.tryEnter()) {
+ // when the new kit starts. kitBusy and kitGeneration are read under the lock (kitBusy is raised
+ // before anything is queued, and the generation bumped before it is lowered), or without it when
+ // the lock is busy (a pad loading): enough to fade or to keep the values; the swaps then wait.
+ bool kitBeingWritten=false, swapped=false;
+ std::uint32_t generation=0;
+ if (!swapLock.tryEnter()) { kitBeingWritten=kitBusy.load()>0; generation=kitGeneration.load(); }
+ else {
   kitBeingWritten=kitBusy.load()>0;
   generation=kitGeneration.load();
   if (!kitBeingWritten && (kitStage==KitStage::Faded || generation==playedGeneration)) {
@@ -126,7 +128,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   playedGeneration=generation;
   engine.switchKit(v);
   kitStage=KitStage::Playing;
-  playHeld=heldCount>0; // notes held back start this block, on the new kit
+  playHeld=heldCount>0 || heldBend>=0; // notes held back start this block, on the new kit
  } else if (!kitBeingWritten && generation!=playedGeneration) {
   fadeThisBlock=true;
   holdNotes(midi);
@@ -151,8 +153,9 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // held notes first, at the start of the block and in the order they came (their timing is
  // lost: a note played and released during a kit change is a very short one)
  if (playHeld) {
+  if (heldBend>=0) engine.setPitchBend((static_cast<float>(heldBend)-8192.f)/8192.f);
   for (int i=0;i<heldCount;++i) play(juce::MidiMessage(held[static_cast<std::size_t>(i)].bytes,held[static_cast<std::size_t>(i)].size));
-  heldCount=0;
+  heldCount=0; heldBend=-1;
  }
  int position=0;
  for (const auto metadata : midi) {
@@ -174,21 +177,22 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  padLights.fetch_or(engine.takeTriggeredPads(),std::memory_order_relaxed);
 }
 
-// Notes arriving during a kit change are held for the new kit in a fixed array (no allocation,
-// constant time per event). Only short messages (notes, controllers, pitch) are kept, no SysEx.
-// Past the array's last slots, new notes and controllers are dropped; those slots stay for what
-// releases something (note-off, sustain off, all notes / sound off), so nothing is left hanging.
+// What arrives during a kit change is kept for the new kit, only what it needs: notes, sustain
+// and all-notes/sound-off in order (a fixed array, no allocation, constant time per event), and
+// the last pitch bend. Learned controllers are not replayed, so the new kit comes up exactly as
+// designed; aftertouch, clock and SysEx are not used by the instrument. The array's last slots
+// are kept for what releases something (note-off, sustain off, all off): nothing is left hanging.
 void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
  for (const auto metadata : midi) {
-  if (metadata.numBytes<1 || metadata.numBytes>3) continue;
-  const auto* d=metadata.data;
-  const int status=d[0]&0xF0;
-  const bool releases=status==0x80 || (status==0x90 && metadata.numBytes==3 && d[2]==0)
-                   || (status==0xB0 && metadata.numBytes==3 && ((d[1]==64 && d[2]<64) || d[1]==120 || d[1]==123));
+  if (metadata.numBytes>3) continue; // SysEx: not used by this instrument
+  const auto m=metadata.getMessage(); // three bytes at most: stored inline, no allocation
+  if (m.isPitchWheel()) { heldBend=m.getPitchWheelValue(); continue; }
+  const bool releases=m.isNoteOff() || m.isSustainPedalOff() || m.isAllNotesOff() || m.isAllSoundOff();
+  if (!releases && !m.isNoteOn() && !m.isSustainPedalOn()) continue;
   if (heldCount>=(releases?heldCapacity:heldCapacity-releaseReserve)) continue;
   auto& e=held[static_cast<std::size_t>(heldCount++)];
   e.size=static_cast<std::uint8_t>(metadata.numBytes);
-  for (int k=0;k<metadata.numBytes;++k) e.bytes[k]=d[k];
+  for (int k=0;k<metadata.numBytes;++k) e.bytes[k]=metadata.data[k];
  }
  midi.clear();
 }
