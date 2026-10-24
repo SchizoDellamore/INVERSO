@@ -1,4 +1,4 @@
-#define Ver "0.12.0"
+#define Ver "0.13.0"
 #define Plugin "INVERSO ABISMO.vst3"
 #define SourcePlugin "..\build\InversoAbismo_artefacts\Release\VST3\" + Plugin
 #define SamplerPlugin "INVERSO ABISMO SAMPLER.vst3"
@@ -11,6 +11,8 @@
 #define SourceEnki "..\build\InversoEnki_artefacts\Release\VST3\" + EnkiPlugin
 #define FurnacePlugin "INVERSO FURNACE.vst3"
 #define SourceFurnace "..\build\InversoFurnace_artefacts\Release\VST3\" + FurnacePlugin
+#define ClearPlugin "INVERSO CLEAR.vst3"
+#define SourceClear "..\build\InversoClear_artefacts\Release\VST3\" + ClearPlugin
 [Setup]
 AppId={{E14A7E1F-FB29-4908-9CAA-051298D6B3D9}
 AppName=INVERSO ABISMO
@@ -19,7 +21,7 @@ AppPublisher=Inverso Studios
 DefaultDirName={commoncf64}\VST3
 DisableDirPage=yes
 DisableProgramGroupPage=yes
-UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI e FURNACE (VST3)
+UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI, FURNACE e CLEAR (VST3)
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
@@ -38,6 +40,7 @@ Source: "{#SourceDrums}\*"; DestDir: "{commoncf64}\VST3\{#DrumsPlugin}"; Flags: 
 Source: "{#SourceRelicario}\*"; DestDir: "{commoncf64}\VST3\{#RelicarioPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceEnki}\*"; DestDir: "{commoncf64}\VST3\{#EnkiPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceFurnace}\*"; DestDir: "{commoncf64}\VST3\{#FurnacePlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceClear}\*"; DestDir: "{commoncf64}\VST3\{#ClearPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [UninstallDelete]
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#Plugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#SamplerPlugin}"
@@ -45,3 +48,4 @@ Type: filesandordirs; Name: "{commoncf64}\VST3\{#DrumsPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#RelicarioPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#EnkiPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#FurnacePlugin}"
+Type: filesandordirs; Name: "{commoncf64}\VST3\{#ClearPlugin}"

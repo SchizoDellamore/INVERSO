@@ -53,7 +53,7 @@ inline const std::array<Preset, 10>& presets() {
  static const std::array<Preset, 10> table{{
   {"Gentle", {{-1, 0}}},
   {"Harsh Guitars", {{MudDepth, 2}, {HarshDepth, 7}, {HarshLow, 1800}, {HarshHigh, 7000}, {HarshSense, 60}, {Sharpness, 45}, {-1, 0}}},
-  {"Muddy Mix", {{MudDepth, 7}, {MudFocus, 280}, {MudSense, 60}, {HarshDepth, 2}, {-1, 0}}},
+  {"Muddy Mix", {{MudDepth, 8}, {MudFocus, 280}, {MudSense, 75}, {HarshDepth, 0}, {-1, 0}}},
   {"Vocal Resonances", {{MudDepth, 3}, {MudFocus, 320}, {HarshDepth, 6}, {HarshLow, 900}, {HarshHigh, 9000}, {Sharpness, 70}, {Speed, 65}, {-1, 0}}},
   {"Sibilance", {{MudDepth, 0}, {HarshDepth, 8}, {HarshLow, 4500}, {HarshHigh, 12000}, {HarshSense, 65}, {Sharpness, 30}, {Speed, 80}, {-1, 0}}},
   {"Bass Clarity", {{MudDepth, 6}, {MudFocus, 220}, {MudSense, 55}, {HarshDepth, 0}, {Speed, 40}, {-1, 0}}},

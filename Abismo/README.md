@@ -1,10 +1,11 @@
-# INVERSO ABISMO v0.12.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.13.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
 - **INVERSO ABISMO SAMPLER**: manipulação de samples, clássico e granular.
 - **INVERSO ABISMO DRUMS**: sampler de percussão de ferro-velho (gravações reais em domínio público, ou as suas) e serrote melódico.
 - **INVERSO RELICÁRIO** (0.10): quatro máquinas esquecidas num instrumento só: loops de fita, harmônio de fole elétrico, diapasão eletromagnético e órgão transistorizado soviético.
+- **INVERSO CLEAR** (0.13): tira o embolamento e a aspereza de um som só quando eles aparecem (um efeito).
 - **INVERSO FURNACE** (0.12): amplificador de guitarra e baixo (um efeito, não um instrumento), com as caixas do INVERSO CABS dentro.
 - **INVERSO ENKI** (0.11): gerador de ideias sonoras. Inventa sons musicais ou não, a partir de síntese, das gravações do DRUMS e das suas próprias bibliotecas de samples.
 
@@ -116,7 +117,7 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 - **TUNING FORK** (à la Spark Gap): garfo mantido por eletroímã. CLANG é a pancada inicial; DRIVE é quanto o circuito mantém o garfo soando (em 0% ele morre como um diapasão batido); SPARK é o estalo do contato; BEAT é um segundo garfo desafinado.
 - **SOVIET ORGAN** (à la Junost/Lel): ondas quadradas divididas de um oscilador só. Registros 16', 8', 4' e UPPER (Octave, Fifth ou Third). Em SOUND: TONE, TREMOLO e RATE do próprio órgão, SPEAKER (o falante rasgado) e HUM (50 Hz da rede).
 - **KEYS**: envelope ADSR das quatro máquinas, velocity, oitava, afinação fina, glide e bend.
-- **AGE** (KEYS › Age, 0.12.0): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
+- **AGE** (KEYS › Age, 0.13.0): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
 
 **O rack de efeitos** (0.10; o som passa por eles nesta ordem)
 1. **DESTROY**: DRIVE com cinco tipos (Tape, Fuzz, Fold, Rectify, Shatter), CRUSH (bits) e DOWNSAMPLE. Na página RING, um modulador em anel com frequência fixa (20 Hz a 3 kHz).
@@ -129,6 +130,15 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 
 ### Presets do RELICÁRIO (29)
 Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
+
+## CLEAR
+Limpeza dinâmica: age só quando o problema aparece e deixa o resto como está. Vai num insert de qualquer canal, grupo ou master. Mono ou estéreo (os dois lados recebem o mesmo corte, a imagem não se mexe).
+
+- **HARSHNESS:** na faixa entre FROM e UP TO, cada frequência é comparada com a vizinhança. O que salta (ressonância, apito, "zumbido" de caixa) é abaixado até DEPTH. Se a faixa inteira está brilhante demais em relação ao corpo do som, ela desce por igual. SENSITIVITY diz o quanto pode saltar antes de agir. WIDTH vai de largo (problemas amplos) a estreito (ressonâncias finas).
+- **MUD:** procura uma "barriga" nos médios-graves em volta de WHERE, comparada à linha que liga os graves aos médios. A inclinação natural de uma mistura não conta, só o acúmulo. DEPTH é o máximo que tira.
+- **RESPONSE:** SPEED (devagar e suave, ou rápido para transientes), MIX e **DELTA**, para ouvir só o que está sendo tirado. É o jeito de ajustar: se no DELTA você ouve a música inteira e não o problema, está tirando demais.
+- A tela mostra o espectro e, embaixo, o que sai em cada frequência (âmbar no embolamento, rosa na aspereza).
+- Com DEPTH em zero nos dois, o som sai idêntico (reconstrução exata). Latência: 2048 amostras (43 ms a 48 kHz; 4096 em 88,2 kHz ou mais), informada à DAW, que compensa.
 
 ## FURNACE
 Amplificador de guitarra e baixo. Entra num canal de áudio (insert), não de instrumento. Mono ou estéreo na entrada (o estéreo é somado: amp é mono), mono ou estéreo na saída.
@@ -157,7 +167,7 @@ Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (
 **Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.12.0** e baixe `INVERSO_ABISMO_Setup_0.12.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.12.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os seis aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE nos efeitos (*Distortion*), ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as seis pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.13.0** e baixe `INVERSO_ABISMO_Setup_0.13.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.13.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE (*Distortion*) e CLEAR (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 
