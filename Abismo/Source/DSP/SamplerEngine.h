@@ -265,6 +265,7 @@ public:
   sr = (std::isfinite(sampleRate) && sampleRate >= 8000.0) ? sampleRate : 48000.0;
   reverb.prepare(sr);
   mutilator.prepare(sr);
+  resampler.prepare(sr);
   for (int i = 0; i < maxVoices; ++i) {
    voices[static_cast<std::size_t>(i)].seed(static_cast<std::uint32_t>(i + 101));
    voices[static_cast<std::size_t>(i)].kill();
@@ -343,6 +344,7 @@ public:
    const float width = smoothed[P::Width] * .01f;
    for (int i = 0; i < n; ++i) {
     float wl = 0.f, wr = 0.f;
+    if (resampler.enabled()) resampler.process(l[i], r[i]);
     mutilator.process(l[i], r[i]);
     reverb.process(l[i], r[i], wl, wr);
     float ol = l[i] * dryGain + wl * wetGain;
@@ -418,7 +420,8 @@ private:
   c.lfoPosition = pct(P::LfoPosition);
   static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
   mutilator.configure(divisions[std::clamp(choice(P::StutterDiv), 0, 6)], pct(P::StutterDepth),
-                      std::min(1.f, pct(P::Chaos) + tension * .3f), pct(P::Crush), pct(P::Downsample));
+                      std::min(1.f, pct(P::Chaos) + tension * .3f), 0.f, 0.f);
+  resampler.set(choice(P::Resample), pct(P::ResampleSat));
   mutilator.setFreeTime(choice(P::StutterSync) == 1, s[P::StutterMs]);
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
   filterShape.set(s[P::FAttack], s[P::FDecay], pct(P::FSustain), s[P::FRelease], sr);
@@ -435,6 +438,7 @@ private:
  const SampleData* sample = nullptr;
  Reverb reverb;
  Mutilator mutilator;
+ Resampler resampler;
  int controlCountdown = 0;
  float lfoPhase = 0.f, lfoValue = 0.f, bend = 0.f, modWheel = 0.f, pressure = 0.f, outGain = 1.f;
  bool sustainPedal = false;

@@ -2,6 +2,7 @@
 // ABISMO SAMPLER parameter table and factory presets. Same conventions as
 // AbismoParams.h: IDs are saved in sessions, never rename; only append.
 #include "AbismoParams.h"
+#include "AbismoResampler.h"
 
 namespace inverso_abismo::sampler {
 
@@ -21,6 +22,7 @@ enum : int {
  // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
  PressureCC,
  End,
+ Resample, ResampleSat,
  Count
 };
 }
@@ -88,6 +90,8 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
   {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
   {"END","End",0,100,100,0,.01f,Kind::Float,nullptr,"%"}, // where a one-shot stops (START..END is the region)
+  {"RESAMPLE","Resample rate",0,7,0,0,1,Kind::Choice,inverso_abismo::Resampler::choices(),""},
+  {"RESAMPLE_SAT","Resample saturation",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -135,6 +139,11 @@ inline Values presetValues(std::size_t index) {
  for (const auto& pv : presets()[index].values) {
   if (pv.param < 0) break;
   v[static_cast<std::size_t>(pv.param)] = pv.value;
+ }
+ // the bit crush / downsample became RESAMPLE
+ if (v[P::Crush] > 0.f || v[P::Downsample] > 0.f) {
+  v[P::Resample] = static_cast<float>(Resampler::choiceForCrush(v[P::Crush], v[P::Downsample]));
+  v[P::Crush] = v[P::Downsample] = 0.f;
  }
  return v;
 }

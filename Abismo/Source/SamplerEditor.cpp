@@ -19,7 +19,7 @@ const char* const* shortNames(){
   "RATE","PITCH","FILTER","VOLUME","POSITION",
   "TENSION","BITS","RATE","DIVISION","DEPTH","CHAOS",
   "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
-  "TIMING","TIME","AT KNOB","END"};
+  "TIMING","TIME","AT KNOB","END","RESAMPLE","SATURATION"};
  return names;
 }
 
@@ -219,7 +219,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  add("MOVEMENT",c::blue,{{"Pitch",{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
                           {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}}},96,{});
  add("MUTILATION",c::orange,{{"Chop",{P::StutterMs,P::StutterDepth,P::Chaos}},
-                                                              {"Digital",{P::Crush,P::Downsample}}},104,{P::StutterSync,P::StutterDiv});
+                                                              {"Resample",{P::Resample,P::ResampleSat}}},104,{P::StutterSync,P::StutterDiv});
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze},{P::RevMix}}},104,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
@@ -312,12 +312,14 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
   if(page==1){
-   const float crush=value(P::Crush)*.01f,ds=value(P::Downsample)*.01f;
-   const float levels=std::exp2(9.f-crush*7.f),hold=1.f+ds*ds*30.f;
-   soft::glowStroke(g,curve(area,240,[&](float t){
-    const float tt=std::floor(t*240.f/hold)*hold/240.f;
-    return .8f*std::round(std::sin(tt*6.2831853f*2.f)*levels)/levels;
-   }),c::orange);
+   const int rateChoice=juce::roundToInt(value(P::Resample));
+   const float keep=rateChoice==0?1.f:juce::jlimit(.05f,1.f,inverso_abismo::Resampler::rateOf(rateChoice)/20000.f);
+   caption(g,area,rateChoice==0?juce::String("RESAMPLE OFF"):juce::String(inverso_abismo::Resampler::rateOf(rateChoice),0)+" Hz");
+   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),240,[&](float t){
+    float x=0.f; // a square-ish wave: its corners round off as the top end goes
+    for(int h=1;h<=15;h+=2) if(h*1000.f<keep*20000.f*.45f+1000.f) x+=std::sin(t*6.2831853f*2.f*h)/static_cast<float>(h);
+    return .7f*x;
+   }),c::orange.withAlpha(rateChoice>0?1.f:.35f));
    return;
   }
   const int div=juce::roundToInt(value(P::StutterDiv));

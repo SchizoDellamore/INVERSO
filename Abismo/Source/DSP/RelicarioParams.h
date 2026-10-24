@@ -4,6 +4,7 @@
 // transistor organ, each with its own level so they play alone or together.
 // Portable parameter table and factory presets (no JUCE).
 #include "AbismoParams.h"
+#include "AbismoResampler.h"
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -52,6 +53,7 @@ enum : int {
  ForkAttack, ForkDecay, ForkSustain, ForkRelease,
  OrganAttack, OrganDecay, OrganSustain, OrganRelease,
  FitaOn, HarmOn, ForkOn, OrganOn, DestroyOn, FilterOn, ChopOn, ModOn, EchoOn, SpaceOn,
+ Resample, ResampleSat,
  Count
 };
 }
@@ -182,6 +184,8 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"MOD_ON","Modulation on",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"ECHO_ON","Echo on",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"SPACE_ON","Space on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"RESAMPLE","Resample rate",0,7,0,0,1,Kind::Choice,inverso_abismo::Resampler::choices(),""},
+  {"RESAMPLE_SAT","Resample saturation",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -290,6 +294,11 @@ inline Values presetValues(std::size_t index) {
  }
  // The factory presets were written for one envelope: it becomes every
  // machine's own, and the master ENVELOPE is left open.
+ // the bit crush became RESAMPLE
+ if (v[P::Crush] > 0.f || v[P::Downsample] > 0.f) {
+  v[P::Resample] = static_cast<float>(Resampler::choiceForCrush(v[P::Crush], v[P::Downsample]));
+  v[P::Crush] = v[P::Downsample] = 0.f;
+ }
  auto unset = [&](int p) { return std::abs(v[static_cast<std::size_t>(p)] - specs()[static_cast<std::size_t>(p)].def) < 1e-6f; };
  const float shape[4] = {unset(P::Attack) ? 8.f : v[P::Attack], v[P::Decay], v[P::Sustain], unset(P::Release) ? 350.f : v[P::Release]};
  for (int m = 0; m < 4; ++m)

@@ -31,7 +31,7 @@ const char* const* shortNames(){
   "LOOP 1","LOOP 2",
   "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
   "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
-  "ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"};
+  "ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","RESAMPLE","SATURATION"};
  return names;
 }
 
@@ -129,7 +129,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  // ---- keys and the effects rack, in signal order
  add("KEYS",c::violet,{{"Play",{P::VelSens,P::Glide,P::BendRange,P::Fine}},
                        {"Age",{P::Age},{P::Age}}},96,{P::Octave});
- add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Crush,P::Downsample},{P::Drive}},
+ add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Resample,P::ResampleSat},{P::Drive}},
                          {"Ring",{P::RingMix,P::RingFreq}}},96,{P::DriveType});
  add("FILTER",c::orange,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::FilterDecay},{P::Cutoff}},
                          {"LFO",{P::FilterLfo,P::FilterLfoRate}}},96,{P::FilterMode});
@@ -308,15 +308,20 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   const float drive=value(P::Drive)*.01f;
   const int type=juce::roundToInt(value(P::DriveType));
   caption(g,area,"DRIVE "+juce::String(juce::roundToInt(drive*100.f))+"%",
-          "CRUSH "+juce::String(juce::roundToInt(value(P::Crush)))+"%  DS "+juce::String(juce::roundToInt(value(P::Downsample)))+"%");
+          "RESAMPLE "+(juce::roundToInt(value(P::Resample))==0?juce::String("OFF"):juce::String(inverso_abismo::Resampler::rateOf(juce::roundToInt(value(P::Resample))),0)+" Hz"));
   inverso_abismo::relicario::Drive preview;
-  const float levels=std::exp2(15.f-value(P::Crush)*.01f*13.f);
+  // RESAMPLE: a waveform that loses its edges as the rate drops
+  const int rateChoice=juce::roundToInt(value(P::Resample));
+  const float rate=inverso_abismo::Resampler::rateOf(rateChoice);
+  const float keep=rateChoice==0?1.f:juce::jlimit(.05f,1.f,rate/20000.f);
   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),160,[&](float t){
-   const float x=std::sin(t*6.2831853f)*.6f;
+   // a square-ish wave: its corners round off as the top end goes
+   float x=0.f;
+   for(int h=1;h<=15;h+=2) if(h*1000.f<keep*20000.f*.45f+1000.f) x+=std::sin(t*6.2831853f*h)/static_cast<float>(h);
+   x*=.6f;
    float y=drive>0.f?preview.process(x,type==4?0:type,drive):x;
-   y=std::round(y*levels)/levels;
    return .85f*juce::jlimit(-1.f,1.f,y);
-  }),c::blood.brighter(.3f).withAlpha(drive>0.f || value(P::Crush)>0.f?1.f:.35f));
+  }),c::blood.brighter(.3f).withAlpha(drive>0.f || rateChoice>0?1.f:.35f));
  };
  // FILTER: the response, and where the envelope takes it.
  m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){

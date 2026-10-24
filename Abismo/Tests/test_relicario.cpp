@@ -156,6 +156,7 @@ static void mechanisms() {
   e.noteOn(60, 1.f); render(e, sr); e.noteOff(60);
   render(e, sr * 8);
   auto quiet = render(e, sr);
+  std::printf("after release: %d voices, rms %.6f\n", e.activeVoices(), rms(quiet.l, 0, quiet.l.size()));
   verify(e.activeVoices() == 0 && rms(quiet.l, 0, quiet.l.size()) < 2e-4f, "silence after release");
  }
 }
@@ -182,7 +183,7 @@ static void effects() {
  const std::vector<Case> cases = {
   {"drive tape", {{Drive, 100}}}, {"drive fuzz", {{Drive, 100}, {DriveType, 1}}}, {"drive fold", {{Drive, 100}, {DriveType, 2}}},
   {"drive rectify", {{Drive, 100}, {DriveType, 3}}}, {"drive shatter", {{Drive, 100}, {DriveType, 4}}},
-  {"crush", {{Crush, 100}}}, {"downsample", {{Downsample, 100}}},
+  {"resample 5000", {{Resample, 4}}}, {"resample 1000 saturated", {{Resample, 6}, {ResampleSat, 100}}},
   {"chop", {{ChopDiv, 3}, {ChopDepth, 100}}}, {"chop free", {{ChopDiv, 3}, {ChopSync, 1}, {ChopMs, 50}, {ChopDepth, 100}}},
   {"chop reverse", {{ChopReverse, 100}}},
   {"low pass", {{FilterMode, 1}, {Cutoff, 400}}}, {"band pass", {{FilterMode, 2}, {Cutoff, 1000}, {Resonance, 60}}},
@@ -397,13 +398,13 @@ static void feedback014() {
  }
  // Bit crush: quiet passages do not turn into hiss.
  {
-  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Crush] = 100; v[FitaRelease] = 3000;
+  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Resample] = 5; v[ResampleSat] = 100; v[FitaRelease] = 3000;
   R::Engine e; e.setValues(v); e.prepare(sr);
   e.noteOn(57, .9f); render(e, sr / 2); e.noteOff(57);
   auto s = render(e, sr * 2);
   const double share = harmonicShare(s.l, sr, 220, sr, sr * 2); // the quiet tail of the note
-  std::printf("crush: tail %.0f%% harmonic\n", share * 100);
-  verify(share > .7, "the crusher turns quiet sound into noise");
+  std::printf("resample: tail %.0f%% harmonic\n", share * 100);
+  verify(share > .7, "resample turns quiet sound into noise");
  }
  // Broken speaker: faults that follow the note (harmonic), not hiss.
  {

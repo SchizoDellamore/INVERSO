@@ -366,6 +366,7 @@ public:
   sr = (std::isfinite(sampleRate) && sampleRate >= 8000.0) ? sampleRate : 48000.0;
   reverb.prepare(sr);
   chop.prepare(sr);
+  resampler.prepare(sr);
   chop.setLayeredRepeats(false);
   echoL.prepare(static_cast<int>(sr * 1.4)); echoR.prepare(static_cast<int>(sr * 1.4));
   for (int i = 0; i < maxVoices; ++i) { voices[static_cast<std::size_t>(i)].seed(static_cast<std::uint32_t>(i + 1)); voices[static_cast<std::size_t>(i)].amp.reset(); voices[static_cast<std::size_t>(i)].modEnv.reset(); }
@@ -443,6 +444,7 @@ public:
    for (int i = 0; i < n; ++i) {
     float a = l[i] * ampLfo * gateLevel, b = r[i] * ampLfo * gateLevel;
     gateLevel += gateCoef * (gateTarget - gateLevel);
+    if (resampler.enabled()) resampler.process(a, b);
     chop.process(a, b);
     if (echoMix > 0.f || echoTail > 1e-5f) {
      const float el = echoL.read(echoSamples), er = echoR.read(echoSamples * 1.02f);
@@ -551,7 +553,8 @@ private:
   echoSamples = static_cast<float>(std::min(es > 0 ? echoBeats[es] * 60.0 / tempo : s[P::EchoTime] * .001, 1.35) * sr);
   const float glitch = pct(P::Glitch);
   chop.setReverse(pct(P::Reverse));
-  chop.configure(glitch > 0.f ? (glitch > .6f ? .125 : .25) : 0.0, .35f * glitch, glitch, pct(P::Crush), 0.f);
+  chop.configure(glitch > 0.f ? (glitch > .6f ? .125 : .25) : 0.0, .35f * glitch, glitch, 0.f, 0.f);
+  resampler.set(choice(P::Resample), pct(P::ResampleSat));
   gateCoef = 1.f - std::exp(-1.f / (.002f * static_cast<float>(sr)));
   outGain = std::pow(10.f, s[P::Output] / 20.f);
  }
@@ -565,6 +568,7 @@ private:
  SamplePool pool;
  Reverb reverb;
  Mutilator chop;
+ Resampler resampler;
  DelayLine echoL, echoR;
  Random rng;
  float echoSamples = 18000.f, echoLpL = 0.f, echoLpR = 0.f, echoTail = 0.f;

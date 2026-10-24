@@ -110,7 +110,53 @@ static void swapping() {
  verify(std::abs(frequency(s.l, sr, sr / 10, s.l.size()) - 220.0) < 1.0, "new sample must play after swap");
 }
 
+// RESAMPLE: off is untouched; a rate keeps what is under its Nyquist and takes
+// away what is above; changing the rate does not click.
+static void resampler() {
+ const double sr = 48000;
+ auto tone = [&](double f, int choice, float sat) {
+  inverso_abismo::Resampler rs; rs.prepare(sr); rs.set(choice, sat);
+  double in = 0, out = 0;
+  for (int i = 0; i < 48000; ++i) {
+   float l = .3f * static_cast<float>(std::sin(2 * 3.14159265358979 * f * i / sr)), r = l;
+   const float x = l;
+   rs.process(l, r);
+   verify(std::isfinite(l) && std::isfinite(r), "resample: not finite");
+   if (i > 9600) { in += static_cast<double>(x) * x; out += static_cast<double>(l) * l; }
+  }
+  return 10 * std::log10(out / in);
+ };
+ verify(std::abs(tone(1000, 0, 0.f)) < 1e-4, "resample off changes the sound");
+ const double pass = tone(1000, 4, 0.f), stop = tone(4000, 4, 0.f), stop2 = tone(9000, 2, 0.f), pass2 = tone(3000, 2, 0.f);
+ std::printf("resample 5000 Hz: 1 kHz %+.2f dB, 4 kHz %+.1f dB; 10000 Hz: 3 kHz %+.2f dB, 9 kHz %+.1f dB\n", pass, stop, pass2, stop2);
+ verify(std::abs(pass) < 1.0 && std::abs(pass2) < 1.0, "resample loses what is under its Nyquist");
+ verify(stop < -30 && stop2 < -30, "resample keeps what is above its Nyquist");
+ const double sat = tone(200, 4, 1.f);
+ std::printf("resample saturation at full: %+.2f dB on a -10 dBFS tone\n", sat);
+ verify(std::abs(sat) < 3.0, "resample saturation changes the level too much");
+ // rate changes while a tone plays: no step bigger than a held rate's own
+ // (the held rates themselves leave a little of the steps' top end)
+ auto worstStep = [&](bool switching, int fixed) {
+  inverso_abismo::Resampler rs; rs.prepare(sr); rs.set(fixed, 0.f);
+  float prev = 0, prev2 = 0, worst = 0;
+  for (int i = 0; i < 96000; ++i) {
+   if (switching && i % 9600 == 0) rs.set((i / 9600) % 8, 0.f);
+   float l = .3f * static_cast<float>(std::sin(2 * 3.14159265358979 * 300 * i / sr)), r = l;
+   rs.process(l, r);
+   if (i > 4800) worst = std::max(worst, std::abs(l - 2 * prev + prev2));
+   prev2 = prev; prev = l;
+  }
+  return worst;
+ };
+ float steady = 0;
+ for (int k = 0; k < 8; ++k) steady = std::max(steady, worstStep(false, k));
+ const float moving = worstStep(true, 0);
+ std::printf("resample rate changes: worst step %.5f, steadiest held rate %.5f\n", moving, steady);
+ verify(moving < steady * 1.5f, "changing the resample rate clicks");
+}
+
 int main(int argc, char** argv) {
+ resampler();
  classic();
  granular();
  swapping();

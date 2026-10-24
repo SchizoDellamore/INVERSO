@@ -20,7 +20,7 @@ public:
  Values generate(const Values& current, std::uint32_t userSlots) {
   const int category = std::clamp(static_cast<int>(std::lround(current[P::Category])), 0, 4);
   Values v = defaults();
-  for (int p = P::Category; p < P::Count; ++p) v[static_cast<std::size_t>(p)] = current[static_cast<std::size_t>(p)];
+  for (int p = P::Category; p <= P::LockSpace; ++p) v[static_cast<std::size_t>(p)] = current[static_cast<std::size_t>(p)];
   v[P::PressureCC] = current[P::PressureCC];
   slots = userSlots;
   switch (category) {
@@ -30,6 +30,7 @@ public:
    case Rhythmic: rhythmic(v); break;
    default: weird(v); break;
   }
+  v[P::Crush] = 0.f; // the old bit crush stays unused: RESAMPLE took its place
   keepLocked(v, current);
   return v;
  }
@@ -40,7 +41,7 @@ public:
   Values v = current;
   const auto& table = specs();
   for (int p = 0; p < P::Category; ++p) {
-   if (p == P::PressureCC || p == P::Output || p == P::BendRange || p == P::VelSens || p == P::Width) continue;
+   if (p == P::PressureCC || p == P::Output || p == P::BendRange || p == P::VelSens || p == P::Width || p == P::Crush) continue;
    const auto& s = table[static_cast<std::size_t>(p)];
    auto& x = v[static_cast<std::size_t>(p)];
    if (s.kind == Kind::Float) {
@@ -265,7 +266,8 @@ private:
   set(v, P::Hold, chance(.4f) ? 1.f : 0.f);
   set(v, P::Gate, chance(.4f) ? range(30.f, 100.f) : 0.f);
   set(v, P::Glitch, chance(.4f) ? range(10.f, 80.f) : 0.f);
-  set(v, P::Crush, chance(.3f) ? range(20.f, 70.f) : 0.f);
+  set(v, P::Resample, chance(.3f) ? std::round(range(2.f, 6.f)) : 0.f);
+  set(v, P::ResampleSat, chance(.5f) ? range(10.f, 70.f) : 0.f);
   set(v, P::EchoMix, range(0.f, 50.f));
   set(v, P::EchoFeedback, range(20.f, 80.f));
   set(v, P::RevMix, range(10.f, 70.f));

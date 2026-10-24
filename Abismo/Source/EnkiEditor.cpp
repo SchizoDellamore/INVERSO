@@ -20,7 +20,7 @@ const char* const* shortNames() {
   "GATE","STEPS","PATTERN","GLITCH","REVERSE",
   "ECHO","SYNC","TIME","REPEATS","REVERB","SIZE","DECAY",
   "OCTAVE","GLIDE","VELOCITY","BEND","AT KNOB","WIDTH","OUTPUT",
-  "CATEGORY","MUTATE","LOCK","LOCK","LOCK","LOCK","LOCK"};
+  "CATEGORY","MUTATE","LOCK","LOCK","LOCK","LOCK","LOCK","RESAMPLE","SATURATION"};
  static_assert(sizeof(names) / sizeof(names[0]) == P::Count, "one short name per parameter");
  return names;
 }
@@ -487,7 +487,7 @@ InversoEnkiEditor::InversoEnkiEditor(InversoEnkiProcessor& p) : AudioProcessorEd
   add(k == 0 ? "SOURCE A" : "SOURCE B", k == 0 ? c::amber : c::cyan,
       {{"Sound", {P::ALevel + b, P::APitch + b, P::AFine + b, P::AChar + b, P::AMotion + b}, {P::ALevel + b}}}, 130, {P::AType + b});
  }
- add("SHAPE", c::violet, {{"Filter", {P::Cutoff, P::Resonance, P::FilterEnv, P::Keytrack}, {P::Cutoff}}, {"Drive", {P::Drive, P::Crush, P::Ring}}}, 96,
+ add("SHAPE", c::violet, {{"Filter", {P::Cutoff, P::Resonance, P::FilterEnv, P::Keytrack}, {P::Cutoff}}, {"Drive", {P::Drive, P::Resample, P::ResampleSat, P::Ring}}}, 96,
      {P::FilterMode, P::DriveType});
  add("ENVELOPES", c::green, {{"Level", {P::Attack, P::Decay, P::Sustain, P::Release, P::Hold}}, {"Mod", {P::ModAttack, P::ModDecay, P::PitchEnv}}}, 96, {});
  add("MOTION", c::blue, {{"LFO", {P::LfoRate, P::LfoPitch, P::LfoFilter, P::LfoAmp, P::LfoPan, P::LfoChar}, {P::LfoRate}},

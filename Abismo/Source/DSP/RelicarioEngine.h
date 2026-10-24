@@ -417,6 +417,7 @@ public:
    }
   }
   chop.prepare(sr);
+  resampler.prepare(sr);
   driveL.prepare(sr); driveR.prepare(sr); driveL2.prepare(sr); driveR2.prepare(sr);
   xfadeStep = static_cast<float>(1.0 / (.02 * sr)); // switching drive or filter type: 20 ms crossfade
   clearEffects();
@@ -584,6 +585,7 @@ public:
      }
      l += fx.driveWet * (wl - l); r += fx.driveWet * (wr - r);
     }
+    if (resampler.enabled()) resampler.process(l, r);
     if ((fx.filterMode > 0 || filterFade > 0.f) && fx.filterOn > 0.f) {
      float lp, bp, hp, lp2, bp2, hp2;
      filterL.processAll(l, fa1, fa2, fa3, fk, lp, bp, hp);
@@ -824,7 +826,8 @@ private:
    const bool chopOn = onGain[6] > .5f;
    chop.setReverse(chopOn ? pct(P::ChopReverse) : 0.f);
    chop.configure(chopOn ? divisions[std::clamp(choice(P::ChopDiv), 0, 6)] : 0.0, pct(P::ChopDepth), pct(P::ChopChaos),
-                  pct(P::Crush) * onGain[4], pct(P::Downsample) * onGain[4]);
+                  0.f, 0.f); // the old bit crush is replaced by RESAMPLE
+   resampler.set(onGain[4] > .5f ? choice(P::Resample) : 0, pct(P::ResampleSat) * onGain[4]);
   }
   outGain = std::pow(10.f, s[P::Output] / 20.f);
   // Reed cabinet: bakelite boxy and dark, plastic thin and nasal.
@@ -900,6 +903,7 @@ private:
  Phaser phaserL, phaserR;
  DelayLine flangerL, flangerR;
  Mutilator chop;
+ Resampler resampler;
  float fa1 = 1.f, fa2 = 0.f, fa3 = 0.f, fk = 2.f, filterEnv = 0.f, filterLfoPhase = 0.f, vibPhase = 0.f;
  float ringPhase = 0.f, tremoloPhase = 0.f, phaserPhase = 0.f, flangerPhase = 0.f;
  double tempo = 120.0;
