@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "AbismoUI.h"
 #include "DSP/AbismoEngine.h"
 #include <array>
 #include <atomic>
@@ -29,10 +30,8 @@ public:
  void setStateInformation(const void*,int) override;
 
  juce::AudioProcessorValueTreeState apvts;
+ abismo_ui::MidiLearn midiLearn{*this}; // right-click any knob: MIDI learn
  std::atomic<float> outputPeak{0.f};
- // Knob-as-aftertouch learn: the editor arms it, the audio thread reports the first CC it sees.
- std::atomic<bool> learnPressure{false};
- std::atomic<int> learnedCC{-1};
  std::atomic<int> voicesSounding{0};
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
 private:

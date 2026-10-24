@@ -120,6 +120,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   const int at=std::clamp(metadata.samplePosition,0,samples);
   if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
   const auto m=metadata.getMessage();
+  midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
   else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
@@ -290,6 +291,7 @@ void InversoAbismoDrumsProcessor::applyKit(int index) {
 // moved or deleted file means the pad plays its OBJECT until it is reloaded.
 void InversoAbismoDrumsProcessor::getStateInformation(juce::MemoryBlock& dest) {
  auto state=apvts.copyState();
+ midiLearn.save(state);
  state.setProperty("program",currentProgram,nullptr);
  {
   const juce::ScopedLock lock(pathLock);
@@ -314,6 +316,7 @@ void InversoAbismoDrumsProcessor::setStateInformation(const void* data,int size)
    state.removeProperty(key,nullptr);
   }
   apvts.replaceState(state);
+  midiLearn.load(state);
   for (int pad=0;pad<numPads;++pad) {
    const auto& paths=wanted[static_cast<std::size_t>(pad)];
    {

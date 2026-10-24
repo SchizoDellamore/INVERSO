@@ -28,38 +28,72 @@ private:
  int write = 0;
 };
 
-// Five drive types, all at roughly the same loudness as the tape drive.
+// Five drive types. Each keeps quiet sounds at about their own level (the
+// gain of the curve near zero stays close to 1) and squeezes the loud parts,
+// so turning drive up thickens the sound instead of raising its hiss.
 class Drive {
 public:
- void clear() { dc = 0.f; hold = 0; }
+ void prepare(double sampleRate) { sr = sampleRate > 0 ? sampleRate : 48000.0; lastAmount = -1.f; }
+ void clear() { dc = lp1 = lp2 = bump = env = 0.f; fracture = 1.f; fractureTarget = 1.f; fractureLeft = 0; }
  float process(float x, int type, float amount) {
-  const float pre = 1.f + amount * 8.f, post = 1.f / (1.f + amount * 2.5f);
+  if (amount != lastAmount) configure(amount);
+  const float k = gain;
   switch (type) {
    case 1: { // fuzz: hard, asymmetric clipping
-    float y = x * pre * 1.5f;
+    float y = x * k * 1.5f;
     y = y > 0.f ? std::min(y, 1.f) : std::max(y, -.55f) * 1.6f;
-    return y * post * 1.6f;
+    return y / n70 * 1.1f;
    }
-   case 2: return std::sin(x * pre * 1.3f) * (.55f + .45f * post); // fold
-   case 3: { // rectify: an octave up and buzzing, DC removed
-    const float y = detail::softTanh(std::abs(x) * pre) * 1.6f;
-    dc += .0015f * (y - dc);
-    return (y - dc) * (.5f + post);
+   case 2: return std::sin(x * k * 1.3f) / n55; // fold
+   case 3: { // rectify: the negative half folds up more and more; the note stays
+    const float y = detail::softTanh(x * k) / n60;
+    const float bend = .25f + .75f * amount; // .5 = half wave, 1 = full wave (octave up)
+    float z = y >= 0.f ? y : y * (1.f - 2.f * bend);
+    dc += .0015f * (z - dc);
+    return (z - dc) * 1.25f;
    }
-   case 4: { // shatter: crushed curve with dropouts that crackle
-    if (hold > 0) { --hold; return 0.f; }
-    if ((rng.next() + 1.f) * .5f < amount * .0015f) hold = 8 + static_cast<int>((rng.next() + 1.f) * 120.f);
-    const float y = x * pre;
-    const float a = std::min(1.f, std::abs(y));
-    return (y < 0.f ? -1.f : 1.f) * std::sqrt(std::sqrt(a)) * (.45f + .4f * post);
+   case 4: { // shatter: the curve breaks into steps, the sound cracks and dips
+    const float y = detail::softTanh(x * k) / n65;
+    env = std::max(std::abs(y), env * .9995f);
+    const float steps = 3.f + 9.f * (1.f - amount);
+    const float stepped = env > 1e-5f ? std::round(y / env * steps) / steps * env : 0.f;
+    // fractures: now and then the sound drops back (never to silence) for a moment
+    if (fractureLeft > 0) --fractureLeft;
+    else if ((rng.next() + 1.f) * .5f < amount * 4.f / static_cast<float>(sr)) {
+     fractureLeft = static_cast<int>((.01f + .04f * (rng.next() + 1.f)) * static_cast<float>(sr));
+     fractureTarget = .35f + .25f * (rng.next() + 1.f) * .5f;
+    }
+    fracture += .003f * ((fractureLeft > 0 ? fractureTarget : 1.f) - fracture);
+    return (.45f * y + .55f * stepped) * fracture * 1.2f;
    }
-   default: return detail::softTanh(x * pre) * post * 1.8f; // tape
+   default: { // tape: soft and a little lopsided (even harmonics), a fuller low end,
+              // and the top rounding off as it is pushed: warm, not brighter
+    const float bias = .3f * amount;
+    float y = (detail::softTanh(x * k + bias) - detail::softTanh(bias)) / n80;
+    dc += .001f * (y - dc);
+    y -= dc;
+    bump += bumpCoef * (y - bump);
+    y += .3f * amount * bump;
+    lp1 += lpCoef * (y - lp1);
+    lp2 += lpCoef * (lp1 - lp2);
+    return lp2 * 1.1f;
+   }
   }
  }
 private:
+ void configure(float amount) {
+  lastAmount = amount;
+  gain = 1.f + amount * 7.f;
+  n70 = std::pow(gain, .7f); n55 = std::pow(gain, .55f); n60 = std::pow(gain, .6f); n65 = std::pow(gain, .65f); n80 = std::pow(gain, .8f);
+  const auto f = [this](float hz) { return 1.f - std::exp(-6.2831853f * hz / static_cast<float>(sr)); };
+  lpCoef = f(18000.f * std::pow(.3f, amount)); // 18 kHz clean, about 5 kHz pushed hard
+  bumpCoef = f(140.f);
+ }
  detail::Random rng;
- float dc = 0.f;
- int hold = 0;
+ double sr = 48000.0;
+ float lastAmount = -1.f, lpCoef = 1.f, bumpCoef = .02f, gain = 1.f, n70 = 1.f, n55 = 1.f, n60 = 1.f, n65 = 1.f, n80 = 1.f;
+ float dc = 0.f, lp1 = 0.f, lp2 = 0.f, bump = 0.f, env = 0.f, fracture = 1.f, fractureTarget = 1.f;
+ int fractureLeft = 0;
 };
 
 // Six first-order all-pass stages swept by an LFO, with feedback.

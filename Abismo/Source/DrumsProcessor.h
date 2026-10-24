@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "AbismoUI.h"
 #include "DSP/DrumsEngine.h"
 #include <array>
 #include <atomic>
@@ -54,6 +55,7 @@ public:
  std::atomic<int> sampleVersion{0};
 
  juce::AudioProcessorValueTreeState apvts;
+ abismo_ui::MidiLearn midiLearn{*this}; // right-click any knob: MIDI learn
  std::atomic<float> outputPeak{0.f};
  std::atomic<int> hitsSounding{0};
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();

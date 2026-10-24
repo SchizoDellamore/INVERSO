@@ -27,7 +27,11 @@ const char* const* shortNames(){
   "MIX","RATE","DEPTH","FEEDBACK",
   "DEPTH","RATE","SHAPE",
   "DEPTH","RATE",
-  "SYNC","TONE","DARKNESS","AT KNOB","AGE"};
+  "SYNC","TONE","DARKNESS","AT KNOB","AGE",
+  "LOOP 1","LOOP 2",
+  "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
+  "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
+  "ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"};
  return names;
 }
 
@@ -102,6 +106,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
  presets.getName=[this](int i){return processor.getProgramName(i);};
  presets.select=[this](int i){processor.setCurrentProgram(i);};
+ presets.enableUserPresets(processor.apvts, "RELICARIO");
  body.addAndMakeVisible(presets);
 
  auto apvts=std::ref(processor.apvts);
@@ -112,13 +117,14 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   return *modules.back();
  };
  // ---- the four machines
- add("TAPE LOOPS",c::amber,{{"Loops",{P::FitaLevel,P::LoopMix,P::Loop2Detune,P::LoopLength,P::Loop2Octave},{P::FitaLevel}},
-                            {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone}}},112,{P::Loop1Wave,P::Loop2Wave});
+ auto envelope=[](int m){ const int b=P::FitaAttack+4*m; return soft::Module::Page{"Env",{b,b+1,b+2,b+3}}; };
+ add("TAPE LOOPS",c::amber,{{"Loops",{P::FitaLevel,P::Loop1Level,P::Loop2Level,P::Loop2Detune},{P::FitaLevel}},
+                            {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone,P::LoopLength}},envelope(0)},112,{P::Loop1Wave,P::Loop2Wave,P::Loop2Octave});
  add("REED ORGAN",c::green,{{"Reeds",{P::HarmLevel,P::Era,P::Breath,P::Speak},{P::HarmLevel}},
-                            {"Bellows",{P::Motor,P::Sag}}},112,{});
- add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}}},112,{});
+                            {"Bellows",{P::Motor,P::Sag}},envelope(1)},112,{});
+ add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}},envelope(2)},112,{});
  add("SOVIET ORGAN",c::red,{{"Stops",{P::OrganLevel,P::Reg16,P::Reg8,P::Reg4,P::Upper},{P::OrganLevel}},
-                            {"Sound",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}}},112,{P::UpperInterval});
+                            {"Sound",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}},envelope(3)},112,{P::UpperInterval});
  // ---- keys and the effects rack, in signal order
  add("KEYS",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
                        {"Age",{P::Age,P::Fine,P::Glide,P::BendRange},{P::Age}}},96,{P::Octave});
@@ -136,20 +142,33 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Dust},{P::RevMix}}},96,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
- master->setAccessory(std::make_unique<soft::KnobLearn>(processor.apvts,specs()[P::PressureCC],processor.learnPressure,processor.learnedCC),48);
 
+ // ON/OFF in each module's header, separate from its level.
+ {
+  const int onParams[10]={P::FitaOn,P::HarmOn,P::ForkOn,P::OrganOn,P::DestroyOn,P::FilterOn,P::ChopOn,P::ModOn,P::EchoOn,P::SpaceOn};
+  const int onModules[10]={0,1,2,3,5,6,7,8,9,10};
+  for(int i=0;i<10;++i){
+   auto& b=onButtons[static_cast<std::size_t>(i)];
+   b.setClickingTogglesState(true);
+   b.setTooltip("Switch this module on or off (its settings stay)");
+   b.onStateChange=[&b]{ const auto text=b.getToggleState()?"ON":"OFF"; if(b.getButtonText()!=text) b.setButtonText(text); };
+   onAttach[static_cast<std::size_t>(i)]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts,specs()[static_cast<std::size_t>(onParams[i])].id,b);
+   b.onStateChange();
+   modules[static_cast<std::size_t>(onModules[i])]->addHeaderComponent(b,46);
+  }
+ }
  auto& m=modules;
- const juce::String off=juce::String::fromUTF8("OFF  \xc2\xb7  TURN UP THE LEVEL");
+ const juce::String off=juce::String::fromUTF8("SILENT  \xc2\xb7  SWITCHED OFF OR LEVEL AT ZERO");
  // TAPE: both loops running past the head, their flaws drawn along them.
  m[0]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   auto area=r.withTrimmedBottom(34.f);
-  const float level=value(P::FitaLevel),wear=value(P::Wear)*.01f,mix=value(P::LoopMix)*.01f;
+  const float level=value(P::FitaLevel)*value(P::FitaOn),wear=value(P::Wear)*.01f;
   caption(g,area,"LOOP "+abismo_ui::formatValue(specs()[P::LoopLength],value(P::LoopLength)),"WEAR "+juce::String(juce::roundToInt(wear*100.f))+"%");
   auto lanes=area.withTrimmedTop(16.f);
   const float laneH=lanes.getHeight()/2.f;
   for(int i=0;i<2;++i){
    auto lane=juce::Rectangle<float>(lanes.getX(),lanes.getY()+laneH*static_cast<float>(i),lanes.getWidth(),laneH).reduced(0.f,3.f);
-   const float weight=i==0?1.f-mix:mix;
+   const float weight=.5f*value(i==0?P::Loop1Level:P::Loop2Level)*.01f;
    const int wave=juce::roundToInt(value(i==0?P::Loop1Wave:P::Loop2Wave));
    const auto& t=tape(i);
    const auto colour=c::amber.withAlpha(level>0.f?.35f+.65f*std::min(1.f,weight*2.f):.3f);
@@ -168,7 +187,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  };
  // REED ORGAN: the bellows gauge and the reed's pulse.
  m[1]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
-  const float level=value(P::HarmLevel),era=value(P::Era)*.01f;
+  const float level=value(P::HarmLevel)*value(P::HarmOn),era=value(P::Era)*.01f;
   const float bellows=juce::jlimit(0.f,1.f,processor.bellows.load());
   caption(g,r,era<.5f?juce::String("BAKELITE"):juce::String("PLASTIC"),"BELLOWS "+juce::String(juce::roundToInt(bellows*100.f))+"%");
   auto area=r.withTrimmedTop(16.f);
@@ -187,7 +206,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  };
  // TUNING FORK: two tines swinging, sparks at the contact.
  m[2]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
-  const float level=value(P::ForkLevel),spark=value(P::Spark)*.01f,drive=value(P::Maintain)*.01f;
+  const float level=value(P::ForkLevel)*value(P::ForkOn),spark=value(P::Spark)*.01f,drive=value(P::Maintain)*.01f;
   caption(g,r,"BEAT "+abismo_ui::formatValue(specs()[P::Beat],value(P::Beat)),"DRIVE "+juce::String(juce::roundToInt(drive*100.f))+"%");
   auto area=r.withTrimmedTop(16.f).reduced(4.f);
   const auto colour=c::cyan.withAlpha(level>0.f?1.f:.3f);
@@ -216,7 +235,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  // SOVIET ORGAN: the stops as bars.
  m[3]->screen.draw=[this,off](juce::Graphics& g,juce::Rectangle<float> r,int){
   auto area=r.withTrimmedBottom(34.f);
-  const float level=value(P::OrganLevel);
+  const float level=value(P::OrganLevel)*value(P::OrganOn);
   caption(g,area,value(P::SpeakerBreak)>0.f?juce::String("TORN SPEAKER"):juce::String("STOPS"),"TREMOLO "+abismo_ui::formatValue(specs()[P::TremRate],value(P::TremRate)));
   auto bars=area.withTrimmedTop(16.f);
   const int regs[4]={P::Reg16,P::Reg8,P::Reg4,P::Upper};
@@ -403,11 +422,24 @@ InversoRelicarioEditor::~InversoRelicarioEditor(){ setLookAndFeel(nullptr); }
 // A control whose machine or effect is switched off (or whose effect depends on another control) is dimmed.
 static bool relicarioControlActive(const juce::AudioProcessorValueTreeState& apvts,int p){
  auto v=[&](int i){return apvts.getRawParameterValue(specs()[static_cast<std::size_t>(i)].id)->load();};
- if(p>=P::Loop1Wave && p<=P::FitaTone) return v(P::FitaLevel)>0.f;
- if(p>=P::Era && p<=P::Speak) return v(P::HarmLevel)>0.f;
- if(p>=P::Spark && p<=P::Beat) return v(P::ForkLevel)>0.f;
+ const bool fita=v(P::FitaLevel)>0.f && v(P::FitaOn)>=.5f, harm=v(P::HarmLevel)>0.f && v(P::HarmOn)>=.5f;
+ const bool fork=v(P::ForkLevel)>0.f && v(P::ForkOn)>=.5f, organ=v(P::OrganLevel)>0.f && v(P::OrganOn)>=.5f;
+ if(p>=P::FitaOn) return true; // the switches themselves
+ if(p>=P::FitaAttack && p<=P::OrganRelease){
+  const int machine=(p-P::FitaAttack)/4;
+  const bool on=machine==0?fita:machine==1?harm:machine==2?fork:organ;
+  const int stage=(p-P::FitaAttack)%4;
+  if(stage==1) return on && v(P::FitaSustain+4*machine)<100.f; // decay only matters below full sustain
+  return on;
+ }
+ if(p==P::Loop1Wave) return fita && v(P::Loop1Level)>0.f;
+ if(p==P::Loop2Wave || p==P::Loop2Octave || p==P::Loop2Detune) return fita && v(P::Loop2Level)>0.f;
+ if(p==P::Loop1Level || p==P::Loop2Level) return fita;
+ if(p>=P::Loop1Wave && p<=P::FitaTone) return fita;
+ if(p>=P::Era && p<=P::Speak) return harm;
+ if(p>=P::Spark && p<=P::Beat) return fork;
  if(p>=P::Reg16 && p<=P::Hum) {
-  if(v(P::OrganLevel)<=0.f) return false;
+  if(!organ) return false;
   if(p==P::UpperInterval) return v(P::Upper)>0.f;
   if(p==P::TremRate) return v(P::TremDepth)>0.f;
   return true;

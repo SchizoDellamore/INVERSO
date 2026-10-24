@@ -477,7 +477,6 @@ InversoEnkiEditor::InversoEnkiEditor(InversoEnkiProcessor& p) : AudioProcessorEd
  add("PLAY", c::pink, {{"Play", {P::Octave, P::Glide, P::VelSens, P::BendRange}}}, 0, {});
  master = std::make_unique<soft::Master>(processor.apvts, specs()[P::Output], &specs()[P::Width], juce::String("WIDTH"), c::ink);
  body.addAndMakeVisible(*master);
- master->setAccessory(std::make_unique<soft::KnobLearn>(processor.apvts, specs()[P::PressureCC], processor.learnPressure, processor.learnedCC), 48);
 
  // Lock buttons in the module headers: GENERATE and MUTATE leave a locked section alone.
  const int lockParams[5] = {P::LockA, P::LockB, P::LockShape, P::LockMotion, P::LockSpace};

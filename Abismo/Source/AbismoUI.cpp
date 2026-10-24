@@ -10,6 +10,123 @@ namespace {
 constexpr int knobWidth=70, choiceWidth=124, knobHeight=96, sectionPad=10, rowHeight=knobHeight+34;
 }
 
+namespace {
+juce::CriticalSection& registryLock(){ static juce::CriticalSection l; return l; }
+std::vector<MidiLearn*>& registry(){ static std::vector<MidiLearn*> r; return r; }
+std::vector<const juce::AudioProcessor*>& owners(){ static std::vector<const juce::AudioProcessor*> o; return o; }
+}
+
+MidiLearn::MidiLearn(juce::AudioProcessor& p):processor(p){
+ for(auto& m:map) m.store(-1);
+ for(auto& v:pending) v.store(-1);
+ { const juce::ScopedLock l(registryLock()); registry().push_back(this); owners().push_back(&p); }
+ startTimerHz(60);
+}
+MidiLearn::~MidiLearn(){
+ stopTimer();
+ const juce::ScopedLock l(registryLock());
+ for(std::size_t i=0;i<registry().size();++i) if(registry()[i]==this){ registry().erase(registry().begin()+static_cast<long>(i)); owners().erase(owners().begin()+static_cast<long>(i)); break; }
+}
+MidiLearn* MidiLearn::find(const juce::AudioProcessor* p){
+ const juce::ScopedLock l(registryLock());
+ for(std::size_t i=0;i<owners().size();++i) if(owners()[i]==p) return registry()[i];
+ return nullptr;
+}
+void MidiLearn::handle(const juce::MidiMessage& m){
+ if(!m.isController()) return;
+ const int cc=m.getControllerNumber();
+ if(cc<0 || cc>=120) return; // 120+ are channel mode messages
+ int want=armed.load(std::memory_order_relaxed);
+ if(want>=0 && armed.compare_exchange_strong(want,-1)){
+  for(auto& slot:map){ int same=want; slot.compare_exchange_strong(same,-1); } // one CC per parameter
+  map[static_cast<std::size_t>(cc)].store(want);
+ }
+ if(map[static_cast<std::size_t>(cc)].load(std::memory_order_relaxed)>=0) pending[static_cast<std::size_t>(cc)].store(m.getControllerValue(),std::memory_order_relaxed);
+}
+void MidiLearn::timerCallback(){
+ const auto& params=processor.getParameters();
+ for(std::size_t cc=0;cc<map.size();++cc){
+  const int v=pending[cc].exchange(-1,std::memory_order_relaxed);
+  const int p=map[cc].load(std::memory_order_relaxed);
+  if(v<0 || p<0 || p>=params.size()) continue;
+  auto* param=params[p];
+  param->beginChangeGesture();
+  param->setValueNotifyingHost(static_cast<float>(v)/127.f);
+  param->endChangeGesture();
+ }
+}
+void MidiLearn::arm(int index){ armed.store(index); }
+int MidiLearn::ccFor(int index) const{
+ for(std::size_t cc=0;cc<map.size();++cc) if(map[cc].load()==index) return static_cast<int>(cc);
+ return -1;
+}
+void MidiLearn::forget(int index){ for(auto& slot:map){ int same=index; slot.compare_exchange_strong(same,-1); } }
+int MidiLearn::indexOf(const juce::String& id) const{
+ const auto& params=processor.getParameters();
+ for(int i=0;i<params.size();++i) if(auto* r=dynamic_cast<juce::AudioProcessorParameterWithID*>(params[i])) if(r->paramID==id) return i;
+ return -1;
+}
+void MidiLearn::save(juce::ValueTree& state) const{
+ juce::ValueTree learn("MIDI_LEARN");
+ const auto& params=processor.getParameters();
+ for(std::size_t cc=0;cc<map.size();++cc){
+  const int p=map[cc].load();
+  if(p<0 || p>=params.size()) continue;
+  if(auto* r=dynamic_cast<juce::AudioProcessorParameterWithID*>(params[p])){
+   juce::ValueTree item("CC"); item.setProperty("number",static_cast<int>(cc),nullptr); item.setProperty("param",r->paramID,nullptr);
+   learn.appendChild(item,nullptr);
+  }
+ }
+ auto old=state.getChildWithName("MIDI_LEARN");
+ if(old.isValid()) state.removeChild(old,nullptr);
+ state.appendChild(learn,nullptr);
+}
+void MidiLearn::load(const juce::ValueTree& state){
+ for(auto& m:map) m.store(-1);
+ const auto learn=state.getChildWithName("MIDI_LEARN");
+ for(const auto& item:learn){
+  const int cc=item.getProperty("number",-1);
+  const int p=indexOf(item.getProperty("param").toString());
+  if(cc>=0 && cc<120 && p>=0) map[static_cast<std::size_t>(cc)].store(p);
+ }
+}
+
+juce::File userPresetFolder(const juce::String& plugin){
+ return juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("INVERSO").getChildFile(plugin).getChildFile("Presets");
+}
+juce::Array<juce::File> userPresets(const juce::String& plugin){
+ auto files=userPresetFolder(plugin).findChildFiles(juce::File::findFiles,false,"*.xml");
+ files.sort();
+ return files;
+}
+bool saveUserPreset(juce::AudioProcessorValueTreeState& apvts,const juce::String& plugin,const juce::String& name){
+ const auto clean=juce::File::createLegalFileName(name.trim());
+ if(clean.isEmpty()) return false;
+ const auto folder=userPresetFolder(plugin);
+ folder.createDirectory();
+ auto state=apvts.copyState();
+ auto learn=state.getChildWithName("MIDI_LEARN");
+ if(learn.isValid()) state.removeChild(learn,nullptr); // the knobs belong to the keyboard, not the sound
+ auto xml=state.createXml();
+ return xml!=nullptr && xml->writeTo(folder.getChildFile(clean+".xml"));
+}
+bool loadUserPreset(juce::AudioProcessorValueTreeState& apvts,const juce::File& file){
+ const auto xml=juce::parseXML(file);
+ if(xml==nullptr) return false;
+ const auto state=juce::ValueTree::fromXml(*xml);
+ bool any=false;
+ for(const auto& child:state){
+  if(!child.hasType("PARAM")) continue;
+  if(auto* p=apvts.getParameter(child.getProperty("id").toString())){
+   p->beginChangeGesture();
+   p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(child.getProperty("value"))));
+   p->endChangeGesture();
+   any=true;
+  }
+ }
+ return any;
+}
+
 juce::String formatValue(const ParamSpec& s,double v){
  const juce::String unit(s.unit);
  if(unit=="Hz") return v>=1000.?juce::String(v/1000.,2)+" kHz":juce::String(v,v<10.?2:0)+" Hz";

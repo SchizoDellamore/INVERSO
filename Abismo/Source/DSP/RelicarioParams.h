@@ -43,6 +43,14 @@ enum : int {
  PressureCC,
  // How worn and alive the machines are: per-key tuning, drift, imperfect parts (0 = factory new).
  Age,
+ // 0.14: each tape loop's own level (replaces the balance), an envelope per
+ // machine (the KEYS envelope still shapes them all), on/off per module.
+ Loop1Level, Loop2Level,
+ FitaAttack, FitaDecay, FitaSustain, FitaRelease,
+ HarmAttack, HarmDecay, HarmSustain, HarmRelease,
+ ForkAttack, ForkDecay, ForkSustain, ForkRelease,
+ OrganAttack, OrganDecay, OrganSustain, OrganRelease,
+ FitaOn, HarmOn, ForkOn, OrganOn, DestroyOn, FilterOn, ChopOn, ModOn, EchoOn, SpaceOn,
  Count
 };
 }
@@ -141,6 +149,36 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"REV_DAMP","Reverb darkness",0,100,45,0,.01f,Kind::Float,nullptr,"%"},
   {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
   {"AGE","Analog age",0,100,60,0,.01f,Kind::Float,nullptr,"%"},
+  {"LOOP1_LEVEL","Loop 1 level",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"LOOP2_LEVEL","Loop 2 level",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  // A machine's own envelope starts open (fast attack, full sustain, long
+  // release), so the KEYS envelope alone decides until you shape it.
+  {"FITA_ATTACK","Tape attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"FITA_DECAY","Tape decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
+  {"FITA_SUSTAIN","Tape sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"FITA_RELEASE","Tape release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"HARM_ATTACK","Reed organ attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"HARM_DECAY","Reed organ decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
+  {"HARM_SUSTAIN","Reed organ sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"HARM_RELEASE","Reed organ release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"FORK_ATTACK","Tuning fork attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"FORK_DECAY","Tuning fork decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
+  {"FORK_SUSTAIN","Tuning fork sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"FORK_RELEASE","Tuning fork release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"ORGAN_ATTACK","Soviet organ attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"ORGAN_DECAY","Soviet organ decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
+  {"ORGAN_SUSTAIN","Soviet organ sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
+  {"ORGAN_RELEASE","Soviet organ release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"FITA_ON","Tape on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"HARM_ON","Reed organ on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"FORK_ON","Tuning fork on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"ORGAN_ON","Soviet organ on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"DESTROY_ON","Destroy on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"FILTER_ON","Filter on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"CHOP_ON","Chop on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"MOD_ON","Modulation on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"ECHO_ON","Echo on",0,1,1,0,1,Kind::Bool,nullptr,""},
+  {"SPACE_ON","Space on",0,1,1,0,1,Kind::Bool,nullptr,""},
  }};
  return table;
 }
@@ -168,11 +206,11 @@ inline const std::array<Preset, 29>& presets() {
   {"Worn Loop", {{FitaLevel,80},{Loop1Wave,3},{Loop2Wave,4},{LoopLength,2.5f},{Wear,85},{Wow,55},{FitaTone,40},
    {TapeSat,50},{Dust,40},{Attack,300},{Release,2000},{RevMix,30},{Output,-11},{-1,0}}},
   {"Basement Static", {{FitaLevel,85},{Loop1Wave,5},{Loop2Wave,4},{LoopMix,40},{Loop2Octave,1},{Wear,60},{FitaTone,50},
-   {Attack,1500},{Release,4000},{EchoMix,30},{EchoTime,450},{RevMix,45},{RevSize,85},{RevDecay,7},{Output,-0.5f},{-1,0}}},
+   {Attack,1500},{Release,4000},{EchoMix,30},{EchoTime,450},{RevMix,45},{RevSize,85},{RevDecay,7},{Output,1},{-1,0}}},
   {"Drifting Tapes", {{FitaLevel,80},{Loop1Wave,4},{Loop2Wave,4},{Loop2Octave,1},{Loop2Detune,0},{LoopLength,7},
    {Wear,75},{Wow,40},{Attack,2000},{Release,5000},{Ensemble,40},{RevMix,50},{RevSize,90},{RevDecay,9},{Output,-7.5f},{-1,0}}},
   {"Tape Bass", {{FitaLevel,85},{Octave,1},{Loop1Wave,0},{Loop2Wave,3},{Loop2Octave,0},{LoopMix,40},{FitaTone,35},
-   {TapeSat,70},{Wear,20},{Wow,10},{Attack,5},{Decay,800},{Sustain,70},{Release,300},{RevMix,10},{Output,-10.5f},{-1,0}}},
+   {TapeSat,70},{Wear,20},{Wow,10},{Attack,5},{Decay,800},{Sustain,70},{Release,300},{RevMix,10},{Output,-9.1f},{-1,0}}},
   // HARMONIO
   {"Bakelite", {{FitaLevel,0},{HarmLevel,90},{Era,0},{Breath,35},{Motor,35},{Sag,50},{Speak,70},{Attack,20},
    {Release,400},{RevMix,25},{Output,-8},{-1,0}}},
@@ -199,7 +237,7 @@ inline const std::array<Preset, 29>& presets() {
   {"Soviet Fifth", {{FitaLevel,0},{OrganLevel,85},{Reg8,100},{Reg4,40},{Upper,80},{UpperInterval,1},{OrganTone,60},
    {TremDepth,45},{TremRate,5},{Attack,3},{Release,200},{RevMix,35},{Output,-7},{-1,0}}},
   {"Crooked Third", {{FitaLevel,0},{OrganLevel,85},{Reg16,60},{Reg8,80},{Upper,90},{UpperInterval,2},{OrganTone,45},
-   {TremDepth,60},{TremRate,7.5f},{SpeakerBreak,40},{Hum,30},{EchoMix,20},{Attack,3},{Release,200},{RevMix,30},{Output,-5.5f},{-1,0}}},
+   {TremDepth,60},{TremRate,7.5f},{SpeakerBreak,40},{Hum,30},{EchoMix,20},{Attack,3},{Release,200},{RevMix,30},{Output,-2},{-1,0}}},
   {"Club Bass", {{FitaLevel,0},{OrganLevel,90},{Octave,1},{Reg16,100},{Reg8,70},{Reg4,0},{OrganTone,30},
    {TremDepth,0},{SpeakerBreak,20},{Attack,3},{Release,150},{RevMix,10},{Output,-7.5f},{-1,0}}},
   // Together
@@ -214,21 +252,30 @@ inline const std::array<Preset, 29>& presets() {
    {RevSize,95},{RevDecay,12},{Output,-2.5f},{-1,0}}},
   // Effects rack (0.10)
   {"Chopped Tape", {{FitaLevel,85},{Loop1Wave,0},{Loop2Wave,3},{Wear,50},{Wow,30},{Drive,30},{ChopDiv,3},{ChopDepth,70},
-   {ChopChaos,40},{ChopReverse,30},{EchoMix,30},{EchoSync,3},{EchoFeedback,40},{Attack,5},{Release,400},{RevMix,20},{Output,-14.5f},{-1,0}}},
+   {ChopChaos,40},{ChopReverse,30},{EchoMix,30},{EchoSync,3},{EchoFeedback,40},{Attack,5},{Release,400},{RevMix,20},{Output,-6.8f},{-1,0}}},
   {"Phased Junost", {{FitaLevel,0},{OrganLevel,85},{Reg8,100},{Reg4,60},{OrganTone,60},{TremDepth,0},{PhaserMix,100},{PhaserRate,.3f},
    {PhaserDepth,80},{PhaserFeedback,60},{VibratoDepth,12},{Attack,3},{Release,250},{RevMix,30},{Output,-5.5f},{-1,0}}},
   {"Jet Harmonium", {{FitaLevel,0},{HarmLevel,90},{Era,50},{Breath,25},{FlangerMix,100},{FlangerRate,.12f},{FlangerDepth,90},
    {FlangerFeedback,80},{Attack,40},{Release,900},{RevMix,30},{Output,-7},{-1,0}}},
   {"Dead Radio", {{FitaLevel,60},{OrganLevel,50},{Loop1Wave,5},{Wear,70},{FilterMode,2},{Cutoff,1200},{Resonance,50},{Drive,60},
    {DriveType,1},{Crush,25},{RingMix,25},{RingFreq,1100},{TremoloDepth,40},{TremoloShape,1},{TremoloRate,8},{Dust,60},
-   {Attack,20},{Release,600},{RevMix,15},{Output,-5.5f},{-1,0}}},
+   {Attack,20},{Release,600},{RevMix,15},{Output,0},{-1,0}}},
   {"Resonant Fork", {{FitaLevel,0},{ForkLevel,90},{Clang,80},{Maintain,60},{FilterMode,1},{Cutoff,300},{Resonance,85},{FilterEnv,70},
-   {FilterDecay,600},{Drive,30},{DriveType,2},{Attack,2},{Release,1500},{EchoMix,25},{EchoSync,2},{RevMix,30},{Output,-19.5f},{-1,0}}},
+   {FilterDecay,600},{Drive,30},{DriveType,2},{Attack,2},{Release,1500},{EchoMix,25},{EchoSync,2},{RevMix,30},{Output,-17.1f},{-1,0}}},
   {"Shattered Relic", {{FitaLevel,55},{HarmLevel,45},{ForkLevel,45},{OrganLevel,45},{Wear,60},{Drive,70},{DriveType,4},{ChopDiv,4},
    {ChopDepth,50},{ChopChaos,70},{ChopReverse,50},{FilterMode,1},{Cutoff,3500},{Resonance,40},{FilterLfo,40},{FilterLfoRate,.3f},
-   {Attack,10},{Release,1500},{RevMix,40},{RevDamp,80},{RevSize,85},{Output,-14.5f},{-1,0}}},
+   {Attack,10},{Release,1500},{RevMix,40},{RevDamp,80},{RevSize,85},{Output,-8.5f},{-1,0}}},
  }};
  return table;
+}
+
+// Loop balance (before 0.14) to the two loop levels: the louder side at 100%.
+inline void loopLevelsFromBalance(Values& v) {
+ const float mix = v[P::LoopMix] * .01f;
+ const float a = 2.f * (1.f - mix), b = 2.f * mix, top = a > b ? a : b;
+ v[P::Loop1Level] = top > 0.f ? 100.f * a / top : 100.f;
+ v[P::Loop2Level] = top > 0.f ? 100.f * b / top : 100.f;
+ v[P::LoopMix] = 50.f;
 }
 
 inline Values presetValues(std::size_t index) {
@@ -238,6 +285,7 @@ inline Values presetValues(std::size_t index) {
   if (pv.param < 0) break;
   v[static_cast<std::size_t>(pv.param)] = pv.value;
  }
+ loopLevelsFromBalance(v);
  return v;
 }
 

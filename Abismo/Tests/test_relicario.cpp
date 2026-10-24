@@ -292,10 +292,174 @@ static void presetDemos(const std::string& dir) {
  }
 }
 
+// 0.14: what the player heard and reported, each checked.
+static double harmonicShare(const std::vector<float>& x, double sr, double f0, std::size_t from, std::size_t to) {
+ // energy at the harmonics of f0 against energy halfway between them (up to 5 kHz)
+ double harm = 0, between = 0;
+ for (int k = 1; f0 * (k + .5) < 5000; ++k) { harm += goertzel(x, sr, f0 * k, from, to); between += goertzel(x, sr, f0 * (k + .5), from, to); }
+ return harm / (harm + between + 1e-30);
+}
+static float clickiness(const std::vector<float>& x, std::size_t from, std::size_t to) {
+ // the largest second difference against the signal's typical one
+ double typical = 0; float worst = 0;
+ for (std::size_t i = from + 2; i < to; ++i) {
+  const float d = std::abs(x[i] - 2 * x[i - 1] + x[i - 2]);
+  typical += d; worst = std::max(worst, d);
+ }
+ typical /= static_cast<double>(to - from - 2);
+ return static_cast<float>(worst / (typical + 1e-9));
+}
+static void feedback014() {
+ using namespace R::P;
+ const int sr = 48000;
+ // Chop: switching its settings while it plays clicks no more than the chop
+ // already does with its settings left alone (its gate opens in 1.5 ms).
+ {
+  auto run = [&](bool changing) {
+   R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[ChopDiv] = 3; v[ChopDepth] = 40; v[ChopChaos] = 80; v[ChopReverse] = 50;
+   R::Engine e; e.setValues(v); e.prepare(sr); e.setTransport(120.0, 0.0, true);
+   e.noteOn(57, .9f);
+   std::vector<float> out;
+   for (int k = 0; k < 40; ++k) {
+    if (changing) { v[ChopDiv] = static_cast<float>(1 + k % 6); v[ChopSync] = static_cast<float>(k % 3 == 0); v[ChopMs] = 60.f + 37.f * static_cast<float>(k % 7); }
+    e.setValues(v);
+    auto s = render(e, sr / 10);
+    out.insert(out.end(), s.l.begin(), s.l.end());
+   }
+   float worst = 0;
+   for (std::size_t i = static_cast<std::size_t>(sr / 5) + 2; i < out.size(); ++i) worst = std::max(worst, std::abs(out[i] - 2 * out[i - 1] + out[i - 2]));
+   return worst;
+  };
+  const float still = run(false), moving = run(true);
+  std::printf("chop: worst jump %.5f changing settings, %.5f left alone\n", moving, still);
+  verify(moving < still * 2.f, "the chop clicks when its settings change");
+ }
+ // Drive: switching the type and easing it in from zero click no more than
+ // the sharpest type does on its own.
+ {
+  auto worstJump = [&](const std::vector<float>& out) {
+   float worst = 0;
+   for (std::size_t i = static_cast<std::size_t>(sr / 5) + 2; i < out.size(); ++i) worst = std::max(worst, std::abs(out[i] - 2 * out[i - 1] + out[i - 2]));
+   return worst;
+  };
+  auto run = [&](int fixedType) {
+   R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Drive] = 0;
+   R::Engine e; e.setValues(v); e.prepare(sr);
+   e.noteOn(57, .9f);
+   std::vector<float> out;
+   for (int k = 0; k < 30; ++k) {
+    v[Drive] = fixedType >= 0 ? 60.f : k < 5 ? static_cast<float>(k) : 60.f;
+    v[DriveType] = static_cast<float>(fixedType >= 0 ? fixedType : k % 5);
+    e.setValues(v);
+    auto s = render(e, sr / 10);
+    out.insert(out.end(), s.l.begin(), s.l.end());
+   }
+   return worstJump(out);
+  };
+  float sharpest = 0;
+  for (int t = 0; t < 5; ++t) sharpest = std::max(sharpest, run(t));
+  const float moving = run(-1);
+  std::printf("drive: worst jump %.5f changing type, %.5f sharpest type held\n", moving, sharpest);
+  verify(moving < sharpest * 1.5f, "the drive clicks when its type changes");
+ }
+ // Tape drive warms instead of raising the hiss: hiss over the note grows little.
+ {
+  auto hissRatio = [&](float drive) {
+   R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Wear] = 100; v[DriveType] = 0; v[Drive] = drive;
+   R::Engine e; e.setValues(v); e.prepare(sr);
+   e.noteOn(45, .5f);
+   auto s = render(e, sr * 2);
+   double hiss = 0; for (double f = 6000; f < 12000; f += 500) hiss += goertzel(s.l, sr, f, sr / 2, sr * 2);
+   return hiss / goertzel(s.l, sr, 110, sr / 2, sr * 2);
+  };
+  const double clean = hissRatio(0), driven = hissRatio(100);
+  std::printf("tape drive: hiss against the note x%.2f\n", driven / clean);
+  verify(driven < clean * 1.5, "tape drive brings the hiss up");
+ }
+ // Rectify keeps the note; shatter never drops it to silence.
+ {
+  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[DriveType] = 3; v[Drive] = 60;
+  R::Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(57, .9f);
+  auto s = render(e, sr);
+  const double fund = goertzel(s.l, sr, 220, sr / 4, sr), oct = goertzel(s.l, sr, 440, sr / 4, sr);
+  std::printf("rectify: fundamental %.2f of the octave\n", fund / oct);
+  verify(fund > oct * .25, "rectify loses the note");
+  v[DriveType] = 4; v[Drive] = 100;
+  R::Engine e2; e2.setValues(v); e2.prepare(sr);
+  e2.noteOn(57, .9f);
+  auto t = render(e2, sr * 3);
+  const float whole = rms(t.l, sr / 2, sr * 3);
+  float least = 1e9f;
+  for (int w = sr / 2; w + sr / 50 < sr * 3; w += sr / 100) least = std::min(least, rms(t.l, static_cast<std::size_t>(w), static_cast<std::size_t>(w + sr / 50)));
+  std::printf("shatter: quietest 20 ms at %.2f of the average\n", least / whole);
+  verify(least > whole * .15f, "shatter makes the note disappear");
+ }
+ // Bit crush: quiet passages do not turn into hiss.
+ {
+  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Crush] = 100; v[Release] = 3000;
+  R::Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(57, .9f); render(e, sr / 2); e.noteOff(57);
+  auto s = render(e, sr * 2);
+  const double share = harmonicShare(s.l, sr, 220, sr, sr * 2); // the quiet tail of the note
+  std::printf("crush: tail %.0f%% harmonic\n", share * 100);
+  verify(share > .7, "the crusher turns quiet sound into noise");
+ }
+ // Broken speaker: faults that follow the note (harmonic), not hiss.
+ {
+  R::Values v = only(OrganLevel); v[SpeakerBreak] = 100; v[OrganTone] = 50; v[Reg16] = 0; v[Reg8] = 100; v[Reg4] = 50;
+  R::Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(45, 1.f);
+  auto s = render(e, sr);
+  const double share = harmonicShare(s.l, sr, 110, sr / 4, sr);
+  std::printf("broken speaker: %.0f%% harmonic\n", share * 100);
+  verify(share > .85, "the broken speaker is mostly noise");
+ }
+ // Fork spark: a buzz at the fork's pitch, not noise; clang: the bar's metal modes.
+ {
+  R::Values v = only(ForkLevel); v[Spark] = 100; v[Maintain] = 100;
+  R::Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(57, 1.f);
+  auto s = render(e, sr);
+  const double share = harmonicShare(s.l, sr, 220, sr / 4, sr);
+  std::printf("spark: %.0f%% harmonic\n", share * 100);
+  verify(share > .85, "the spark is mostly noise");
+  v[Spark] = 0; v[Clang] = 100;
+  R::Engine e2; e2.setValues(v); e2.prepare(sr);
+  e2.noteOn(57, 1.f);
+  auto c = render(e2, sr / 4);
+  const double mode = goertzel(c.l, sr, 220 * 6.267, 0, sr / 8), mode3 = goertzel(c.l, sr, 220 * 17.55, 0, sr / 16);
+  const double harmonic6 = goertzel(c.l, sr, 220 * 6, 0, sr / 8);
+  std::printf("clang: 6.27x %.4f, 6x %.4f, 17.55x %.4f\n", mode, harmonic6, mode3);
+  verify(mode > harmonic6 * 4 && mode3 > 0, "the clang is not the metal's own modes");
+ }
+ // Machine envelopes, on/off and the loop levels do what they say.
+ {
+  R::Values v = only(FitaLevel); v[FitaAttack] = 2000;
+  R::Engine e; e.setValues(v); e.prepare(sr);
+  e.noteOn(57, 1.f);
+  auto s = render(e, sr * 3);
+  const float early = rms(s.l, sr / 20, sr / 10), late = rms(s.l, sr * 5 / 2, sr * 3);
+  verify(late > early * 5, "the tape's own attack does nothing");
+  v[FitaAttack] = 1; v[FitaOn] = 0;
+  R::Engine e2; e2.setValues(v); e2.prepare(sr);
+  e2.noteOn(57, 1.f);
+  auto off = render(e2, sr);
+  verify(rms(off.l, sr / 2, sr) < 1e-5f, "a machine switched off still plays");
+  v[FitaOn] = 1; v[LoopMix] = 50; v[Loop2Wave] = 4; v[Loop1Level] = 0; v[Loop2Level] = 0;
+  R::Engine e3; e3.setValues(v); e3.prepare(sr);
+  e3.noteOn(57, 1.f);
+  auto none = render(e3, sr);
+  verify(rms(none.l, sr / 2, sr) < 1e-4f, "loop levels at zero still play");
+  std::puts("machine envelopes, on/off, loop levels: fine");
+ }
+}
+
 int main(int argc, char** argv) {
  tuning();
  mechanisms();
  effects();
+ feedback014();
  presetDemos(argc > 1 ? argv[1] : "");
  stress();
  std::puts("Relicario tests passed");

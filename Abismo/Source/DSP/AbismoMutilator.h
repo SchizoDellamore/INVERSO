@@ -16,13 +16,17 @@ public:
   // Longest step: 1/4 note at 30 BPM = 2 s; keep two steps of history.
   history.assign(static_cast<std::size_t>(sr * 4.2) * 2, 0.f);
   ramp = static_cast<float>(1.0 - std::exp(-1.0 / (.0015 * sr))); // ~1.5 ms, click-free
+  declickCoef = static_cast<float>(std::exp(-1.0 / (.003 * sr)));  // jumps between sources heal over ~3 ms
+  envRelease = static_cast<float>(std::exp(-1.0 / (.08 * sr)));
   write = 0; holdCount = 0; heldL = heldR = 0.f; gain = 1.f; lastStep = -1; beat = 0.0;
+  offL = offR = 0.f; outL = outR = 0.f; crushEnv = 0.f; dsL1 = dsL2 = dsR1 = dsR2 = 0.f;
  }
 
  // Forget the recorded history and any gate in progress (no reallocation).
  void clear() {
   std::fill(history.begin(), history.end(), 0.f);
   holdCount = 0; heldL = heldR = 0.f; gain = 1.f; lastStep = -1;
+  offL = offR = 0.f; outL = outR = 0.f; crushEnv = 0.f; dsL1 = dsL2 = dsR1 = dsR2 = 0.f;
  }
 
  // division in beats (0 = stutter off), depth/chaos/crush/downsample in 0..1.
@@ -62,6 +66,7 @@ public:
   history[write * 2] = l;
   history[write * 2 + 1] = r;
   const bool reverseOnly = division <= 0.0 && reverse > 0.f;
+  bool jumped = false;
   if (division > 0.0 || reverseOnly) {
    // In free time a step is freeMs long whatever the tempo (beats advance at the tempo).
    const double stepBeats = free ? static_cast<double>(freeMs) * .001 * tempo / 60.0 : reverseOnly ? .5 : division;
@@ -77,6 +82,7 @@ public:
     repeatOffset = std::min(static_cast<std::size_t>(stepSamples), frames - 1);
     stepStart = write;
     stepPos = 0;
+    jumped = true; // the source may change here (live, repeat, reverse)
    }
    if (mode == Mode::Reverse && repeatOffset > 0) {
     // The previous step, read from its end back to its start.
@@ -98,6 +104,12 @@ public:
      r = history[read * 2 + 1];
     }
    }
+   // A jump between sources (a new step, a changed setting) would click: the
+   // difference is carried over and faded out in a few milliseconds.
+   if (jumped) { offL = outL - l; offR = outR - r; }
+   l += offL; r += offR;
+   offL *= declickCoef; offR *= declickCoef;
+   outL = l; outR = r;
    // Gate: open for the first part of each step; depth shortens the open part.
    const double open = reverseOnly ? 1.0 : 1.0 - .85 * static_cast<double>(stutterDepth);
    float target = phase < open ? 1.f : 0.f;
@@ -106,20 +118,34 @@ public:
    l *= gain; r *= gain;
    beat += tempo / 60.0 / sr;
   } else {
-   gain += ramp * (1.f - gain); // stutter switched off mid-gate: fade back in
+   // stutter switched off: the last repeat heals into the live signal, the gate fades back in
+   if (lastStep >= 0) { offL = outL - l; offR = outR - r; lastStep = -1; }
+   l += offL; r += offR;
+   offL *= declickCoef; offR *= declickCoef;
+   outL = l; outR = r;
+   gain += ramp * (1.f - gain);
    l *= gain; r *= gain;
   }
   write = (write + 1) % frames;
   if (downsample > 0.f) {
    const int hold = 1 + static_cast<int>(downsample * downsample * 40.f);
-   if (holdCount <= 0) { heldL = l; heldR = r; holdCount = hold; }
+   // a gentle filter at the new rate first: the grit of a low rate, less of its whistle
+   const float c = std::min(1.f, 2.4f / static_cast<float>(hold));
+   dsL1 += c * (l - dsL1); dsL2 += c * (dsL1 - dsL2);
+   dsR1 += c * (r - dsR1); dsR2 += c * (dsR1 - dsR2);
+   if (holdCount <= 0) { heldL = dsL2; heldR = dsR2; holdCount = hold; }
    --holdCount;
    l = heldL; r = heldR;
   }
   if (crush > 0.f) {
-   const float levels = std::exp2(15.f - crush * 13.f); // 16 bits down to 3 bits
-   l = std::round(l * levels) / levels;
-   r = std::round(r * levels) / levels;
+   // Bits counted against the sound's own level: the grain follows the music
+   // and quiet passages do not turn into hiss (12 bits down to 3).
+   crushEnv = std::max(std::max(std::abs(l), std::abs(r)), crushEnv * envRelease);
+   if (crushEnv > 1e-5f) {
+    const float levels = std::exp2(11.f - crush * 9.f) / crushEnv;
+    l = std::round(l * levels) / levels;
+    r = std::round(r * levels) / levels;
+   }
   }
  }
 
@@ -139,6 +165,8 @@ private:
  bool free = false;
  int holdCount = 0;
  Mode mode = Mode::Pass;
+ float offL = 0.f, offR = 0.f, outL = 0.f, outR = 0.f, declickCoef = .99f;
+ float crushEnv = 0.f, envRelease = .9997f, dsL1 = 0.f, dsL2 = 0.f, dsR1 = 0.f, dsR2 = 0.f;
  std::uint32_t state = 0x1234567u;
 };
 

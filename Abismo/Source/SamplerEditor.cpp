@@ -163,6 +163,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
  presets.getName=[this](int i){return processor.getProgramName(i);};
  presets.select=[this](int i){processor.setCurrentProgram(i);};
+ presets.enableUserPresets(processor.apvts, "ABISMO SAMPLER");
  body.addAndMakeVisible(presets);
 
  using Page=soft::Module::Page;
@@ -187,7 +188,6 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze},{P::RevMix}}},104,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
- master->setAccessory(std::make_unique<soft::KnobLearn>(processor.apvts,specs()[P::PressureCC],processor.learnPressure,processor.learnedCC),48);
 
  // The waveform lies over the SAMPLE screen; the load buttons sit in its header.
  sample.addAndMakeVisible(view);

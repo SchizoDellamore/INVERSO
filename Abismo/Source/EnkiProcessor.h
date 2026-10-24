@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "AbismoUI.h"
 #include "DSP/DrumsEngine.h"
 #include "DSP/EnkiGenerator.h"
 #include <array>
@@ -56,11 +57,10 @@ public:
 
  static const inverso_abismo::drums::SampleLibrary& library();
  juce::AudioProcessorValueTreeState apvts;
+ abismo_ui::MidiLearn midiLearn{*this}; // right-click any knob: MIDI learn
  std::atomic<float> outputPeak{0.f};
  std::atomic<int> voicesSounding{0};
  std::atomic<float> lfoNow{0.f};
- std::atomic<bool> learnPressure{false};
- std::atomic<int> learnedCC{-1};
  std::atomic<int> soundVersion{0}; // bumps whenever the sound changes as a whole
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
 private:

@@ -69,6 +69,7 @@ InversoFurnaceEditor::InversoFurnaceEditor(InversoFurnaceProcessor& p) : AudioPr
  presets.getCurrent = [this] { return processor.getCurrentProgram(); };
  presets.getName = [this](int i) { return processor.getProgramName(i); };
  presets.select = [this](int i) { processor.setCurrentProgram(i); };
+ presets.enableUserPresets(processor.apvts, "FURNACE");
  body.addAndMakeVisible(presets);
 
  using Page = soft::Module::Page;

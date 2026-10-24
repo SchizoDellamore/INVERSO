@@ -3,6 +3,8 @@
 // the APVTS layout builder for a portable ParamSpec table.
 #include <JuceHeader.h>
 #include "DSP/AbismoParams.h"
+#include <array>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -14,6 +16,39 @@ inline const juce::Colour text{229,221,206};
 inline const juce::Colour muted{140,136,130};
 inline const juce::Colour blood{176,38,42};
 inline const juce::Colour bone{155,147,131};
+
+// MIDI learn for every parameter: arm a parameter (right-click a knob), turn a
+// hardware knob, and that CC moves it from then on. The audio thread only reads
+// and writes atomics; the parameter itself is set on the message thread.
+class MidiLearn final : private juce::Timer {
+public:
+ explicit MidiLearn(juce::AudioProcessor&);
+ ~MidiLearn() override;
+ // Audio thread: every MIDI message goes through here (controllers are used, the rest ignored).
+ void handle(const juce::MidiMessage&);
+ // Message thread.
+ void arm(int parameterIndex);
+ void disarm() { armed.store(-1); }
+ int armedParameter() const { return armed.load(); }
+ int ccFor(int parameterIndex) const;
+ void forget(int parameterIndex);
+ int indexOf(const juce::String& parameterID) const;
+ void save(juce::ValueTree& state) const;
+ void load(const juce::ValueTree& state);
+ // The learn object of the processor that owns this parameter tree (for the knobs).
+ static MidiLearn* find(const juce::AudioProcessor*);
+private:
+ void timerCallback() override;
+ juce::AudioProcessor& processor;
+ std::array<std::atomic<int>,128> map, pending;
+ std::atomic<int> armed{-1};
+};
+
+// Your own presets: XML files in Documents/INVERSO/<plugin>/Presets.
+juce::File userPresetFolder(const juce::String& plugin);
+juce::Array<juce::File> userPresets(const juce::String& plugin);
+bool saveUserPreset(juce::AudioProcessorValueTreeState&,const juce::String& plugin,const juce::String& name);
+bool loadUserPreset(juce::AudioProcessorValueTreeState&,const juce::File&);
 
 juce::String formatValue(const inverso_abismo::ParamSpec&,double);
 juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const inverso_abismo::ParamSpec* specs,int count);

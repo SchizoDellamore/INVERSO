@@ -102,7 +102,6 @@ void InversoEnkiProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Mi
  if (auto* head=getPlayHead())
   if (const auto position=head->getPosition())
    engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
- const int pressureCC=juce::roundToInt(raw[static_cast<std::size_t>(P::PressureCC)]->load(std::memory_order_relaxed));
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
  int position=0;
@@ -110,6 +109,7 @@ void InversoEnkiProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Mi
   const int at=std::clamp(metadata.samplePosition,0,samples);
   if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
   const auto m=metadata.getMessage();
+  midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
   else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
@@ -120,12 +120,6 @@ void InversoEnkiProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Mi
   else if (m.isAftertouch()) engine.setPressure(static_cast<float>(m.getAfterTouchValue())/127.f);
   else if (m.isAllNotesOff()) engine.allNotesOff();
   else if (m.isAllSoundOff()) engine.allSoundOff();
-  else if (m.isController()) {
-   // A knob standing in for aftertouch (see PRESSURE_CC); learning skips mod wheel and sustain.
-   const int cc=m.getControllerNumber();
-   if (learnPressure.load(std::memory_order_relaxed) && cc>1 && cc!=64 && cc<120) learnedCC.store(cc,std::memory_order_relaxed);
-   if (pressureCC>0 && cc==pressureCC) engine.setPressure(static_cast<float>(m.getControllerValue())/127.f);
-  }
  }
  if (position<samples) engine.render(left+position,right+position,samples-position);
  for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
@@ -407,6 +401,7 @@ bool InversoEnkiProcessor::loadFavorite(const juce::File& file) {
 
 void InversoEnkiProcessor::getStateInformation(juce::MemoryBlock& dest) {
  auto state=apvts.copyState();
+ midiLearn.save(state);
  const auto snap=snapshot();
  state.setProperty("fileA",snap.fileA,nullptr);
  state.setProperty("fileB",snap.fileB,nullptr);
@@ -422,6 +417,7 @@ void InversoEnkiProcessor::setStateInformation(const void* data,int size) {
  drawFolder=state.getProperty("drawFolder",{}).toString();
  for (auto key : {"fileA","fileB","drawFolder"}) state.removeProperty(key,nullptr);
  apvts.replaceState(state);
+ midiLearn.load(state);
  for (int k=0;k<2;++k)
   if (files[k].isNotEmpty())
    if (auto s=decode(juce::File(files[k]),maxSourceSeconds)) queueSlot(k,s,files[k]);

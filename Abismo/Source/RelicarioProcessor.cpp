@@ -42,11 +42,11 @@ void InversoRelicarioProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
  auto* right=audio.getWritePointer(1);
  // Split the block at each MIDI event so notes start sample-accurately.
  int position=0;
- const int pressureCC=juce::roundToInt(raw[static_cast<std::size_t>(P::PressureCC)]->load(std::memory_order_relaxed));
  for (const auto metadata : midi) {
   const int at=std::clamp(metadata.samplePosition,0,samples);
   if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
   const auto m=metadata.getMessage();
+  midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
   else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
@@ -57,12 +57,6 @@ void InversoRelicarioProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
   else if (m.isAftertouch()) engine.setPressure(static_cast<float>(m.getAfterTouchValue())/127.f);
   else if (m.isAllNotesOff()) engine.allNotesOff();
   else if (m.isAllSoundOff()) engine.allSoundOff();
-  else if (m.isController()) {
-   // A knob standing in for aftertouch (see PRESSURE_CC); learning skips mod wheel and sustain.
-   const int cc=m.getControllerNumber();
-   if (learnPressure.load(std::memory_order_relaxed) && cc>1 && cc!=64 && cc<120) learnedCC.store(cc,std::memory_order_relaxed);
-   if (pressureCC>0 && cc==pressureCC) engine.setPressure(static_cast<float>(m.getControllerValue())/127.f);
-  }
  }
  if (position<samples) engine.render(left+position,right+position,samples-position);
  for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
@@ -101,6 +95,7 @@ void InversoRelicarioProcessor::setCurrentProgram(int index) {
 
 void InversoRelicarioProcessor::getStateInformation(juce::MemoryBlock& dest) {
  auto state=apvts.copyState();
+ midiLearn.save(state);
  state.setProperty("program",currentProgram,nullptr);
  if (auto xml=state.createXml()) copyXmlToBinary(*xml,dest);
 }
@@ -110,6 +105,7 @@ void InversoRelicarioProcessor::setStateInformation(const void* data,int size) {
   auto state=juce::ValueTree::fromXml(*xml);
   currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
   apvts.replaceState(state);
+  midiLearn.load(state);
  }
 }
 

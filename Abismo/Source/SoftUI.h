@@ -60,10 +60,21 @@ void paintScreen(juce::Graphics&, juce::Rectangle<float>, float radius = 10.f);
 // A glowing line on a screen.
 void glowStroke(juce::Graphics&, const juce::Path&, juce::Colour, float width = 1.8f);
 
-class Knob final : public juce::Slider {
+class Knob final : public juce::Slider, private juce::Timer {
 public:
  explicit Knob(juce::Colour accent);
  void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+ void mouseDown(const juce::MouseEvent&) override;
+ void mouseEnter(const juce::MouseEvent&) override;
+ void paintOverChildren(juce::Graphics&) override;
+ // Right-click offers MIDI learn for this parameter (when its processor has a MidiLearn).
+ void enableMidiLearn(juce::AudioProcessorValueTreeState&, const juce::String& parameterID);
+private:
+ void timerCallback() override;
+ abismo_ui::MidiLearn* learn = nullptr;
+ int parameterIndex = -1;
+ juce::String baseTooltip;
+ bool blink = false;
 };
 
 // A dark display inside a module. `draw` gets the inner area and the current page.
@@ -198,15 +209,21 @@ public:
  std::function<int()> getCount, getCurrent;
  std::function<juce::String(int)> getName;
  std::function<void(int)> select;
+ // Your own presets (SAVE on the bar, listed in its menu), kept in Documents/INVERSO/<plugin>/Presets.
+ void enableUserPresets(juce::AudioProcessorValueTreeState&, const juce::String& plugin);
  // Repaints only when the current program or the count changed.
  void refresh() {
   const int cur = getCurrent ? getCurrent() : 0, n = getCount ? getCount() : 0;
-  if (cur != shown || n != shownCount) { shown = cur; shownCount = n; repaint(); }
+  if (cur != shown || n != shownCount) { if (cur != shown && shown >= 0) userName = {}; shown = cur; shownCount = n; repaint(); }
  }
  void paint(juce::Graphics&) override;
  void mouseUp(const juce::MouseEvent&) override;
 private:
+ int saveWidth() const { return userApvts != nullptr ? 58 : 0; }
+ void saveDialog();
  int shown = -1, shownCount = -1;
+ juce::AudioProcessorValueTreeState* userApvts = nullptr;
+ juce::String userPlugin, userName; // the user preset on show (empty: the factory one)
 };
 
 // The editor body: a light background, a header with the instrument name,

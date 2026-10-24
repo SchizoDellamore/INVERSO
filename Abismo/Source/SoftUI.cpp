@@ -336,6 +336,55 @@ Knob::Knob(juce::Colour accent) {
  setMouseDragSensitivity(220);
  setVelocityBasedMode(false);
 }
+void Knob::enableMidiLearn(juce::AudioProcessorValueTreeState& apvts, const juce::String& id) {
+ learn = abismo_ui::MidiLearn::find(&apvts.processor);
+ parameterIndex = learn != nullptr ? learn->indexOf(id) : -1;
+ baseTooltip = getTooltip();
+}
+void Knob::mouseEnter(const juce::MouseEvent& e) {
+ if (learn != nullptr && parameterIndex >= 0) {
+  const int cc = learn->ccFor(parameterIndex);
+  setTooltip(baseTooltip + (cc >= 0 ? "   (MIDI CC " + juce::String(cc) + ", right-click to change)" : juce::String("   (right-click: MIDI learn)")));
+ }
+ juce::Slider::mouseEnter(e);
+}
+void Knob::mouseDown(const juce::MouseEvent& e) {
+ if (e.mods.isPopupMenu() && learn != nullptr && parameterIndex >= 0) {
+  const int cc = learn->ccFor(parameterIndex);
+  juce::PopupMenu menu;
+  menu.addSectionHeader(baseTooltip.isNotEmpty() ? baseTooltip : juce::String("This knob"));
+  menu.addItem(1, cc >= 0 ? "MIDI learn again (now CC " + juce::String(cc) + ")" : juce::String("MIDI learn: then turn a knob on your keyboard"));
+  menu.addItem(2, "Forget MIDI", cc >= 0);
+  if (learn->armedParameter() >= 0) menu.addItem(3, "Cancel MIDI learn");
+  juce::Component::SafePointer<Knob> safe(this);
+  menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safe](int chosen) {
+   if (safe == nullptr || safe->learn == nullptr) return;
+   if (chosen == 1) { safe->learn->arm(safe->parameterIndex); safe->startTimerHz(6); }
+   if (chosen == 2) safe->learn->forget(safe->parameterIndex);
+   if (chosen == 3) safe->learn->disarm();
+   safe->repaint();
+  });
+  return;
+ }
+ juce::Slider::mouseDown(e);
+}
+void Knob::timerCallback() {
+ // blinking while it waits for a CC; stops once the CC arrived (or learn was cancelled)
+ blink = !blink;
+ if (learn == nullptr || learn->armedParameter() != parameterIndex) { stopTimer(); blink = false; }
+ repaint();
+}
+void Knob::paintOverChildren(juce::Graphics& g) {
+ if (learn == nullptr || parameterIndex < 0) return;
+ const auto r = getLocalBounds().toFloat();
+ const auto accent = findColour(juce::Slider::rotarySliderFillColourId);
+ if (learn->armedParameter() == parameterIndex) {
+  if (blink) { g.setColour(accent); g.drawEllipse(r.reduced(1.5f), 2.5f); }
+ } else if (learn->ccFor(parameterIndex) >= 0) {
+  g.setColour(accent);
+  g.fillEllipse(r.getRight() - 9.f, r.getY() + 2.f, 7.f, 7.f); // learned: a small dot
+ }
+}
 void Knob::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) {
  if (!isEnabled() || std::abs(wheel.deltaY) < 1e-6f) return;
  const double step = static_cast<double>(wheel.deltaY) * (wheel.isReversed ? -1. : 1.) * (e.mods.isShiftDown() ? .04 : .25);
@@ -437,6 +486,7 @@ Module::Module(juce::AudioProcessorValueTreeState& apvts, const ParamSpec* table
     addChildComponent(*c.knob);
     c.sa = std::make_unique<SA>(apvts, spec.id, *c.knob);
     c.knob->setDoubleClickReturnValue(true, static_cast<double>(spec.def));
+    c.knob->enableMidiLearn(apvts, spec.id);
     c.value = std::make_unique<juce::Label>();
     c.value->setFont(monoFont(11.5f));
     c.value->setColour(juce::Label::textColourId, colour::ink);
@@ -656,6 +706,8 @@ Master::Master(juce::AudioProcessorValueTreeState& apvts, const ParamSpec& out, 
  addAndMakeVisible(output);
  outAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, out.id, output);
  output.setDoubleClickReturnValue(true, static_cast<double>(out.def));
+ output.setTooltip(out.name);
+ output.enableMidiLearn(apvts, out.id);
  for (auto* l : {&outValue, &secondValue}) {
   l->setFont(monoFont(12.f));
   l->setColour(juce::Label::textColourId, colour::ink);
@@ -670,6 +722,8 @@ Master::Master(juce::AudioProcessorValueTreeState& apvts, const ParamSpec& out, 
   addAndMakeVisible(secondValue);
   secondAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, sec->id, second);
   second.setDoubleClickReturnValue(true, static_cast<double>(sec->def));
+  second.setTooltip(sec->name);
+  second.enableMidiLearn(apvts, sec->id);
   second.onValueChange = [this, sec] { secondValue.setText(abismo_ui::formatValue(*sec, second.getValue()), juce::dontSendNotification); };
   second.onValueChange();
  }
@@ -764,10 +818,21 @@ void KnobLearn::paint(juce::Graphics& g) {
  g.drawText("AFTERTOUCH KNOB", getLocalBounds().removeFromTop(14), juce::Justification::centred);
 }
 
+void PresetBar::enableUserPresets(juce::AudioProcessorValueTreeState& apvts, const juce::String& plugin) {
+ userApvts = &apvts;
+ userPlugin = plugin;
+ repaint();
+}
+
 void PresetBar::paint(juce::Graphics& g) {
- const auto r = getLocalBounds().toFloat().reduced(8.f);
+ auto all = getLocalBounds().toFloat().reduced(8.f);
+ juce::Rectangle<float> save;
+ if (saveWidth() > 0) { save = all.removeFromRight(static_cast<float>(saveWidth()) - 8.f); all.removeFromRight(8.f); }
+ const auto r = all;
+ const int count = getCount ? getCount() : 0, current = getCurrent ? getCurrent() : 0;
+ const juce::String name = userName.isNotEmpty() ? userName : getName ? getName(current) : juce::String();
+ const juce::String counter = userName.isNotEmpty() ? juce::String("YOUR PRESET") : juce::String(current + 1).paddedLeft('0', 2) + " / " + juce::String(count);
  if (vintage) { // a black program window with amber lettering
-  const int count = getCount ? getCount() : 0, current = getCurrent ? getCurrent() : 0;
   juce::Path p;
   p.addRoundedRectangle(r, 5.f);
   juce::DropShadow(juce::Colour(0xcc000000), 10, {2, 4}).drawForPath(g, p);
@@ -784,13 +849,22 @@ void PresetBar::paint(juce::Graphics& g) {
   g.drawText(juce::String::fromUTF8("\xe2\x80\xba"), r.withTrimmedLeft(r.getWidth() - 44.f).translated(-2.f, -2.f), juce::Justification::centred);
   g.setFont(monoFont(10.5f));
   g.setColour(colour::amber.withAlpha(.6f));
-  g.drawText("PROGRAM " + juce::String(current + 1).paddedLeft('0', 2) + " / " + juce::String(count), glass.withHeight(glass.getHeight() * .42f).translated(0.f, 2.f), juce::Justification::centred);
+  g.drawText(userName.isNotEmpty() ? counter : "PROGRAM " + counter, glass.withHeight(glass.getHeight() * .42f).translated(0.f, 2.f), juce::Justification::centred);
   g.setColour(colour::amber.withAlpha(.25f));
   const auto nameArea = glass.withTrimmedTop(glass.getHeight() * .36f).toNearestInt();
   g.setFont(titleFont(16.f));
-  g.drawFittedText(getName ? getName(current).toUpperCase() : juce::String(), nameArea.translated(0, 1).expanded(1, 0), juce::Justification::centred, 1, .8f);
+  g.drawFittedText(name.toUpperCase(), nameArea.translated(0, 1).expanded(1, 0), juce::Justification::centred, 1, .8f);
   g.setColour(colour::amber.brighter(.3f));
-  g.drawFittedText(getName ? getName(current).toUpperCase() : juce::String(), nameArea, juce::Justification::centred, 1, .8f);
+  g.drawFittedText(name.toUpperCase(), nameArea, juce::Justification::centred, 1, .8f);
+  if (!save.isEmpty()) {
+   g.setGradientFill(juce::ColourGradient(juce::Colour(0xff2a231d), 0.f, save.getY(), juce::Colour(0xff0f0c0a), 0.f, save.getBottom(), false));
+   g.fillRoundedRectangle(save, 5.f);
+   g.setColour(juce::Colour(0xff8f877a));
+   g.drawRoundedRectangle(save.reduced(.5f), 5.f, 1.5f);
+   g.setColour(colour::amber.brighter(.2f));
+   g.setFont(titleFont(14.f));
+   g.drawText("SAVE", save, juce::Justification::centred);
+  }
   return;
  }
  juce::Path p;
@@ -799,7 +873,6 @@ void PresetBar::paint(juce::Graphics& g) {
  juce::DropShadow(juce::Colours::white, 8, {-3, -3}).drawForPath(g, p);
  g.setGradientFill(juce::ColourGradient(juce::Colours::white, 0.f, r.getY(), colour::card, 0.f, r.getBottom(), false));
  g.fillPath(p);
- const int count = getCount ? getCount() : 0, current = getCurrent ? getCurrent() : 0;
  g.setColour(colour::ink.withAlpha(.7f));
  g.setFont(uiFont(30.f));
  g.drawText(juce::String::fromUTF8("\xe2\x80\xb9"), r.withWidth(44.f).translated(6.f, -2.f), juce::Justification::centred);
@@ -807,22 +880,71 @@ void PresetBar::paint(juce::Graphics& g) {
  const auto mid = r.reduced(40.f, 0.f);
  g.setFont(monoFont(10.5f));
  g.setColour(colour::muted);
- g.drawText(juce::String(current + 1).paddedLeft('0', 2) + " / " + juce::String(count), mid.withHeight(mid.getHeight() * .42f).translated(0.f, 3.f), juce::Justification::centred);
+ g.drawText(counter, mid.withHeight(mid.getHeight() * .42f).translated(0.f, 3.f), juce::Justification::centred);
  g.setColour(colour::ink);
  g.setFont(uiFont(16.f, true));
- g.drawFittedText(getName ? getName(current) : juce::String(), mid.withTrimmedTop(mid.getHeight() * .36f).toNearestInt(), juce::Justification::centred, 1, .8f);
+ g.drawFittedText(name, mid.withTrimmedTop(mid.getHeight() * .36f).toNearestInt(), juce::Justification::centred, 1, .8f);
+ if (!save.isEmpty()) {
+  juce::Path sp;
+  sp.addRoundedRectangle(save, save.getHeight() * .5f);
+  juce::DropShadow(colour::shadow.withAlpha(.4f), 10, {2, 3}).drawForPath(g, sp);
+  g.setGradientFill(juce::ColourGradient(juce::Colours::white, 0.f, save.getY(), colour::card, 0.f, save.getBottom(), false));
+  g.fillPath(sp);
+  g.setColour(colour::ink);
+  g.setFont(uiFont(11.f, true));
+  g.drawText("SAVE", save, juce::Justification::centred);
+ }
 }
+
+void PresetBar::saveDialog() {
+ if (userApvts == nullptr) return;
+ auto* window = new juce::AlertWindow("Save preset", "A name for this sound:", juce::MessageBoxIconType::NoIcon, this);
+ window->addTextEditor("name", userName.isNotEmpty() ? userName : juce::String("My ") + (getName ? getName(getCurrent ? getCurrent() : 0) : juce::String("sound")));
+ window->addButton("SAVE", 1, juce::KeyPress(juce::KeyPress::returnKey));
+ window->addButton("CANCEL", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+ juce::Component::SafePointer<PresetBar> safe(this);
+ window->enterModalState(true, juce::ModalCallbackFunction::create([safe, window](int result) {
+  if (safe == nullptr || result != 1) return;
+  const auto name = window->getTextEditorContents("name").trim();
+  if (abismo_ui::saveUserPreset(*safe->userApvts, safe->userPlugin, name)) { safe->userName = juce::File::createLegalFileName(name); safe->repaint(); }
+ }), true);
+}
+
 void PresetBar::mouseUp(const juce::MouseEvent& e) {
  if (!getCount || !select) return;
  const int count = getCount(), current = getCurrent();
  if (count <= 0) return;
- if (e.x < 48) { select((current + count - 1) % count); repaint(); return; }
- if (e.x > getWidth() - 48) { select((current + 1) % count); repaint(); return; }
+ const int width = getWidth() - saveWidth();
+ if (saveWidth() > 0 && e.x >= width) { saveDialog(); return; }
+ if (e.x < 48) { userName = {}; select((current + count - 1) % count); repaint(); return; }
+ if (e.x > width - 48 && e.x < width) { userName = {}; select((current + 1) % count); repaint(); return; }
  juce::PopupMenu menu;
- for (int i = 0; i < count; ++i) menu.addItem(i + 1, getName(i), true, i == current);
+ if (userApvts != nullptr) menu.addSectionHeader("FACTORY");
+ for (int i = 0; i < count; ++i) menu.addItem(i + 1, getName(i), true, i == current && userName.isEmpty());
+ juce::Array<juce::File> files;
+ if (userApvts != nullptr) {
+  files = abismo_ui::userPresets(userPlugin);
+  menu.addSectionHeader("YOURS");
+  if (files.isEmpty()) menu.addItem(-1, "None yet: press SAVE to keep the current sound", false);
+  for (int i = 0; i < files.size(); ++i) menu.addItem(10000 + i, files[i].getFileNameWithoutExtension(), true, files[i].getFileNameWithoutExtension() == userName);
+  menu.addSeparator();
+  menu.addItem(20000, "Save the current sound...");
+  menu.addItem(20001, "Open the presets folder");
+ }
  juce::Component::SafePointer<PresetBar> safe(this);
- menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMaximumNumColumns(2), [safe](int chosen) {
-  if (safe != nullptr && chosen > 0) { safe->select(chosen - 1); safe->repaint(); }
+ menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMaximumNumColumns(2), [safe, files](int chosen) {
+  if (safe == nullptr || chosen <= 0) return;
+  if (chosen == 20000) { safe->saveDialog(); return; }
+  if (chosen == 20001) { const auto f = abismo_ui::userPresetFolder(safe->userPlugin); f.createDirectory(); f.revealToUser(); return; }
+  if (chosen >= 10000) {
+   const auto& file = files[chosen - 10000];
+   if (abismo_ui::loadUserPreset(*safe->userApvts, file)) safe->userName = file.getFileNameWithoutExtension();
+   safe->repaint();
+   return;
+  }
+  safe->userName = {};
+  safe->select(chosen - 1);
+  safe->repaint();
  });
 }
 

@@ -121,6 +121,7 @@ InversoClearEditor::InversoClearEditor(InversoClearProcessor& p) : AudioProcesso
  presets.getCurrent = [this] { return processor.getCurrentProgram(); };
  presets.getName = [this](int i) { return processor.getProgramName(i); };
  presets.select = [this](int i) { processor.setCurrentProgram(i); };
+ presets.enableUserPresets(processor.apvts, "CLEAR");
  body.addAndMakeVisible(presets);
  body.addAndMakeVisible(analyzer);
  using Page = soft::Module::Page;

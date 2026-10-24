@@ -101,6 +101,15 @@ struct SVF {
   if (mode == 2) return v0 - k * v1 - v2; // high-pass
   return v2;                              // low-pass
  }
+ // All three outputs from one step (to crossfade between them).
+ void processAll(float v0, float a1, float a2, float a3, float k, float& lp, float& bp, float& hp) {
+  const float v3 = v0 - ic2;
+  const float v1 = a1 * ic1 + a2 * v3;
+  const float v2 = ic2 + a2 * ic1 + a3 * v3;
+  ic1 = 2.f * v1 - ic1;
+  ic2 = 2.f * v2 - ic2;
+  lp = v2; bp = v1 * k; hp = v0 - k * v1 - v2;
+ }
  void reset() { ic1 = ic2 = 0.f; }
 };
 

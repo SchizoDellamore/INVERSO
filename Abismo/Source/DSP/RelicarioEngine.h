@@ -88,7 +88,7 @@ struct TapeLoop {
 struct Controls {
  float fita = .7f, harm = 0.f, fork = 0.f, organ = 0.f;
  int wave1 = 0, wave2 = 2;
- float loopMix = .5f, loop2Ratio = 1.f, wear = .35f, wow = .3f, sat = .3f, fitaCutoff = 6000.f;
+ float loopMix = .5f, loop1Level = 1.f, loop2Level = 1.f, loop2Ratio = 1.f, wear = .35f, wow = .3f, sat = .3f, fitaCutoff = 6000.f;
  float era = 0.f, breath = .3f, motor = .25f, sag = .5f, speakMs = 60.f;
  float spark = .3f, clang = .5f, maintain = .7f, beatHz = .4f;
  std::array<float, 4> reg{0.f, 1.f, .5f, 0.f};
@@ -122,7 +122,7 @@ public:
   glideOffset = glideStart = glideFrom;
   if (!stolen) {
    ph1 = ph1b = ph2 = ph2b = reedPh = 0.f;
-   forkPh = beatPh = clangPh = 0.f;
+   forkPh = beatPh = 0.f;
    orgPh = .5f * (rng.next() + 1.f);
    lp1 = lp2 = reedLp = reedLp2 = breathHp = 0.f;
    for (auto* f : {&static1, &static2}) f->reset();
@@ -144,13 +144,22 @@ public:
   bounceLeft = 1 + static_cast<int>(2.99f * .5f * (rng.next() + 1.f));
   bounceWait = 30 + static_cast<int>(150.f * .5f * (rng.next() + 1.f));
   if (!stolen) { reed2Ph = .5f * (rng.next() + 1.f); lp1b = lp2b = 0.f; }
+  // the fork is struck: its metal rings, the strike itself clicks
+  clangPh.fill(0.f);
+  sparkY1 = sparkY2 = buzzY1 = buzzY2 = 0.f;
+  strikeEnv = 1.f;
+  strikeBp.reset();
   amp.gateOn();
+  for (auto& e : env) e.gateOn();
  }
- void release() { released = true; amp.gateOff(); }
- bool active() const { return amp.active(); }
+ void release() { released = true; amp.gateOff(); for (auto& e : env) e.gateOff(); }
+ bool active() const { return amp.active() && (env[0].active() || env[1].active() || env[2].active() || env[3].active()); }
+ // One envelope per machine (tape, reed organ, fork, organ), on top of the KEYS envelope.
+ std::array<Envelope, 4> env;
 
- void control(const Controls& c, const Shared& sh, float bendSt, double sr, const Envelope& shape) {
+ void control(const Controls& c, const Shared& sh, float bendSt, double sr, const Envelope& shape, const std::array<Envelope, 4>& machineShapes) {
   amp.copySettings(shape);
+  for (int m = 0; m < 4; ++m) env[static_cast<std::size_t>(m)].copySettings(machineShapes[static_cast<std::size_t>(m)]);
   const float dt = static_cast<float>(controlInterval / sr);
   if (c.glideMs > 0.f) {
    const float step = std::abs(glideStart) * dt * 1000.f / c.glideMs;
@@ -201,9 +210,34 @@ public:
   forkInc = std::min(f * boing * detail::semitoneRatio(ageAmt * (.4f * keyCents + .5f * driftNow) * .01f), nyq) / srf;
   forkBreath = 1.f + ageAmt * .06f * levelNow; // the maintaining circuit never holds the swing perfectly still
   beatInc = std::min(f + c.beatHz, nyq) / srf;
-  clangInc = f * 6.267f < nyq ? f * 6.267f / srf : 0.f;
   forkAmp = c.maintain * (.55f + .45f * (1.f - std::exp(-seconds / .25f))) + (1.f - c.maintain) * std::exp(-seconds / 3.5f);
-  clangAmp = c.clang * .5f * std::exp(-seconds / .09f);
+  // The clang: a struck steel bar's modes (6.27, 17.55, 34.39, 56.85 times the
+  // fundamental), each split into a close pair that beats, the higher dying faster.
+  {
+   static const float ratio[6] = {6.267f, 6.301f, 17.55f, 17.63f, 34.39f, 56.85f};
+   static const float decay[6] = {.45f, .38f, .14f, .12f, .06f, .035f};
+   static const float gain[6] = {1.f, .7f, .5f, .35f, .28f, .18f};
+   for (int m = 0; m < 6; ++m) {
+    const auto u = static_cast<std::size_t>(m);
+    const float hz = f * ratio[m];
+    clangInc[u] = hz < nyq ? hz / srf : 0.f;
+    clangAmp[u] = hz < nyq ? c.clang * .32f * gain[m] * std::exp(-seconds / decay[m]) : 0.f;
+   }
+   strikeLevel = c.clang * .9f;
+  }
+  // The magnet's contact: each cycle it fires, a crack (a short ring high up) and
+  // the coil's buzz (a ring lower down); both follow the fork's own pitch.
+  {
+   auto ring = [&](float hz, float tau, float& a1, float& a2) {
+    const float r = std::exp(-1.f / (tau * srf)), w = 6.2831853f * std::min(hz, nyq) / srf;
+    a1 = 2.f * r * std::cos(w); a2 = -r * r;
+   };
+   ring(4200.f + 900.f * keyCents, .00035f, sparkA1, sparkA2);
+   ring(1650.f, .0025f, buzzA1, buzzA2);
+   const float g = std::tan(3.14159265f * std::min(5200.f, nyq) / srf);
+   strikeK = 1.1f; strikeA1 = 1.f / (1.f + g * (g + strikeK)); strikeA2 = g * strikeA1; strikeA3 = g * strikeA2;
+   strikeDecay = std::exp(-1.f / (.004f * srf));
+  }
   // ORGAO: one master oscillator at 16'; every register divides from it.
   orgInc = std::min(f * .5f * detail::semitoneRatio((sh.tremPitch + ageAmt * (.8f * keyCents + 1.2f * driftNow)) * .01f), nyq / 10.f) / srf;
   // Transistor stages and the RC output filters round each register's square: older, rounder.
@@ -224,6 +258,7 @@ public:
   const float regNorm = regSum > 0.f ? 1.f / (1.f + .55f * (regSum - 1.f > 0.f ? regSum - 1.f : 0.f)) : 0.f;
   for (int i = 0; i < n; ++i) {
    const float e = amp.next() * velScale;
+   const float e0 = env[0].next(), e1 = env[1].next(), e2 = env[2].next(), e3 = env[3].next();
    if (c.fita > 0.f) {
     // The tape runs a hair unevenly under the head, cycle to cycle.
     const float jitter = 1.f + ageAmt * .0008f * rng.next();
@@ -235,8 +270,8 @@ public:
     b += ageAmt * .2f * (b * b - .33f);
     lp1 += lpCoef1 * (a - lp1); lp1b += lpCoef1 * (lp1 - lp1b);
     lp2 += lpCoef2 * (b - lp2); lp2b += lpCoef2 * (lp2 - lp2b);
-    const float g = e * c.fita * .11f * level;
-    const float x1 = lp1b * tapeAmp1 * (1.f - c.loopMix) * 2.f * g, x2 = lp2b * tapeAmp2 * c.loopMix * 2.f * g;
+    const float g = e * e0 * c.fita * .11f * level;
+    const float x1 = lp1b * tapeAmp1 * (1.f - c.loopMix) * 2.f * c.loop1Level * g, x2 = lp2b * tapeAmp2 * c.loopMix * 2.f * c.loop2Level * g;
     fitaL[i] += .75f * x1 + .25f * x2;
     fitaR[i] += .25f * x1 + .75f * x2;
    }
@@ -255,20 +290,30 @@ public:
     const float hp = noise - breathHp;
     breathHp += .15f * (noise - breathHp);
     const float p = sh.pressure * (1.f + sh.pressureWobble);
-    harm[i] += e * level * c.harm * speakLevel * (.12f * reedLp2 * p * std::sqrt(p) + c.breath * .03f * hp * (.5f + .5f * p));
+    harm[i] += e * e1 * level * c.harm * speakLevel * (.12f * reedLp2 * p * std::sqrt(p) + c.breath * .03f * hp * (.5f + .5f * p));
    }
    if (c.fork > 0.f) {
     float x = detail::sine(forkPh) * forkAmp;
     if (c.beatHz > .005f) x = .62f * x + .5f * detail::sine(beatPh) * forkAmp;
-    if (clangInc > 0.f) { x += clangAmp * detail::sine(clangPh); clangPh += clangInc; if (clangPh >= 1.f) clangPh -= 1.f; }
-    // The contact breaker fires once a cycle: a spark, and a little buzz from the magnet.
-    x += .05f * c.spark * c.maintain * detail::sine(dsp::frac(forkPh * 2.f));
+    for (std::size_t m = 0; m < clangPh.size(); ++m) {
+     if (clangAmp[m] < 1e-5f) continue;
+     x += clangAmp[m] * detail::sine(clangPh[m]);
+     clangPh[m] += clangInc[m]; if (clangPh[m] >= 1.f) clangPh[m] -= 1.f;
+    }
+    if (strikeEnv > 1e-4f) {
+     x += strikeLevel * strikeEnv * strikeBp.process(rng.next(), strikeA1, strikeA2, strikeA3, strikeK, 1);
+     strikeEnv *= strikeDecay;
+    }
     forkPh += forkInc;
-    if (forkPh >= 1.f) { forkPh -= 1.f; sparkEnv = c.spark * c.maintain * (.6f + .4f * std::abs(rng.next())); }
+    float kick = 0.f;
+    if (forkPh >= 1.f) { forkPh -= 1.f; kick = c.spark * c.maintain * (.8f + .2f * rng.next()); }
     beatPh += beatInc; if (beatPh >= 1.f) beatPh -= 1.f;
-    x += sparkEnv * rng.next() * .5f;
-    sparkEnv *= .82f;
-    fork[i] += e * c.fork * .16f * forkBreath * x;
+    const float crack = kick + sparkA1 * sparkY1 + sparkA2 * sparkY2;
+    sparkY2 = sparkY1; sparkY1 = crack;
+    const float buzz = kick + buzzA1 * buzzY1 + buzzA2 * buzzY2;
+    buzzY2 = buzzY1; buzzY1 = buzz;
+    x += .09f * crack + .035f * buzz;
+    fork[i] += e * e2 * c.fork * .16f * forkBreath * x;
    }
    if (c.organ > 0.f) {
     float x = 0.f;
@@ -292,7 +337,7 @@ public:
     clickLp += .35f * (rng.next() - clickLp);
     x = x * regNorm + clickEnv * clickLp * .9f;
     clickEnv *= .993f;
-    organ[i] += e * level * c.organ * .075f * sh.tremAmp * x;
+    organ[i] += e * e3 * level * c.organ * .075f * sh.tremAmp * x;
    }
   }
   age += n;
@@ -332,7 +377,11 @@ private:
  float lp1 = 0.f, lp2 = 0.f, lpCoef1 = 1.f, lpCoef2 = 1.f;
  SVF static1, static2;
  float reedPh = 0.f, reedInc = 0.f, reedDuty = .2f, reedLp = 0.f, reedLp2 = 0.f, reedCoef = 1.f, breathHp = 0.f, speakLevel = 0.f;
- float forkPh = 0.f, beatPh = 0.f, clangPh = 0.f, forkInc = 0.f, beatInc = 0.f, clangInc = 0.f, forkAmp = 0.f, clangAmp = 0.f, sparkEnv = 0.f;
+ float forkPh = 0.f, beatPh = 0.f, forkInc = 0.f, beatInc = 0.f, forkAmp = 0.f, sparkEnv = 0.f;
+ std::array<float, 6> clangPh{}, clangInc{}, clangAmp{};
+ float sparkY1 = 0.f, sparkY2 = 0.f, sparkA1 = 0.f, sparkA2 = 0.f, buzzY1 = 0.f, buzzY2 = 0.f, buzzA1 = 0.f, buzzA2 = 0.f;
+ float strikeEnv = 0.f, strikeLevel = 0.f, strikeDecay = .99f, strikeA1 = 1.f, strikeA2 = 0.f, strikeA3 = 0.f, strikeK = 1.f;
+ SVF strikeBp;
  float orgPh = 0.f, orgInc = 0.f, clickEnv = 0.f, clickLp = 0.f;
  // Analog life.
  float ageAmt = .6f, keyCents = 0.f, keyCents2 = 0.f, driftNow = 0.f, driftTarget = 0.f, levelNow = 0.f, levelTarget = 0.f, level = 1.f;
@@ -347,7 +396,7 @@ public:
  void prepare(double sampleRate) {
   sr = (std::isfinite(sampleRate) && sampleRate >= 8000.0) ? sampleRate : 48000.0;
   reverb.prepare(sr);
-  for (int i = 0; i < maxVoices; ++i) { voices[static_cast<std::size_t>(i)].seed(static_cast<std::uint32_t>(i + 1)); voices[static_cast<std::size_t>(i)].amp.reset(); }
+  for (int i = 0; i < maxVoices; ++i) { auto& v = voices[static_cast<std::size_t>(i)]; v.seed(static_cast<std::uint32_t>(i + 1)); v.amp.reset(); for (auto& e : v.env) e.reset(); }
   loop1.build(0x51A7u); loop2.build(0xE40u);
   loop1.phase = 0.f; loop2.phase = .37f;
   const int maxBlock = controlInterval;
@@ -368,6 +417,8 @@ public:
    }
   }
   chop.prepare(sr);
+  driveL.prepare(sr); driveR.prepare(sr); driveL2.prepare(sr); driveR2.prepare(sr);
+  xfadeStep = static_cast<float>(1.0 / (.02 * sr)); // switching drive or filter type: 20 ms crossfade
   clearEffects();
   smoothed = target;
   controlCountdown = 0;
@@ -390,7 +441,7 @@ public:
   }
   const float glideFrom = (controls.glideMs > 0.f && lastNote >= 0) ? static_cast<float>(lastNote - note) : 0.f;
   chosen->start(note, velocity, glideFrom, stolen);
-  chosen->control(controls, shared, bend * controls.bendRange, sr, ampShape);
+  chosen->control(controls, shared, bend * controls.bendRange, sr, ampShape, machineShapes);
   lastNote = note;
   filterAttack = true; // every note restarts the filter envelope
  }
@@ -406,7 +457,7 @@ public:
  }
  void allNotesOff() { sustainPedal = false; for (auto& v : voices) if (v.active()) v.release(); }
  void allSoundOff() {
-  for (auto& v : voices) v.amp.reset();
+  for (auto& v : voices) { v.amp.reset(); for (auto& e : v.env) e.reset(); }
   reverb.clear(); chorusL.clear(); chorusR.clear(); echoL.clear(); echoR.clear();
   for (auto& a : activity) a = 0.f; // hum, hiss and dust stop with the sound
   clearEffects();
@@ -432,9 +483,9 @@ public:
    for (auto* b : {&busFitaL, &busFitaR, &busHarm, &busFork, &busOrgan}) std::fill(b->begin(), b->begin() + n, 0.f);
    for (auto& v : voices) if (v.active()) v.render(controls, shared, busFitaL.data(), busFitaR.data(), busHarm.data(), busFork.data(), busOrgan.data(), n);
    const auto& s = smoothed;
-   const float ens = s[P::Ensemble] * .01f, echoMix = s[P::EchoMix] * .01f, fb = s[P::EchoFeedback] * .01f, dust = s[P::Dust] * .01f;
+   const float ens = s[P::Ensemble] * .01f * onGain[7], echoMix = s[P::EchoMix] * .01f * onGain[8], fb = s[P::EchoFeedback] * .01f, dust = s[P::Dust] * .01f * onGain[9];
    const float echoSamples = fx.echoSamples;
-   const float revMix = s[P::RevMix] * .01f;
+   const float revMix = s[P::RevMix] * .01f * onGain[9];
    const float dryGain = std::cos(revMix * 1.5707963f), wetGain = std::sin(revMix * 1.5707963f) * 1.3f;
    const float width = s[P::Width] * .01f;
    const float anyActivity = std::max({activity[0], activity[1], activity[2], activity[3]});
@@ -476,15 +527,38 @@ public:
      // Cabinet: warm, a little boom.
      cabHp += .004f * (x - cabHp);
      const float cab = (x - cabHp) + .35f * cabBoom.process(x, boomA1, boomA2, boomA3, boomK, 1);
-     // Broken case: small cone, torn surround buzzing past a small swing.
-     float br = x - (brHp += brHpCoef * (x - brHp));
-     br = detail::softTanh(br * 2.6f + .25f * br * br * 4.f) * .7f;
-     const float rattle = std::max(0.f, std::abs(br) - .12f) * rng.next() * 1.6f;
-     br += .6f * brPeak.process(br + rattle, peakA1, peakA2, peakA3, peakK, 1) + rattle;
-     // A small paper cone cannot move fast: the fizz stops around 4 kHz.
-     brLp += brLpCoef * (br - brLp);
-     brLp2 += brLpCoef * (brLp - brLp2);
-     br = brLp2 * 1.1f;
+     // Broken case speaker: a small paper cone (no low end, a honk around
+     // 900 Hz, nothing above ~3.5 kHz) with a torn surround and a rubbing coil.
+     // Its faults follow the music, not a noise source: when the cone swings
+     // far (low notes, loud chords) the coil bottoms out and the loose flap
+     // slaps, a buzz that rings at the cone's breakup on every big swing.
+     float br = 0.f;
+     if (sb > 0.f) {
+      float y = spkHp.process(x, spkHpA1, spkHpA2, spkHpA3, .9f, 2);
+      y = spkLp.process(y, spkLpA1, spkLpA2, spkLpA3, .8f, 0);
+      y += .9f * spkHonk.process(y, honkA1, honkA2, honkA3, .5f, 1) + .45f * spkBreak.process(y, breakA1, breakA2, breakA3, .35f, 1);
+      // how far the cone travels: the low part of the signal
+      excursion += excursionCoef * (x * 7.f - excursion);
+      const float limit = .55f - .4f * sb;
+      const float over = std::max(0.f, excursion - limit), under = std::max(0.f, -excursion - limit * 1.6f);
+      // coil hitting the back plate (one side only: it sits off centre): the cone stops short
+      y *= 1.f / (1.f + 6.f * sb * over);
+      // the flap: each swing past the limit kicks a rattle that rings at 1.3 kHz
+      const float slap = std::max(0.f, (over + under) - lastOver);
+      lastOver = over + under;
+      const float flap = slap * 3.f * sb + flapA1 * flapY1 + flapA2 * flapY2;
+      flapY2 = flapY1; flapY1 = flap;
+      y += flap * .5f;
+      // a cracked voice-coil lead: now and then the sound dips for a moment
+      if (sb > .45f) {
+       if ((rng.next() + 1.f) * .5f < (sb - .45f) * 1.2f / static_cast<float>(sr)) contactLeft = static_cast<int>((.02f + .06f * (rng.next() + 1.f)) * static_cast<float>(sr));
+       const float want = contactLeft > 0 ? .3f : 1.f;
+       if (contactLeft > 0) --contactLeft;
+       contactGain += .004f * (want - contactGain);
+       y *= contactGain;
+      }
+      br = detail::softTanh(y * 1.6f) * .2f; // at about the cabinet's level
+     }
      x = (1.f - sb) * cab + sb * br;
      mono += x;
     }
@@ -499,11 +573,31 @@ public:
      r += mono - width3 * side;
     }
     // ---- effects rack
-    if (fx.drive > 0.f) { l = driveL.process(l, fx.driveType, fx.drive); r = driveR.process(r, fx.driveType, fx.drive); }
-    if (fx.filterMode > 0) {
-     const int mode = fx.filterMode - 1;
-     l = detail::softTanh(filterL.process(l, fa1, fa2, fa3, fk, mode) * 1.4f) / 1.4f;
-     r = detail::softTanh(filterR.process(r, fa1, fa2, fa3, fk, mode) * 1.4f) / 1.4f;
+    // Drive: a dry/wet blend that reaches full wet at 20% drive, so it eases in
+    // from nothing; a change of type crossfades for 20 ms.
+    if (fx.driveWet > 0.f || driveFade > 0.f) {
+     float wl = driveL.process(l, fx.driveType, fx.drive), wr = driveR.process(r, fx.driveType, fx.drive);
+     if (driveFade > 0.f) {
+      wl += driveFade * (driveL2.process(l, fx.prevDriveType, fx.drive) - wl);
+      wr += driveFade * (driveR2.process(r, fx.prevDriveType, fx.drive) - wr);
+      driveFade = std::max(0.f, driveFade - xfadeStep);
+     }
+     l += fx.driveWet * (wl - l); r += fx.driveWet * (wr - r);
+    }
+    if ((fx.filterMode > 0 || filterFade > 0.f) && fx.filterOn > 0.f) {
+     float lp, bp, hp, lp2, bp2, hp2;
+     filterL.processAll(l, fa1, fa2, fa3, fk, lp, bp, hp);
+     filterR.processAll(r, fa1, fa2, fa3, fk, lp2, bp2, hp2);
+     auto pick = [](int mode, float dry, float a, float b, float c) { return mode == 1 ? a : mode == 2 ? b : mode == 3 ? c : dry; };
+     float fl = pick(fx.filterMode, l, lp, bp, hp), fr = pick(fx.filterMode, r, lp2, bp2, hp2);
+     if (filterFade > 0.f) {
+      fl += filterFade * (pick(fx.prevFilterMode, l, lp, bp, hp) - fl);
+      fr += filterFade * (pick(fx.prevFilterMode, r, lp2, bp2, hp2) - fr);
+      filterFade = std::max(0.f, filterFade - xfadeStep);
+     }
+     fl = detail::softTanh(fl * 1.4f) / 1.4f;
+     fr = detail::softTanh(fr * 1.4f) / 1.4f;
+     l += fx.filterOn * (fl - l); r += fx.filterOn * (fr - r);
     }
     if (fx.ringMix > 0.f) {
      ringPhase += fx.ringFreq / static_cast<float>(sr); if (ringPhase >= 1.f) ringPhase -= 1.f;
@@ -616,7 +710,7 @@ private:
   if (filterAttack) { filterEnv += .35f * (1.f - filterEnv); if (filterEnv > .98f) filterAttack = false; }
   else filterEnv *= std::exp(-dt / std::max(.005f, smoothed[P::FilterDecay] * .001f / 2.3f));
   filterLfoPhase = dsp::frac(filterLfoPhase + dt * smoothed[P::FilterLfoRate]);
-  if (fx.filterMode > 0) {
+  if (fx.filterMode > 0 || filterFade > 0.f) {
    const float oct = fx.filterEnvAmt * 6.f * filterEnv + fx.filterLfo * 3.f * detail::sine(filterLfoPhase);
    const float hz = std::clamp(smoothed[P::Cutoff] * std::exp2(oct), 20.f, static_cast<float>(sr) * .45f);
    const float g = std::tan(3.14159265f * hz / static_cast<float>(sr));
@@ -625,7 +719,7 @@ private:
   }
   // Global vibrato on every machine.
   vibPhase = dsp::frac(vibPhase + dt * smoothed[P::VibratoRate]);
-  shared.vibCents = smoothed[P::VibratoDepth] * detail::sine(vibPhase);
+  shared.vibCents = smoothed[P::VibratoDepth] * onGain[7] * detail::sine(vibPhase);
   // Tremolo for the organ.
   tremPhase = dsp::frac(tremPhase + dt * controls.tremRate);
   const float trem = detail::sine(tremPhase);
@@ -646,7 +740,7 @@ private:
    const float goal = sounding && mlev[m] > 0.f ? 1.f : 0.f;
    activity[static_cast<std::size_t>(m)] += (goal > activity[static_cast<std::size_t>(m)] ? .05f : .0012f) * (goal - activity[static_cast<std::size_t>(m)]);
   }
-  for (auto& v : voices) if (v.active()) v.control(controls, shared, bend * controls.bendRange, sr, ampShape);
+  for (auto& v : voices) if (v.active()) v.control(controls, shared, bend * controls.bendRange, sr, ampShape, machineShapes);
  }
 
  void derive() {
@@ -657,6 +751,7 @@ private:
   c.fita = pct(P::FitaLevel); c.harm = pct(P::HarmLevel); c.fork = pct(P::ForkLevel); c.organ = pct(P::OrganLevel);
   c.wave1 = choice(P::Loop1Wave); c.wave2 = choice(P::Loop2Wave);
   c.loopMix = pct(P::LoopMix);
+  c.loop1Level = pct(P::Loop1Level); c.loop2Level = pct(P::Loop2Level);
   c.loop2Ratio = std::exp2(static_cast<float>(choice(P::Loop2Octave) - 1)) * detail::semitoneRatio(s[P::Loop2Detune] * .01f);
   c.wear = std::min(1.f, pct(P::Wear) + modWheel * .4f);
   c.wow = std::min(1.f, pct(P::Wow) + modWheel * .5f);
@@ -675,19 +770,46 @@ private:
   c.glideMs = s[P::Glide];
   c.bendRange = s[P::BendRange];
   ampShape.set(s[P::Attack], s[P::Decay], pct(P::Sustain), s[P::Release], sr);
+  for (int m = 0; m < 4; ++m) {
+   const int base = P::FitaAttack + 4 * m;
+   machineShapes[static_cast<std::size_t>(m)].set(s[static_cast<std::size_t>(base)], s[static_cast<std::size_t>(base + 1)], pct(base + 2), s[static_cast<std::size_t>(base + 3)], sr);
+  }
+  // Modules switched off fade out (a few ms) instead of stopping dead.
+  for (int m = 0; m < 10; ++m) {
+   auto& o = onGain[static_cast<std::size_t>(m)];
+   const float want = s[static_cast<std::size_t>(P::FitaOn + m)] >= .5f ? 1.f : 0.f;
+   o += .25f * (want - o);
+   if (std::abs(want - o) < 1e-3f) o = want;
+  }
+  c.fita *= onGain[0]; c.harm *= onGain[1]; c.fork *= onGain[2]; c.organ *= onGain[3];
   reverb.configure(pct(P::RevSize), s[P::RevDecay], .1f + .8f * pct(P::RevDamp), false);
   c.age = pct(P::Age);
   erMix = .22f * c.age;
   width3 = .15f + .35f * c.age;
   bumpGain = .45f * c.age;
   setBand(90.f, 1.3f, bumpA1, bumpA2, bumpA3, bumpK);
-  fx.driveType = choice(P::DriveType); fx.drive = pct(P::Drive);
-  fx.filterMode = choice(P::FilterMode); fx.resonance = pct(P::Resonance);
+  {
+   const int type = choice(P::DriveType);
+   if (type != fx.driveType) {
+    // the old type carries on from where it is, fading out; the new one fades in
+    driveL2 = driveL; driveR2 = driveR;
+    fx.prevDriveType = fx.driveType; fx.driveType = type; driveFade = 1.f;
+   }
+  }
+  fx.drive = pct(P::Drive);
+  fx.driveWet = std::min(1.f, fx.drive * 5.f) * onGain[4];
+  fx.ringMix = pct(P::RingMix) * onGain[4];
+  {
+   const int mode = choice(P::FilterMode);
+   if (mode != fx.filterMode) { fx.prevFilterMode = fx.filterMode; fx.filterMode = mode; filterFade = 1.f; }
+  }
+  fx.filterOn = onGain[5];
+  fx.resonance = pct(P::Resonance);
   fx.filterEnvAmt = pct(P::FilterEnv); fx.filterLfo = pct(P::FilterLfo);
-  fx.ringMix = pct(P::RingMix); fx.ringFreq = s[P::RingFreq];
-  fx.tremDepth = pct(P::TremoloDepth); fx.tremRate = s[P::TremoloRate]; fx.tremShape = choice(P::TremoloShape);
-  fx.phaserMix = pct(P::PhaserMix); fx.phaserRate = s[P::PhaserRate]; fx.phaserDepth = pct(P::PhaserDepth); fx.phaserFb = .95f * pct(P::PhaserFeedback);
-  fx.flangerMix = pct(P::FlangerMix); fx.flangerRate = s[P::FlangerRate]; fx.flangerDepth = pct(P::FlangerDepth); fx.flangerFb = .95f * pct(P::FlangerFeedback);
+  fx.ringFreq = s[P::RingFreq];
+  fx.tremDepth = pct(P::TremoloDepth) * onGain[7]; fx.tremRate = s[P::TremoloRate]; fx.tremShape = choice(P::TremoloShape);
+  fx.phaserMix = pct(P::PhaserMix) * onGain[7]; fx.phaserRate = s[P::PhaserRate]; fx.phaserDepth = pct(P::PhaserDepth); fx.phaserFb = .95f * pct(P::PhaserFeedback);
+  fx.flangerMix = pct(P::FlangerMix) * onGain[7]; fx.flangerRate = s[P::FlangerRate]; fx.flangerDepth = pct(P::FlangerDepth); fx.flangerFb = .95f * pct(P::FlangerFeedback);
   fx.chorusRate = s[P::ChorusRate]; fx.chorusDepth = .15f + .85f * pct(P::ChorusDepth);
   fx.echoToneCoef = dsp::onePoleCoef(700.f * std::pow(18.f, pct(P::EchoTone)), sr);
   {
@@ -698,9 +820,11 @@ private:
   }
   {
    static const double divisions[7] = {0.0, 1.0, .5, .25, .125, 1.0 / 3.0, 1.0 / 6.0};
-   chop.setReverse(pct(P::ChopReverse));
    chop.setFreeTime(choice(P::ChopSync) == 1, s[P::ChopMs]);
-   chop.configure(divisions[std::clamp(choice(P::ChopDiv), 0, 6)], pct(P::ChopDepth), pct(P::ChopChaos), pct(P::Crush), pct(P::Downsample));
+   const bool chopOn = onGain[6] > .5f;
+   chop.setReverse(chopOn ? pct(P::ChopReverse) : 0.f);
+   chop.configure(chopOn ? divisions[std::clamp(choice(P::ChopDiv), 0, 6)] : 0.0, pct(P::ChopDepth), pct(P::ChopChaos),
+                  pct(P::Crush) * onGain[4], pct(P::Downsample) * onGain[4]);
   }
   outGain = std::pow(10.f, s[P::Output] / 20.f);
   // Reed cabinet: bakelite boxy and dark, plastic thin and nasal.
@@ -711,9 +835,16 @@ private:
   harmBodyGain = .7f + .5f * era;
   orgLpCoef = dsp::onePoleCoef(c.organCutoff, sr);
   setBand(170.f, 1.2f, boomA1, boomA2, boomA3, boomK);
-  brHpCoef = dsp::onePoleCoef(320.f, sr);
-  brLpCoef = dsp::onePoleCoef(4200.f, sr);
-  setBand(1150.f, .35f, peakA1, peakA2, peakA3, peakK);
+  {
+   float k;
+   setBand(230.f, .9f, spkHpA1, spkHpA2, spkHpA3, k);
+   setBand(3400.f, .8f, spkLpA1, spkLpA2, spkLpA3, k);
+   setBand(900.f, .5f, honkA1, honkA2, honkA3, k);
+   setBand(2300.f, .35f, breakA1, breakA2, breakA3, k);
+   excursionCoef = dsp::onePoleCoef(140.f, sr);
+   const float r = std::exp(-1.f / (.006f * static_cast<float>(sr))), w = 6.2831853f * 1300.f / static_cast<float>(sr);
+   flapA1 = 2.f * r * std::cos(w); flapA2 = -r * r;
+  }
  }
  void setBand(float hz, float k, float& a1, float& a2, float& a3, float& kk) const {
   const float g = std::tan(3.14159265f * std::min(hz, static_cast<float>(sr) * .45f) / static_cast<float>(sr));
@@ -731,31 +862,40 @@ private:
  DelayLine chorusL, chorusR, echoL, echoR;
  std::vector<float> busFitaL, busFitaR, busHarm, busFork, busOrgan;
  detail::Random rng;
- SVF harmBody, cabBoom, brPeak;
+ SVF harmBody, cabBoom;
  float harmA1 = 1.f, harmA2 = 0.f, harmA3 = 0.f, harmK = 1.f, harmBodyGain = .7f, harmHp = 0.f, harmLp = 0.f, harmHpCoef = .01f, harmLpCoef = .3f;
- float boomA1 = 1.f, boomA2 = 0.f, boomA3 = 0.f, boomK = 1.f, peakA1 = 1.f, peakA2 = 0.f, peakA3 = 0.f, peakK = 1.f;
- float orgLp = 0.f, orgLp2 = 0.f, orgLpCoef = .3f, cabHp = 0.f, brHp = 0.f, brHpCoef = .04f, brLp = 0.f, brLp2 = 0.f, brLpCoef = .4f;
+ float boomA1 = 1.f, boomA2 = 0.f, boomA3 = 0.f, boomK = 1.f;
+ float orgLp = 0.f, orgLp2 = 0.f, orgLpCoef = .3f, cabHp = 0.f;
+ SVF spkHp, spkLp, spkHonk, spkBreak;
+ float spkHpA1 = 1.f, spkHpA2 = 0.f, spkHpA3 = 0.f, spkLpA1 = 1.f, spkLpA2 = 0.f, spkLpA3 = 0.f;
+ float honkA1 = 1.f, honkA2 = 0.f, honkA3 = 0.f, breakA1 = 1.f, breakA2 = 0.f, breakA3 = 0.f;
+ float excursion = 0.f, excursionCoef = .01f, lastOver = 0.f, flapY1 = 0.f, flapY2 = 0.f, flapA1 = 0.f, flapA2 = 0.f, contactGain = 1.f;
+ int contactLeft = 0;
  float humPhase = 0.f, mainsPhase = 0.f, chorusPhase = 0.f, wowPhase = 0.f, flutterPhase = 0.f, tremPhase = 0.f, fanPhase = 0.f;
  float wowValue = 0.f, echoLpL = 0.f, echoLpR = 0.f, echoTail = 0.f, crackle = 0.f, crackleLp = 0.f;
  float pressure = 1.f, outGain = .5f, bend = 0.f, modWheel = 0.f, aftertouch = 0.f;
  std::array<float, 4> activity{};
  // Effects rack.
  struct Fx {
-  int driveType = 0, filterMode = 0, tremShape = 0;
+  int driveType = 0, prevDriveType = 0, filterMode = 0, prevFilterMode = 0, tremShape = 0;
+  float driveWet = 0.f, filterOn = 1.f;
   float drive = 0.f, resonance = 0.f, filterEnvAmt = 0.f, filterLfo = 0.f, ringMix = 0.f, ringFreq = 220.f;
   float tremDepth = 0.f, tremRate = 5.f, phaserMix = 0.f, phaserRate = .4f, phaserDepth = .7f, phaserFb = .4f;
   float flangerMix = 0.f, flangerRate = .25f, flangerDepth = .7f, flangerFb = .5f, chorusRate = .55f, chorusDepth = .5f;
   float echoToneCoef = .35f, echoSamples = 18000.f;
  } fx;
  void clearEffects() {
-  driveL.clear(); driveR.clear(); filterL.reset(); filterR.reset(); phaserL.clear(); phaserR.clear();
+  driveL.clear(); driveR.clear(); driveL2.clear(); driveR2.clear(); driveFade = filterFade = 0.f; filterL.reset(); filterR.reset(); phaserL.clear(); phaserR.clear();
   flangerL.clear(); flangerR.clear(); chop.clear();
   erL.clear(); erR.clear(); erLpL = erLpR = 0.f; bumpL.reset(); bumpR.reset();
   for (auto& ap : diffuser) ap.clear();
   sideHp = 0.f;
   filterEnv = 0.f; filterAttack = false;
  }
- Drive driveL, driveR;
+ Drive driveL, driveR, driveL2, driveR2;
+ float driveFade = 0.f, filterFade = 0.f, xfadeStep = .001f;
+ std::array<float, 10> onGain{1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
+ std::array<Envelope, 4> machineShapes{};
  SVF filterL, filterR;
  Phaser phaserL, phaserR;
  DelayLine flangerL, flangerR;
