@@ -233,6 +233,38 @@ void Look::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float
  g.fillEllipse(juce::Rectangle<float>(4.2f, 4.2f).withCentre(dot));
 }
 
+void Look::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float, float, juce::Slider::SliderStyle style, juce::Slider& s) {
+ if (style != juce::Slider::LinearVertical) { LookAndFeel_V4::drawLinearSlider(g, x, y, w, h, pos, 0.f, 0.f, style, s); return; }
+ const auto r = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y), static_cast<float>(w), static_cast<float>(h));
+ const auto accent = s.findColour(juce::Slider::rotarySliderFillColourId).withMultipliedAlpha(s.isEnabled() ? 1.f : .35f);
+ const float capH = 12.f, top = r.getY(), bottom = r.getBottom(); // JUCE keeps the cap's half height free at each end
+ const float at = juce::jlimit(top, bottom, pos);
+ const auto slot = juce::Rectangle<float>(5.f, bottom - top + 6.f).withCentre({r.getCentreX(), (top + bottom) * .5f});
+ // the scale beside the slot
+ g.setColour((vintage ? juce::Colour(0xff3a2c20) : colour::muted).withAlpha(.5f));
+ for (int t = 0; t <= 10; ++t) {
+  const float ty = bottom - (bottom - top) * static_cast<float>(t) / 10.f;
+  const float len = t % 5 == 0 ? 6.f : 3.f;
+  g.drawLine(slot.getX() - 3.f - len, ty, slot.getX() - 3.f, ty, 1.f);
+  g.drawLine(slot.getRight() + 3.f, ty, slot.getRight() + 3.f + len, ty, 1.f);
+ }
+ // the slot, lit from the bottom up to the cap
+ g.setColour(vintage ? juce::Colour(0xff15100c) : colour::track);
+ g.fillRoundedRectangle(slot, 2.5f);
+ g.setColour(accent.withAlpha(vintage ? .75f : .9f));
+ g.fillRoundedRectangle(slot.withTop(at), 2.5f);
+ // the cap
+ const auto cap = juce::Rectangle<float>(std::min(r.getWidth(), 30.f), capH).withCentre({r.getCentreX(), at});
+ juce::Path p;
+ p.addRoundedRectangle(cap, 3.f);
+ juce::DropShadow(juce::Colours::black.withAlpha(vintage ? .55f : .25f), 5, {0, 2}).drawForPath(g, p);
+ if (vintage) g.setGradientFill(juce::ColourGradient(juce::Colour(0xff4a4038), 0.f, cap.getY(), juce::Colour(0xff17120e), 0.f, cap.getBottom(), false));
+ else g.setGradientFill(juce::ColourGradient(juce::Colours::white, 0.f, cap.getY(), colour::card.darker(.06f), 0.f, cap.getBottom(), false));
+ g.fillPath(p);
+ g.setColour(vintage ? juce::Colour(0xffefe4c8) : accent);
+ g.fillRect(cap.withSizeKeepingCentre(cap.getWidth() - 8.f, 2.f));
+}
+
 void Look::drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) {
  const auto r = juce::Rectangle<float>(0.f, 0.f, static_cast<float>(w), static_cast<float>(h)).reduced(1.f);
  if (vintage) { // a black label plate
@@ -455,11 +487,19 @@ Module::Module(juce::AudioProcessorValueTreeState& apvts, const ParamSpec* table
   addAndMakeVisible(*choices.back());
  }
  for (int pg = 0; pg < static_cast<int>(pages.size()); ++pg) {
+  // An envelope page (attack, decay, sustain, release) is laid out as a row of faders.
+  int stages = 0;
+  for (int param : pages[static_cast<std::size_t>(pg)].params) {
+   const juce::String id(specs[param].id);
+   if (id.endsWith("ATTACK") || id.endsWith("DECAY") || id.endsWith("SUSTAIN") || id.endsWith("RELEASE")) ++stages;
+  }
+  const bool faders = stages >= 3;
   for (int param : pages[static_cast<std::size_t>(pg)].params) {
    const auto& spec = specs[param];
    Cell c;
    c.param = param;
    c.page = pg;
+   c.fader = faders;
    const auto& bigs = pages[static_cast<std::size_t>(pg)].big;
    c.big = std::find(bigs.begin(), bigs.end(), param) != bigs.end();
    c.name = std::make_unique<juce::Label>();
@@ -487,6 +527,10 @@ Module::Module(juce::AudioProcessorValueTreeState& apvts, const ParamSpec* table
     c.sa = std::make_unique<SA>(apvts, spec.id, *c.knob);
     c.knob->setDoubleClickReturnValue(true, static_cast<double>(spec.def));
     c.knob->enableMidiLearn(apvts, spec.id);
+    if (c.fader) {
+     c.knob->setSliderStyle(juce::Slider::LinearVertical);
+     c.knob->setSliderSnapsToMousePosition(false);
+    }
     c.value = std::make_unique<juce::Label>();
     c.value->setFont(monoFont(11.5f));
     c.value->setColour(juce::Label::textColourId, colour::ink);
@@ -596,6 +640,25 @@ void Module::resized() {
  std::vector<Cell*> visible;
  for (auto& c : cells) if (c.page == current) visible.push_back(&c);
  if (visible.empty()) return;
+ if (visible.front()->fader) {
+  // a row of faders, as tall as the module allows
+  const float unit = static_cast<float>(inner.getWidth()) / static_cast<float>(visible.size());
+  auto line = inner;
+  for (std::size_t i = 0; i < visible.size(); ++i) {
+   auto* c = visible[i];
+   auto cell = line.removeFromLeft(i + 1 == visible.size() ? line.getWidth() : juce::roundToInt(unit));
+   c->name->setBounds(cell.removeFromTop(14));
+   if (c->knob) {
+    c->value->setBounds(cell.removeFromBottom(15));
+    c->knob->setBounds(cell.withSizeKeepingCentre(std::min(cell.getWidth() - 6, 34), cell.getHeight()));
+   } else if (c->combo) {
+    c->combo->setBounds(cell.withSizeKeepingCentre(std::min(cell.getWidth() - 8, 150), 28));
+   } else if (c->toggle) {
+    c->toggle->setBounds(cell.withSizeKeepingCentre(48, 28));
+   }
+  }
+  return;
+ }
  auto weight = [this](const Cell* c) { return c->big ? 1.6f : specs[c->param].kind == Kind::Choice ? 1.7f : 1.f; };
  // One row or two: whichever gives the bigger knobs.
  auto knobFor = [&](int rows) {

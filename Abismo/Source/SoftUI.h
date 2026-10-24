@@ -42,6 +42,8 @@ class Look final : public juce::LookAndFeel_V4 {
 public:
  Look();
  void drawRotarySlider(juce::Graphics&, int x, int y, int w, int h, float pos, float start, float end, juce::Slider&) override;
+ void drawLinearSlider(juce::Graphics&, int x, int y, int w, int h, float pos, float minPos, float maxPos, juce::Slider::SliderStyle, juce::Slider&) override;
+ int getSliderThumbRadius(juce::Slider&) override { return 6; } // the fader cap's half height
  void drawComboBox(juce::Graphics&, int w, int h, bool down, int bx, int by, int bw, int bh, juce::ComboBox&) override;
  void positionComboBoxText(juce::ComboBox&, juce::Label&) override;
  juce::Font getComboBoxFont(juce::ComboBox&) override;
@@ -125,7 +127,7 @@ private:
  using CA = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
  struct Cell {
   int param = 0, page = 0;
-  bool big = false;
+  bool big = false, fader = false; // envelope pages use vertical faders
   std::unique_ptr<juce::Label> name, value;
   std::unique_ptr<Knob> knob;
   std::unique_ptr<juce::ComboBox> combo;
