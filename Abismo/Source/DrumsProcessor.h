@@ -89,10 +89,11 @@ private:
  };
  enum class KitStage { Playing, Faded }; // see processBlock
  KitStage kitStage=KitStage::Playing; // audio thread only
- static constexpr int deferredReserve=16384, releaseReserve=2048; // bytes, see deferNotes
- int deferredCount=0, deferredBytes=0; // audio thread
- void deferNotes(juce::MidiBuffer& midi);
- juce::MidiBuffer deferredMidi; // notes that arrive while the old kit fades: played on the new one
+ struct HeldEvent { std::uint8_t bytes[3]{}; std::uint8_t size=0; };
+ static constexpr int heldCapacity=1024, releaseReserve=128; // see holdNotes
+ std::array<HeldEvent,heldCapacity> held{}; // audio thread
+ int heldCount=0;
+ void holdNotes(juce::MidiBuffer& midi);
  void applyKit(int index);
  int currentProgram=0;
  std::atomic<bool> prepared{false};

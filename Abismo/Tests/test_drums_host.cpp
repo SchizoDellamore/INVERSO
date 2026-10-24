@@ -113,6 +113,34 @@ int main(){
   float note=0.f;
   for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); note=std::max(note,b.getMagnitude(0,256)); }
   verify(note>1e-2f,"note at a kit change was lost");
+  // two kit choices in a row with a note in between: it sounds on the last kit
+  p.selectKit(4);
+  p.selectKit(6);
+  b.clear(); { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,36,1.f),5); p.processBlock(b,m); }
+  float note2=0.f;
+  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); note2=std::max(note2,b.getMagnitude(0,256)); }
+  verify(note2>1e-2f && p.getCurrentProgram()==6,"note at a double kit change was lost");
+  // A MIDI flood during a kit change (1200 controllers between a saw note-on and its note-off):
+  // the held note-on plays on the new kit (control: without the note-off the saw sounds), and
+  // the note-off after the flood is kept in the reserve (with it, the saw does not hang).
+  auto flood=[&](bool withNoteOff){
+   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); } // all rung out
+   p.selectKit(1);
+   b.clear();
+   juce::MidiBuffer m;
+   m.addEvent(juce::MidiMessage::noteOn(1,64,1.f),0);
+   for(int k=0;k<1200;++k) m.addEvent(juce::MidiMessage::controllerEvent(1,1,k%128),1+k%250);
+   if(withNoteOff) m.addEvent(juce::MidiMessage::noteOff(1,64),255);
+   p.processBlock(b,m);
+   float late=0.f;
+   for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) late=std::max(late,b.getMagnitude(0,256)); }
+   if(!withNoteOff){ juce::MidiBuffer off; off.addEvent(juce::MidiMessage::noteOff(1,64),0); b.clear(); p.processBlock(b,off); }
+   return late;
+  };
+  const float held=flood(false), released=flood(true);
+  std::printf("MIDI flood at a kit change: saw %.4f without its note-off, %.6f with it\n",held,released);
+  verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
+  verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }
  // Audition from the editor path, and pad lights.
  p.prepareToPlay(48000,512);

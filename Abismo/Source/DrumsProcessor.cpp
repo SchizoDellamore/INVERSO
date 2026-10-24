@@ -69,7 +69,7 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
- deferredMidi.ensureSize(deferredReserve); // notes held during a kit change stay held across a re-prepare
+ heldCount=0; // notes held at a kit change do not outlive a stop
  prepared=true;
  outputPeak.store(0.f);
 }
@@ -90,8 +90,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // and released by the message thread. Outside a kit change they swap at once; during one, only
  // when the new kit starts. kitBusy and kitGeneration are read under the lock: kitBusy is raised
  // before anything is queued, and the generation bumped before it is lowered.
- bool kitBeingWritten=true, swapped=false;
- std::uint32_t generation=playedGeneration;
+ // read without the lock too, for when it is busy (a pad loading): enough to fade or to keep
+ // the values, while the swaps wait for a block that gets the lock
+ bool kitBeingWritten=kitBusy.load()>0, swapped=false;
+ std::uint32_t generation=kitGeneration.load();
  if (swapLock.tryEnter()) {
   kitBeingWritten=kitBusy.load()>0;
   generation=kitGeneration.load();
@@ -112,11 +114,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
  Values v{};
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
- juce::MidiBuffer* events=&midi; // what this block plays
- bool fadeThisBlock=false;
+ bool fadeThisBlock=false, playHeld=false;
  if (kitStage==KitStage::Faded) {
   if (!swapped) { // the new kit is not ready (being written, or the lock was busy): stay silent
-   deferNotes(midi);
+   holdNotes(midi);
    audio.clear();
    outputPeak.store(outputPeak.load(std::memory_order_relaxed)*.9f,std::memory_order_relaxed);
    hitsSounding.store(0,std::memory_order_relaxed);
@@ -125,11 +126,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   playedGeneration=generation;
   engine.switchKit(v);
   kitStage=KitStage::Playing;
-  // Notes held back start this block, on the new kit (played from deferredMidi, which keeps its storage).
-  if (deferredCount>0) { deferredMidi.addEvents(midi,0,-1,0); events=&deferredMidi; }
+  playHeld=heldCount>0; // notes held back start this block, on the new kit
  } else if (!kitBeingWritten && generation!=playedGeneration) {
   fadeThisBlock=true;
-  deferNotes(midi);
+  holdNotes(midi);
  } else if (!kitBeingWritten) engine.setValues(v); // while a kit is written, the old one keeps its values
  if (auto* head=getPlayHead())
   if (const auto position=head->getPosition())
@@ -138,11 +138,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) engine.noteOn(firstPadNote+pad,.8f);
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
- int position=0;
- for (const auto metadata : *events) {
-  const int at=std::clamp(metadata.samplePosition,0,samples);
-  if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
-  const auto m=metadata.getMessage();
+ auto play=[&](const juce::MidiMessage& m){
   midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
@@ -151,6 +147,18 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   else if (m.isSustainPedalOff()) engine.setSustain(false);
   else if (m.isAllNotesOff()) engine.allNotesOff();
   else if (m.isAllSoundOff()) engine.allSoundOff();
+ };
+ // held notes first, at the start of the block and in the order they came (their timing is
+ // lost: a note played and released during a kit change is a very short one)
+ if (playHeld) {
+  for (int i=0;i<heldCount;++i) play(juce::MidiMessage(held[static_cast<std::size_t>(i)].bytes,held[static_cast<std::size_t>(i)].size));
+  heldCount=0;
+ }
+ int position=0;
+ for (const auto metadata : midi) {
+  const int at=std::clamp(metadata.samplePosition,0,samples);
+  if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
+  play(metadata.getMessage());
  }
  if (position<samples) engine.render(left+position,right+position,samples-position);
  for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
@@ -159,7 +167,6 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   for (int i=0;i<samples;++i) { const float g=1.f-static_cast<float>(i+1)/static_cast<float>(samples); left[i]*=g; right[i]*=g; }
   kitStage=KitStage::Faded;
  }
- if (events==&deferredMidi) { deferredMidi.clear(); deferredCount=0; deferredBytes=0; }
  float peak=0.f;
  for (int i=0;i<samples;++i) peak=std::max({peak,std::abs(left[i]),std::abs(right[i])});
  outputPeak.store(std::max(peak,outputPeak.load(std::memory_order_relaxed)*.9f),std::memory_order_relaxed);
@@ -167,19 +174,21 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  padLights.fetch_or(engine.takeTriggeredPads(),std::memory_order_relaxed);
 }
 
-// Notes arriving during a kit change are held for the new kit, within the storage reserved in
-// prepareToPlay (no allocation on the audio thread). Past the budget, new notes and controllers
-// are dropped, but what releases something (note-off, sustain off, all notes / sound off) is
-// kept, in a reserve of its own.
-void InversoAbismoDrumsProcessor::deferNotes(juce::MidiBuffer& midi) {
+// Notes arriving during a kit change are held for the new kit in a fixed array (no allocation,
+// constant time per event). Only short messages (notes, controllers, pitch) are kept, no SysEx.
+// Past the array's last slots, new notes and controllers are dropped; those slots stay for what
+// releases something (note-off, sustain off, all notes / sound off), so nothing is left hanging.
+void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
  for (const auto metadata : midi) {
-  const auto m=metadata.getMessage();
-  const int bytes=m.getRawDataSize()+8;
-  const bool releases=m.isNoteOff() || m.isSustainPedalOff() || m.isAllNotesOff() || m.isAllSoundOff();
-  if (deferredBytes+bytes > (releases?deferredReserve:deferredReserve-releaseReserve)) continue;
-  deferredMidi.addEvent(m,0);
-  deferredBytes+=bytes;
-  ++deferredCount;
+  if (metadata.numBytes<1 || metadata.numBytes>3) continue;
+  const auto* d=metadata.data;
+  const int status=d[0]&0xF0;
+  const bool releases=status==0x80 || (status==0x90 && metadata.numBytes==3 && d[2]==0)
+                   || (status==0xB0 && metadata.numBytes==3 && ((d[1]==64 && d[2]<64) || d[1]==120 || d[1]==123));
+  if (heldCount>=(releases?heldCapacity:heldCapacity-releaseReserve)) continue;
+  auto& e=held[static_cast<std::size_t>(heldCount++)];
+  e.size=static_cast<std::uint8_t>(metadata.numBytes);
+  for (int k=0;k<metadata.numBytes;++k) e.bytes[k]=d[k];
  }
  midi.clear();
 }
