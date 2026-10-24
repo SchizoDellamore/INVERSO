@@ -19,11 +19,12 @@ public:
  void resized() override {refresh();}
 private:
  void setFromX(float x);
- const char* markerNear(float x) const;
+ const char* markerAt(juce::Point<float> p) const;
  const char* dragging=nullptr;
  float param(const char* id) const;
  InversoAbismoSamplerProcessor& processor;
  std::vector<std::pair<float,float>> peaks;
+ std::vector<std::pair<const char*,juce::Rectangle<float>>> flags; // drawn flags, for clicks
 };
 
 class InversoAbismoSamplerEditor final : public juce::AudioProcessorEditor,public juce::FileDragAndDropTarget,

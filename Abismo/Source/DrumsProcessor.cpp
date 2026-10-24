@@ -82,7 +82,8 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  const int samples=audio.getNumSamples();
  // Pick up pads' new recordings without freeing memory on this thread:
  // the replaced ones are parked in `retired` and released by the message thread.
- if (swapLock.tryEnter()) {
+ // While the old kit fades out (kitChanged), its recordings keep playing: they swap with the new kit.
+ if (!kitChanged.load() && swapLock.tryEnter()) {
   for (int pad=0;pad<numPads;++pad) {
    auto& slot=slots[static_cast<std::size_t>(pad)];
    if (slot.hasPending && !slot.retired) {
@@ -278,15 +279,11 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
 
 // From the editor: always applies, even the kit already selected, so choosing a kit again
 // brings its own sounds back.
+// Only here, a deliberate choice in the editor: a program change from the host or automation
+// never discards your recordings (or the paths of missing ones).
 void InversoAbismoDrumsProcessor::selectKit(int index) {
  if (index<0 || index>=getNumPrograms()) return;
- applyKit(index);
- updateHostDisplay(ChangeDetails().withProgramChanged(true));
-}
-
-void InversoAbismoDrumsProcessor::applyKit(int index) {
- currentProgram=index;
- // A kit is its own sounds: recordings loaded on pads (or reported missing) give way to it.
+ applyKit(index); // starts the kit fade first, so the recordings leave with the old kit, not cut
  for (int pad=0;pad<numPads;++pad) {
   bool user;
   { const juce::ScopedLock lock(pathLock);
@@ -294,6 +291,11 @@ void InversoAbismoDrumsProcessor::applyKit(int index) {
     user=!slot.paths.isEmpty() || !slot.missing.isEmpty() || slot.display!=nullptr; }
   if (user) clearPadSample(pad);
  }
+ updateHostDisplay(ChangeDetails().withProgramChanged(true));
+}
+
+void InversoAbismoDrumsProcessor::applyKit(int index) {
+ currentProgram=index;
  const auto values=kitValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {
   if (auto* param=apvts.getParameter(specs()[i].id)) {

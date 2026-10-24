@@ -149,9 +149,11 @@ int main(){
   InversoAbismoDrumsProcessor again;
   again.setStateInformation(withTakes.getData(),static_cast<int>(withTakes.getSize()));
   verify(again.getPadSampleName(2)==p.getPadSampleName(2),"pad sample not restored");
-  // choosing a kit brings back its own sounds: a loaded recording gives way, from the host and from the editor
+  // a program change from the host keeps your recordings; choosing a kit in the editor brings back its own sounds
   again.setCurrentProgram((again.getCurrentProgram()+1)%again.getNumPrograms());
-  verify(again.getPadSampleName(2).isEmpty() && again.getPadMissing(2).isEmpty(),"pad recording kept after a kit change");
+  verify(again.getPadSampleName(2)==p.getPadSampleName(2),"a host program change dropped a pad recording");
+  again.selectKit((again.getCurrentProgram()+1)%again.getNumPrograms());
+  verify(again.getPadSampleName(2).isEmpty() && again.getPadMissing(2).isEmpty(),"pad recording kept after choosing a kit");
   {
    InversoAbismoDrumsProcessor same;
    same.setStateInformation(withTakes.getData(),static_cast<int>(withTakes.getSize()));

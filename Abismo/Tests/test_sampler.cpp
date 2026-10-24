@@ -127,6 +127,61 @@ static void granularLoops() {
  }
 }
 
+// Review findings, each one a test: the cloud must not stick at the end of a region ending at
+// 100% (also with a 44.1 kHz file at 48 kHz); a POSITION outside START..END starts at the
+// region's edge; grains never play what lies outside START..END.
+static void granularEdges() {
+ const int sr = 48000;
+ {
+  auto file = sineSample(440.0, 4.0, 44100);
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 100; v[S::P::Spray] = 0; v[S::P::LoopMode] = 0; v[S::P::Start] = 0; v[S::P::End] = 100;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&file);
+  e.noteOn(69, 1.f);
+  std::vector<float> l(256), r(256);
+  float prev = -1.f; int wraps = 0, still = 0;
+  for (int b = 0; b < sr * 12 / 256; ++b) {
+   e.render(l.data(), r.data(), 256);
+   const float at = e.playheadPosition();
+   if (prev >= 0.f && at < prev - .5f) ++wraps;
+   if (prev >= 0.f && std::abs(at - prev) < 1e-7f) ++still;
+   prev = at;
+  }
+  std::printf("granular, END 100%%, 44.1k file: %d wraps, %d still blocks\n", wraps, still);
+  verify(wraps >= 2 && still < 3, "granular cloud stuck at the end of a region ending at 100%");
+ }
+ {
+  auto sine = sineSample(440.0, 4.0);
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 0; v[S::P::Position] = 5; v[S::P::Start] = 10; v[S::P::End] = 90;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&sine);
+  e.noteOn(69, 1.f);
+  std::vector<float> l(256), r(256);
+  for (int b = 0; b < 20; ++b) e.render(l.data(), r.data(), 256);
+  std::printf("granular, POSITION 5%% before START 10%%: cloud at %.3f\n", e.playheadPosition());
+  verify(std::abs(e.playheadPosition() - .10f) < .002f, "a POSITION before START must start the cloud at START");
+ }
+ for (bool reversed : {false, true}) {
+  // 440 Hz inside the region (30..60%), 1760 Hz outside; big grains near the region's end
+  S::SampleData d; d.sampleRate = sr; d.name = "two tones";
+  const std::size_t n = static_cast<std::size_t>(sr) * 4;
+  d.left.resize(n);
+  for (std::size_t i = 0; i < n; ++i) {
+   const double x = static_cast<double>(i) / static_cast<double>(n);
+   const double f = (x >= .3 && x <= .6) ? 440.0 : 1760.0;
+   d.left[i] = .5f * static_cast<float>(std::sin(2.0 * 3.14159265358979 * f * static_cast<double>(i) / sr));
+  }
+  // REVERSE: START..END refer to the reversed sound, so the file's 30..60% is the reversed 40..70%
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 0; v[S::P::Spray] = 30; v[S::P::GrainSize] = 400;
+  v[S::P::Position] = reversed ? 68.f : 58.f; v[S::P::Start] = reversed ? 40.f : 30.f; v[S::P::End] = reversed ? 70.f : 60.f;
+  v[S::P::Reverse] = reversed ? 1.f : 0.f;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&d);
+  e.noteOn(69, 1.f);
+  auto out = play(e, sr * 3);
+  const double inside = goertzel(out.l, sr, 440.0, sr / 2, sr * 3), outside = goertzel(out.l, sr, 1760.0, sr / 2, sr * 3);
+  std::printf("granular region %s: inside %.3f, outside %.5f\n", reversed ? "reversed" : "forward", inside, outside);
+  verify(inside > .01 && outside < inside * .01, "grains must not play what lies outside START..END");
+ }
+}
+
 static void swapping() {
  const int sr = 48000;
  auto a = sineSample(440.0, 1.0), b = sineSample(220.0, 1.0);
@@ -192,6 +247,7 @@ int main(int argc, char** argv) {
  classic();
  granular();
  granularLoops();
+ granularEdges();
  swapping();
  const int sr = 48000;
  const auto voice = S::makeDefaultSample(sr);

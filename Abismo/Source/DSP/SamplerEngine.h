@@ -208,10 +208,12 @@ private:
   // (START..END). LOOP decides how: Off runs round the whole region; Forward goes round the loop
   // (LOOP START..LOOP END) once it reaches it; Ping-pong goes back and forth inside the loop.
   const double lo = std::clamp(static_cast<double>(std::min(c.start, c.end)) * len, 0.0, len - 2.0);
-  const double hi = std::clamp(static_cast<double>(std::max(c.start, c.end)) * len, lo + 1.0, len);
+  const double hi = std::clamp(static_cast<double>(std::max(c.start, c.end)) * len, lo + 1.0, len - 1.0);
   const double loopLo = std::clamp(static_cast<double>(std::min(c.loopStart, c.loopEnd)) * len, lo, hi - 1.0);
   const double loopHi = std::clamp(static_cast<double>(std::max(c.loopStart, c.loopEnd)) * len, loopLo + 1.0, hi);
   const bool loopUsable = c.loopMode != 0 && loopHi - loopLo >= 16.0;
+  // a cloud outside the region (POSITION before START, region moved) starts at its nearest edge
+  if (cloudCentre < lo || cloudCentre > hi) cloudCentre = std::clamp(cloudCentre, lo, hi);
   const bool pingPong = loopUsable && c.loopMode == 2;
   if (pingPong) { // outside the loop the cloud heads for it
    if (cloudCentre < loopLo) scanDirection = c.scan >= 0.f ? 1.0 : -1.0;
@@ -234,7 +236,7 @@ private:
    while (cloudCentre >= hi) cloudCentre -= span;
    while (cloudCentre < lo) cloudCentre += span;
   }
-  cloudCentre = std::clamp(cloudCentre, 0.0, len - 1.0);
+  cloudCentre = std::clamp(cloudCentre, lo, hi);
   if (nextGrain <= 0.0) {
    spawn(c, len, sampleRate, sr, lo, hi);
    const double interval = sr / std::max(1.f, c.density);
@@ -272,6 +274,15 @@ private:
   slot->pos = c.reverse ? len - 1.0 - pos : pos;
   slot->step = step;
   slot->length = std::max(8, static_cast<int>(c.grainMs * .001f * static_cast<float>(sr)));
+  // nothing outside START..END is heard: a grain that would run past the region's edge starts
+  // earlier so it fits whole; only a region shorter than the grain shortens it
+  const double physLo = c.reverse ? len - 1.0 - hi : lo, physHi = c.reverse ? len - 1.0 - lo : hi; // REVERSE mirrors the file
+  const double travel = static_cast<double>(slot->length) * std::abs(step);
+  if (travel >= physHi - physLo) {
+   slot->length = std::max(8, static_cast<int>((physHi - physLo) / std::max(1e-6, std::abs(step))));
+   slot->pos = step >= 0.0 ? physLo : physHi;
+  } else if (step >= 0.0) slot->pos = std::min(slot->pos, physHi - travel);
+  else slot->pos = std::max(slot->pos, physLo + travel);
   slot->elapsed = 0;
   const float pan = .5f + .5f * c.grainSpread * rng.next();
   slot->gainL = std::cos(pan * 1.5707963f) * 1.4142f;

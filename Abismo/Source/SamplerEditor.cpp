@@ -101,8 +101,11 @@ void SampleView::paint(juce::Graphics& g){
  }
  juce::Path shape;
  const float step=w/static_cast<float>(peaks.size());
+ // REVERSE plays the sound backwards and START, END and the loop points refer to the reversed
+ // sound, so the wave is drawn reversed too: the markers sit where they are heard
+ const bool reversed=param("REVERSE")>=.5f;
  for(std::size_t x=0;x<peaks.size();++x){
-  const auto [lo,hi]=peaks[x];
+  const auto [lo,hi]=peaks[reversed?peaks.size()-1-x:x];
   const float px=wave.getX()+static_cast<float>(x)*step;
   shape.addRectangle(px,mid-hi*half,std::max(1.f,step*.7f),std::max(1.f,(hi-lo)*half));
  }
@@ -120,21 +123,34 @@ void SampleView::paint(juce::Graphics& g){
   g.setColour(c::amber.withAlpha(.16f));
   g.fillRect(xa,wave.getY(),std::max(1.f,xb-xa),wave.getHeight());
  }
- auto marker=[&](float x,juce::Colour col,const juce::String& label,bool flagRight,int row){
+ // each flag goes on the first row where it does not cover another, kept inside the wave
+ flags.clear();
+ auto marker=[&](const char* id,float x,juce::Colour col,const juce::String& label,bool flagRight){
   g.setColour(col);
   g.fillRect(x-1.f,wave.getY(),2.f,wave.getHeight());
   g.setFont(soft::uiFont(9.f,true));
   const float fw=juce::GlyphArrangement::getStringWidth(g.getCurrentFont(),label)+8.f;
-  const juce::Rectangle<float> flag(flagRight?x:x-fw,wave.getY()+static_cast<float>(row)*13.f,fw,12.f);
+  float left=flagRight?x:x-fw;
+  left=juce::jlimit(wave.getX(),wave.getRight()-fw,left);
+  juce::Rectangle<float> flag;
+  for(int row=0;row<4;++row){
+   flag={left,wave.getY()+static_cast<float>(row)*13.f,fw,12.f};
+   bool free=true;
+   for(const auto& f:flags) if(f.second.intersects(flag)) { free=false; break; }
+   if(free) break;
+  }
+  flags.push_back({id,flag});
+  g.setColour(col);
   g.fillRect(flag);
   g.setColour(c::screenBottom);
   g.drawText(label,flag,juce::Justification::centred);
  };
- marker(xs,c::cyan,"START",true,0);
- marker(xe,c::pink,"END",false,0);
+ const bool loopSwapped=param("LOOP_START")>param("LOOP_END");
+ marker("START",xs,c::cyan,"START",true);
+ marker("END",xe,c::pink,"END",false);
  if(loop>0){
-  marker(xa,c::amber,"LOOP IN",true,1);
-  marker(xb,c::amber,"LOOP OUT",false,1);
+  marker(loopSwapped?"LOOP_END":"LOOP_START",xa,c::amber,"LOOP IN",true);
+  marker(loopSwapped?"LOOP_START":"LOOP_END",xb,c::amber,"LOOP OUT",false);
  }
  if(granular){
   const float pos=wave.getX()+param("POSITION")*.01f*w,spray=param("SPRAY")*.01f;
@@ -144,7 +160,7 @@ void SampleView::paint(juce::Graphics& g){
    g.setColour(c::cyan.withAlpha(.18f));
    g.fillRect(pos-sprayPx,wave.getY(),sprayPx*2.f,wave.getHeight());
   }
-  marker(pos,juce::Colours::white.withAlpha(.85f),"POSITION",true,2);
+  marker("POSITION",pos,juce::Colours::white.withAlpha(.85f),"POSITION",true);
  }
  // what the markers do, in one line under the wave
  g.setFont(soft::monoFont(9.f));
@@ -163,14 +179,16 @@ void SampleView::paint(juce::Graphics& g){
  if(head>=0.f){ g.setColour(juce::Colours::white); g.fillRect(wave.getX()+head*w,wave.getY(),1.5f,wave.getHeight()); }
 }
 
-// Which marker a click grabs: the nearest one shown (START, END, the loop points when looping,
-// and in granular mode the grain POSITION).
-const char* SampleView::markerNear(float x) const {
+// Which marker a click grabs: a flag clicked is that marker; elsewhere the nearest line shown
+// (START, END, the loop points when looping, POSITION in granular mode), POSITION first on a tie.
+const char* SampleView::markerAt(juce::Point<float> p) const {
+ for(const auto& f:flags) if(f.second.expanded(2.f).contains(p)) return f.first;
  const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
- const float at=(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f;
- std::vector<const char*> ids{"START","END"};
- if(juce::roundToInt(param("LOOP_MODE"))>0){ ids.push_back("LOOP_START"); ids.push_back("LOOP_END"); }
+ const float at=(p.x-wave.getX())/std::max(1.f,wave.getWidth())*100.f;
+ std::vector<const char*> ids;
  if(param("MODE")>=.5f) ids.push_back("POSITION");
+ ids.push_back("START"); ids.push_back("END");
+ if(juce::roundToInt(param("LOOP_MODE"))>0){ ids.push_back("LOOP_START"); ids.push_back("LOOP_END"); }
  const char* best=ids[0];
  for(auto* id:ids) if(std::abs(param(id)-at)<std::abs(param(best)-at)) best=id;
  return best;
@@ -189,7 +207,19 @@ void SampleView::setFromX(float x){
  repaint();
 }
 void SampleView::mouseDown(const juce::MouseEvent& e){
- dragging=markerNear(e.position.x);
+ // loop points saved the other way round (LOOP START after LOOP END) are put in order first,
+ // so LOOP IN is LOOP START and dragging it keeps it before LOOP OUT
+ dragging=markerAt(e.position); // from the flags as last drawn
+ if(param("LOOP_START")>param("LOOP_END")){
+  auto* a=processor.apvts.getParameter("LOOP_START");auto* b=processor.apvts.getParameter("LOOP_END");
+  const float va=a->getValue(),vb=b->getValue();
+  a->beginChangeGesture();b->beginChangeGesture();
+  a->setValueNotifyingHost(vb);b->setValueNotifyingHost(va);
+  a->endChangeGesture();b->endChangeGesture();
+  // the marker under the mouse keeps its place: its value now lives in the other parameter
+  if(juce::String(dragging)=="LOOP_START") dragging="LOOP_END";
+  else if(juce::String(dragging)=="LOOP_END") dragging="LOOP_START";
+ }
  processor.apvts.getParameter(dragging)->beginChangeGesture();
  setFromX(e.position.x);
 }
@@ -341,7 +371,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   soft::drawResampleScreen(g,r.withTrimmedBottom(34.f),inverso_abismo::Resampler::rateOf(juce::roundToInt(value(P::Resample))),
                            value(P::ResampleSat)*.01f,value(P::ResampleOn)>=.5f,c::orange.interpolatedWith(c::amber,.5f));
  };
- m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
+ m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   auto area=r.withTrimmedBottom(34.f);
   const int div=juce::roundToInt(value(P::StutterDiv));
   const bool free=juce::roundToInt(value(P::StutterSync))==1;
