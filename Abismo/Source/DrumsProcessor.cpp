@@ -94,7 +94,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // when the new kit starts. kitBusy and kitGeneration are read under the lock (kitBusy is raised
  // before anything is queued, and the generation bumped before it is lowered), or without it when
  // the lock is busy (a pad loading): enough to fade or to keep the values; the swaps then wait.
- if (dropHeld.exchange(false)) held.clear();
+ if (dropHeld.exchange(false)) { // the pedal is a state the engine keeps: it is not dropped
+  if (held.sustain>=0) engine.setSustain(held.sustain==1);
+  held.clear();
+ }
  const bool locked=swapLock.tryEnter();
  const bool kitBeingWritten=kitBusy.load()>0;
  const std::uint32_t generation=kitGeneration.load();
@@ -184,11 +187,12 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
 }
 
 // What arrives during a kit change (usually one block) is kept for the new kit: one hit per pad,
-// at the highest velocity played (hits all at one instant would only stack into one loud burst);
+// at the highest velocity played (hits all at one instant would only stack into one loud burst;
+// when a change takes longer, while a pad recording loads, a roll in that time is one accent);
 // saw notes down in the order pressed, so the saw ends on the last one; a saw note let go with the
 // pedal down keeps sounding until the pedal is up; the sustain pedal and the last pitch bend. A
-// saw note played and released (pedal up) during the change is gone. All-notes/sound-off clears
-// what was held (the new kit starts silent anyway). Fixed storage, no allocation. Learned
+// saw note played and released (pedal up) during the change is gone. All-notes-off lets go of the
+// saw notes (hits ring out, as when playing); all-sound-off clears everything held. Fixed storage, no allocation. Learned
 // controllers are not applied, so the new kit comes up as designed, but a knob armed for MIDI
 // learn still learns. Aftertouch, clock and SysEx are not used by this instrument.
 void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
@@ -196,7 +200,6 @@ void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
   if (metadata.numBytes<1 || metadata.numBytes>3) continue;
   const auto m=metadata.getMessage(); // three bytes at most: stored inline, no allocation
   if (m.isController()) midiLearn.learnOnly(m); // as in play(): every controller can complete a learn
-  const bool pedal=held.sustain>=0 ? held.sustain==1 : engine.sustainDown(); // the pedal as the new kit will see it
   if (m.isNoteOn()) {
    const int note=m.getNoteNumber();
    if (note>=firstSawNote) {
@@ -212,6 +215,11 @@ void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
   else if (m.isNoteOff()) {
    const int note=m.getNoteNumber(); // a pad's note-off does nothing: hits ring out
    if (note<firstSawNote) continue;
+   // only notes pressed during the change: the old kit's saw is silenced when the new kit starts
+   bool pressed=false;
+   for (int i=0;i<held.sawCount;++i) pressed=pressed || held.saw[static_cast<std::size_t>(i)]==note;
+   if (!pressed) continue;
+   const bool pedal=held.sustain>=0 ? held.sustain==1 : engine.sustainDown(); // as the new kit will see it
    if (pedal) held.sawLetGo[static_cast<std::size_t>(note)]=true; else held.dropSaw(note);
   }
   else if (m.isPitchWheel()) held.bend=m.getPitchWheelValue();
@@ -220,7 +228,8 @@ void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
    held.sustain=0;
    for (int i=held.sawCount-1;i>=0;--i) if (held.sawLetGo[held.saw[static_cast<std::size_t>(i)]]) held.dropSaw(held.saw[static_cast<std::size_t>(i)]);
   }
-  else if (m.isAllSoundOff() || m.isAllNotesOff()) { held.padHit.fill(0.f); held.sawCount=0; }
+  else if (m.isAllSoundOff()) { held.padHit.fill(0.f); held.sawCount=0; }
+  else if (m.isAllNotesOff()) held.sawCount=0;
   else continue;
   held.any=true;
  }

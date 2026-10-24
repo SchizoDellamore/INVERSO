@@ -226,14 +226,22 @@ int main(){
   auto padPeak=[&](int hits){
    for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
    p.selectKit(2);
+   param(p,"STUMBLE",0); // no random delay on the hits: the comparison is about stacking
    b.clear(); juce::MidiBuffer m; for(int k=0;k<hits;++k) m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),k*20); p.processBlock(b,m);
    float pk=0.f; for(int i=0;i<40;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); pk=std::max(pk,b.getMagnitude(0,256)); }
    return pk;
   };
-  param(p,"STUMBLE",0);
   const float one=padPeak(1), eight=padPeak(8);
   std::printf("pad hit at a kit change: one hit %.3f, eight hits %.3f\n",one,eight);
   verify(eight<one*1.3f && eight>one*.7f,"repeated hits on a pad at a kit change stacked into a burst");
+  // all-notes-off at a kit change (hosts send it at a loop's end) keeps the pad hits, as in play
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(2);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,36,1.f),0); m.addEvent(juce::MidiMessage::allNotesOff(1),10); p.processBlock(b,m); }
+  float kick=0.f; for(int i=0;i<40;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); kick=std::max(kick,b.getMagnitude(0,256)); }
+  verify(kick>1e-2f,"all-notes-off at a kit change dropped a pad hit");
+  // the pitch wheel reaches both ends and rests at the centre
+  verify(std::abs(abismo_ui::pitchBendOf(0)+1.f)<1e-6f && std::abs(abismo_ui::pitchBendOf(8192))<1e-6f && std::abs(abismo_ui::pitchBendOf(16383)-1.f)<1e-6f,"pitch wheel mapping");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }
