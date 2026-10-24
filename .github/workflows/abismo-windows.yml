@@ -53,7 +53,9 @@ jobs:
             $log = Join-Path $logs "$name.txt"
             $proc = Start-Process -FilePath $pv.FullName -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log `
               -ArgumentList @('--strictness-level', '10', '--validate-in-process', '--timeout-ms', '900000', "`"$bundle`"")
-            Get-Content -LiteralPath $log | Select-Object -Last 60 | ForEach-Object { Write-Host $_ }
+            # the failures in full (pluginval marks them with !!!), then the summary
+            Select-String -LiteralPath $log -Pattern '!!!|\*\*\* FAILED|Exception|Error' -Context 6,4 | ForEach-Object { Write-Host $_.ToString() }
+            Get-Content -LiteralPath $log | Select-Object -Last 8 | ForEach-Object { Write-Host $_ }
             if ($proc.ExitCode -ne 0) { $failed += $name; Write-Host "FAILED: $name (exit $($proc.ExitCode))" } else { Write-Host "passed: $name" }
           }
           if ($failed.Count -gt 0) { throw "pluginval failed for: $($failed -join ', ')" }
