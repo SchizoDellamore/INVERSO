@@ -113,7 +113,7 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 ## RELICÁRIO
 
 **Novo na 0.14 (a partir do retorno de uso):**
-- Cada máquina tem seu envelope (página ENV): ataque, decaimento, sustentação, soltura. O envelope de KEYS continua valendo para todas; o de cada máquina vem aberto, então só muda algo quando você o ajusta.
+- Cada máquina ganhou uma página ADSR com quatro faders (ataque, decaimento, sustentação, soltura) só para ela. O módulo ENVELOPE, também em faders, molda o instrumento inteiro. O ADSR de cada máquina vem aberto, então só muda algo quando você o ajusta. KEYS ficou com velocity, glide, bend, afinação fina e AGE.
 - Botão ON/OFF em cada módulo (máquinas e efeitos), independente do volume; desliga e liga sem estalo.
 - TAPE LOOPS: volume próprio para cada loop (LOOP 1, LOOP 2), no lugar do balanço.
 - Alto-falante quebrado do órgão soviético: cone pequeno, bobina que bate no fundo e aba rasgada que vibra nos movimentos grandes; a distorção acompanha a música, sem chiado.

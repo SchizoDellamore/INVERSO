@@ -106,7 +106,7 @@ private:
 // One module: a card with a title, page tabs, an optional screen and controls.
 class Module final : public juce::Component {
 public:
- struct Page { juce::String name; std::vector<int> params; std::vector<int> big = {}; };
+ struct Page { juce::String name; std::vector<int> params; std::vector<int> big = {}; bool faders = false; }; // faders: a page of vertical faders
  Module(juce::AudioProcessorValueTreeState&, const inverso_abismo::ParamSpec* specs, const char* const* shortNames,
         juce::String title, juce::Colour accent, std::vector<Page> pages, int screenHeight = 0,
         std::vector<int> screenChoices = {});

@@ -487,20 +487,13 @@ Module::Module(juce::AudioProcessorValueTreeState& apvts, const ParamSpec* table
   addAndMakeVisible(*choices.back());
  }
  for (int pg = 0; pg < static_cast<int>(pages.size()); ++pg) {
-  // An envelope page (attack, decay, sustain, release) is laid out as a row of faders.
-  auto isStage = [&](int param) {
-   const juce::String id(specs[param].id);
-   return id.endsWith("ATTACK") || id.endsWith("DECAY") || id.endsWith("SUSTAIN") || id.endsWith("RELEASE");
-  };
-  int stages = 0;
-  for (int param : pages[static_cast<std::size_t>(pg)].params) if (isStage(param)) ++stages;
-  const bool faders = stages >= 3; // only the A, D, S, R themselves become faders
+  const bool faders = pages[static_cast<std::size_t>(pg)].faders;
   for (int param : pages[static_cast<std::size_t>(pg)].params) {
    const auto& spec = specs[param];
    Cell c;
    c.param = param;
    c.page = pg;
-   c.fader = faders && isStage(param);
+   c.fader = faders && spec.kind == Kind::Float;
    const auto& bigs = pages[static_cast<std::size_t>(pg)].big;
    c.big = std::find(bigs.begin(), bigs.end(), param) != bigs.end();
    c.name = std::make_unique<juce::Label>();

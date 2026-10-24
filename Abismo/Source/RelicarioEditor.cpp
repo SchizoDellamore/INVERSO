@@ -117,17 +117,18 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   return *modules.back();
  };
  // ---- the four machines
- auto envelope=[](int m){ const int b=P::FitaAttack+4*m; return soft::Module::Page{"Env",{b,b+1,b+2,b+3}}; };
+ // Each machine's own envelope, as faders (the ENVELOPE module shapes the whole instrument).
+ auto adsrPage=[](int m){ const int b=P::FitaAttack+4*m; return soft::Module::Page{"ADSR",{b,b+1,b+2,b+3},{},true}; };
  add("TAPE LOOPS",c::amber,{{"Loops",{P::FitaLevel,P::Loop1Level,P::Loop2Level,P::Loop2Detune},{P::FitaLevel}},
-                            {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone,P::LoopLength}},envelope(0)},112,{P::Loop1Wave,P::Loop2Wave,P::Loop2Octave});
+                            {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone,P::LoopLength}},adsrPage(0)},112,{P::Loop1Wave,P::Loop2Wave,P::Loop2Octave});
  add("REED ORGAN",c::green,{{"Reeds",{P::HarmLevel,P::Era,P::Breath,P::Speak},{P::HarmLevel}},
-                            {"Fan",{P::Motor,P::Sag}},envelope(1)},112,{});
- add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}},envelope(2)},112,{});
+                            {"Fan",{P::Motor,P::Sag}},adsrPage(1)},112,{});
+ add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}},adsrPage(2)},112,{});
  add("SOVIET ORGAN",c::red,{{"Stops",{P::OrganLevel,P::Reg16,P::Reg8,P::Reg4,P::Upper},{P::OrganLevel}},
-                            {"Tone",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}},envelope(3)},112,{P::UpperInterval});
+                            {"Tone",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}},adsrPage(3)},112,{P::UpperInterval});
  // ---- keys and the effects rack, in signal order
- add("KEYS",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
-                       {"Age",{P::Age,P::Fine,P::Glide,P::BendRange},{P::Age}}},96,{P::Octave});
+ add("KEYS",c::violet,{{"Play",{P::VelSens,P::Glide,P::BendRange,P::Fine}},
+                       {"Age",{P::Age},{P::Age}}},96,{P::Octave});
  add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Crush,P::Downsample},{P::Drive}},
                          {"Ring",{P::RingMix,P::RingFreq}}},96,{P::DriveType});
  add("FILTER",c::orange,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::FilterDecay},{P::Cutoff}},
@@ -140,6 +141,8 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
                            {"Vibrato",{P::VibratoDepth,P::VibratoRate},{P::VibratoDepth}}},96,{});
  add("ECHO",c::amber.interpolatedWith(c::pink,.5f),{{"Tape echo",{P::EchoMix,P::EchoTime,P::EchoFeedback,P::EchoTone},{P::EchoMix}}},96,{P::EchoSync});
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Dust},{P::RevMix}}},96,{});
+ // The envelope of the whole instrument, on faders.
+ add("ENVELOPE",c::violet.interpolatedWith(c::pink,.4f),{{"ADSR",{P::Attack,P::Decay,P::Sustain,P::Release},{},true}},96,{});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
@@ -158,7 +161,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    b.onStateChange=[&b]{ const auto text=b.getToggleState()?"ON":"OFF"; if(b.getButtonText()!=text) b.setButtonText(text); };
    onAttach[static_cast<std::size_t>(i)]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts,specs()[static_cast<std::size_t>(onParams[i])].id,b);
    b.onStateChange();
-   modules[static_cast<std::size_t>(onModules[i])]->addHeaderComponent(b,40);
+   modules[static_cast<std::size_t>(onModules[i])]->addHeaderComponent(b,36);
   }
  }
  auto& m=modules;
@@ -280,7 +283,14 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    }
    return;
   }
-  soft::glowStroke(g,adsr(area.reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::violet);
+  // how hard you play against how loud it sounds
+  const float sens=value(P::VelSens)*.01f;
+  caption(g,area,"VELOCITY "+juce::String(juce::roundToInt(sens*100.f))+"%");
+  soft::glowStroke(g,curve(area.withTrimmedTop(14.f).reduced(2.f,4.f),80,[&](float t){ return 2.f*std::pow(1.f-sens+sens*t,1.3f)-1.f; }),c::violet);
+ };
+ modules[11]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  caption(g,r,"WHOLE INSTRUMENT");
+  soft::glowStroke(g,adsr(r.withTrimmedTop(14.f).reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::violet);
  };
  // DESTROY: the drive curve, or the ring carrier.
  m[5]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
@@ -492,10 +502,11 @@ void InversoRelicarioEditor::resized(){
  const int r1=360,r2=272,r3=designH-y0-r1-r2-12;
  const int w4=mainW/4;
  for(int i=0;i<4;++i) place(*modules[static_cast<std::size_t>(i)],x0+w4*i,y0,i==3?mainW-3*w4:w4,r1);
- place(*modules[4],x0,y0+r1,270,r2);
- place(*modules[5],x0+270,y0+r1,290,r2);
- place(*modules[6],x0+560,y0+r1,310,r2);
- place(*modules[7],x0+870,y0+r1,mainW-870,r2);
+ place(*modules[4],x0,y0+r1,200,r2);
+ place(*modules[11],x0+200,y0+r1,235,r2);
+ place(*modules[5],x0+435,y0+r1,255,r2);
+ place(*modules[6],x0+690,y0+r1,245,r2);
+ place(*modules[7],x0+935,y0+r1,mainW-935,r2);
  place(*modules[8],x0,y0+r1+r2,520,r3);
  place(*modules[9],x0+520,y0+r1+r2,340,r3);
  place(*modules[10],x0+860,y0+r1+r2,mainW-860,r3);
