@@ -1,0 +1,127 @@
+#include "NeonProcessor.h"
+#include "NeonEditor.h"
+#include <algorithm>
+#include <cmath>
+
+using namespace inverso_abismo::neon;
+
+juce::AudioProcessorValueTreeState::ParameterLayout InversoNeonProcessor::makeParameters() {
+ return abismo_ui::makeLayout(specs().data(),P::Count);
+}
+
+InversoNeonProcessor::InversoNeonProcessor()
+ : AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),
+   apvts(*this,nullptr,"PARAMETERS",makeParameters()) {
+ for (std::size_t i=0;i<raw.size();++i) raw[i]=apvts.getRawParameterValue(specs()[i].id);
+}
+
+bool InversoNeonProcessor::isBusesLayoutSupported(const BusesLayout& layout) const {
+ return layout.getMainOutputChannelSet()==juce::AudioChannelSet::stereo()
+     && layout.getMainInputChannelSet().isDisabled();
+}
+
+void InversoNeonProcessor::prepareToPlay(double sampleRate,int) {
+ Values v{};
+ for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
+ engine.setValues(v);
+ engine.prepare(sampleRate);
+ prepared=true;
+ outputPeak.store(0.f);
+}
+
+void InversoNeonProcessor::releaseResources() { prepared=false; }
+
+void InversoNeonProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
+ juce::ScopedNoDenormals noDenormals;
+ const int samples=audio.getNumSamples();
+ if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
+ Values v{};
+ for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
+ engine.setValues(v);
+ if (auto* head=getPlayHead())
+  if (const auto pos=head->getPosition())
+   engine.setTransport(pos->getBpm().orFallback(120.0),pos->getPpqPosition().orFallback(0.0),pos->getIsPlaying());
+ auto* left=audio.getWritePointer(0);
+ auto* right=audio.getWritePointer(1);
+ // Split the block at each MIDI event so notes start sample-accurately.
+ int position=0;
+ for (const auto metadata : midi) {
+  const int at=std::clamp(metadata.samplePosition,0,samples);
+  if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
+  const auto m=metadata.getMessage();
+  midiLearn.handle(m);
+  if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
+  else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
+  else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
+  else if (m.isControllerOfType(1)) engine.setModWheel(static_cast<float>(m.getControllerValue())/127.f);
+  else if (m.isSustainPedalOn()) engine.setSustain(true);
+  else if (m.isSustainPedalOff()) engine.setSustain(false);
+  else if (m.isChannelPressure()) engine.setPressure(static_cast<float>(m.getChannelPressureValue())/127.f);
+  else if (m.isAftertouch()) engine.setPressure(static_cast<float>(m.getAfterTouchValue())/127.f);
+  else if (m.isAllNotesOff()) engine.allNotesOff();
+  else if (m.isAllSoundOff()) engine.allSoundOff();
+ }
+ if (position<samples) engine.render(left+position,right+position,samples-position);
+ for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
+ float peak=0.f;
+ for (int i=0;i<samples;++i) peak=std::max({peak,std::abs(left[i]),std::abs(right[i])});
+ outputPeak.store(std::max(peak,outputPeak.load(std::memory_order_relaxed)*.9f),std::memory_order_relaxed);
+ voicesSounding.store(engine.activeVoices(),std::memory_order_relaxed);
+ arpStep.store(engine.currentStep(),std::memory_order_relaxed);
+}
+
+int InversoNeonProcessor::getNumPrograms() { return static_cast<int>(presets().size()); }
+const juce::String InversoNeonProcessor::getProgramName(int index) {
+ if (index<0 || index>=getNumPrograms()) return {};
+ return juce::String::fromUTF8(presets()[static_cast<std::size_t>(index)].name);
+}
+// Hosts re-send a program number on load, on activation and while playing, and
+// it can be a stale one (Cubase keeps its own program parameter). Applied blindly,
+// it puts a factory preset over the knobs you set. So a program change from the
+// host is applied only while nothing has been edited since the last preset.
+void InversoNeonProcessor::setCurrentProgram(int index) {
+ if (index<0 || index>=getNumPrograms() || index==currentProgram) return;
+ const auto expected=presetValues(static_cast<std::size_t>(currentProgram));
+ for (std::size_t i=0;i<expected.size();++i) {
+  if (i==static_cast<std::size_t>(P::PressureCC)) continue;
+  const auto& spec=specs()[i];
+  if (std::abs(raw[i]->load()-expected[i])>(spec.max-spec.min)*1e-4f) return; // edited: keep it
+ }
+ selectProgram(index);
+}
+
+void InversoNeonProcessor::selectProgram(int index) {
+ if (index<0 || index>=getNumPrograms()) return;
+ currentProgram=index;
+ const auto values=presetValues(static_cast<std::size_t>(index));
+ for (std::size_t i=0;i<values.size();++i) {
+  if (i==static_cast<std::size_t>(P::PressureCC)) continue; // the learned knob belongs to the keyboard, not the preset
+  if (auto* param=apvts.getParameter(specs()[i].id)) {
+   param->beginChangeGesture();
+   param->setValueNotifyingHost(param->convertTo0to1(values[i]));
+   param->endChangeGesture();
+  }
+ }
+ // Tell the host which program is now active; otherwise its program parameter
+ // keeps the old preset and the host switches back to it.
+ updateHostDisplay(ChangeDetails().withProgramChanged(true));
+}
+
+void InversoNeonProcessor::getStateInformation(juce::MemoryBlock& dest) {
+ auto state=apvts.copyState();
+ midiLearn.save(state);
+ state.setProperty("program",currentProgram,nullptr);
+ if (auto xml=state.createXml()) copyXmlToBinary(*xml,dest);
+}
+void InversoNeonProcessor::setStateInformation(const void* data,int size) {
+ auto xml=getXmlFromBinary(data,size);
+ if (xml && xml->hasTagName(apvts.state.getType())) {
+  auto state=juce::ValueTree::fromXml(*xml);
+  currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
+  apvts.replaceState(state);
+  midiLearn.load(state);
+ }
+}
+
+juce::AudioProcessorEditor* InversoNeonProcessor::createEditor(){return new InversoNeonEditor(*this);}
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new InversoNeonProcessor();}

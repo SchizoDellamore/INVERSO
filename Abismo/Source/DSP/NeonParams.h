@@ -93,7 +93,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   at(LfoFilter, {"LFO_FILTER","LFO to filter",0,100,0,0,.01f,Kind::Float,nullptr,"%"});
   at(LfoAmp, {"LFO_AMP","LFO to level",0,100,0,0,.01f,Kind::Float,nullptr,"%"});
   at(VoiceMode, {"VOICE_MODE","Voice mode",0,2,0,0,1,Kind::Choice,"Poly|Mono|Legato",""});
-  at(Unison, {"UNISON","Unison voices",1,8,1,0,1,Kind::Int,nullptr,""});
+  at(Unison, {"UNISON","Unison voices",1,8,1,0,1,Kind::Int,nullptr,"n"});
   at(Detune, {"DETUNE","Unison detune",0,100,25,0,.01f,Kind::Float,nullptr,"%"});
   at(Spread, {"SPREAD","Unison stereo spread",0,100,60,0,.01f,Kind::Float,nullptr,"%"});
   at(Glide, {"GLIDE","Glide",0,2000,0,300,.1f,Kind::Float,nullptr,"ms"});
@@ -104,7 +104,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   at(Arp, {"ARP","Arpeggiator",0,1,0,0,1,Kind::Bool,nullptr,""});
   at(ArpRate, {"ARP_RATE","Arpeggio rate",0,5,3,0,1,Kind::Choice,rateNames(),""});
   at(ArpMode, {"ARP_MODE","Arpeggio",0,5,0,0,1,Kind::Choice,"Up|Down|Up-down|Random|As played|Chord",""});
-  at(ArpOctaves, {"ARP_OCTAVES","Arpeggio octaves",1,4,1,0,1,Kind::Int,nullptr,""});
+  at(ArpOctaves, {"ARP_OCTAVES","Arpeggio octaves",1,4,1,0,1,Kind::Int,nullptr,"n"});
   at(Gate, {"GATE","Gate length",5,100,60,0,.01f,Kind::Float,nullptr,"%"});
   at(Swing, {"SWING","Swing",0,60,0,0,.01f,Kind::Float,nullptr,"%"});
   at(Latch, {"LATCH","Latch (keep playing after release)",0,1,0,0,1,Kind::Bool,nullptr,""});

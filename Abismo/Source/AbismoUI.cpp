@@ -138,6 +138,8 @@ juce::String formatValue(const ParamSpec& s,double v){
  if(unit=="cc") return v<.5?juce::String("OFF"):"CC "+juce::String(juce::roundToInt(v));
  if(unit=="knob") return juce::String(v,1);
  if(unit=="q") return "Q "+juce::String(v,v<10.?2:1);
+ if(unit=="oct") return (v>0?"+":"")+juce::String(juce::roundToInt(v))+" oct";
+ if(unit=="n") return juce::String(juce::roundToInt(v));
  if(unit=="thr") return juce::String(v,0)+" dB";
  if(unit=="gate") return v<=-89.9?juce::String("OFF"):juce::String(v,0)+" dB";
  if(unit=="ct") return (v>0?"+":"")+juce::String(v,0)+" ct";

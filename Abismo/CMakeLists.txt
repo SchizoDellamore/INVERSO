@@ -230,6 +230,47 @@ target_link_libraries(InversoRelicarioHostSmoke PRIVATE
  juce::juce_recommended_warning_flags)
 add_test(NAME relicario_host_smoke COMMAND InversoRelicarioHostSmoke)
 
+# NEON: a light synthwave polysynth.
+set(NEON_SOURCES
+ Source/NeonProcessor.cpp Source/NeonProcessor.h
+ Source/NeonEditor.cpp Source/NeonEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/AbismoCommon.h Source/DSP/AbismoParams.h Source/DSP/AbismoReverb.h
+ Source/DSP/NeonParams.h Source/DSP/NeonEngine.h)
+juce_add_plugin(InversoNeon
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.neon"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvNe
+ PRODUCT_NAME "INVERSO NEON"
+ FORMATS VST3
+ VST3_CATEGORIES Instrument Synth
+ IS_SYNTH TRUE
+ NEEDS_MIDI_INPUT TRUE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoNeon)
+target_sources(InversoNeon PRIVATE ${NEON_SOURCES})
+target_compile_definitions(InversoNeon PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoNeon PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoNeonHostSmoke PRODUCT_NAME "INVERSO Neon Host Smoke")
+juce_generate_juce_header(InversoNeonHostSmoke)
+target_sources(InversoNeonHostSmoke PRIVATE Tests/test_neon_host.cpp ${NEON_SOURCES})
+target_compile_definitions(InversoNeonHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoNeonHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME neon_host_smoke COMMAND InversoNeonHostSmoke)
+
 # ENKI: a sound idea generator (two sources, shaping, motion, space; GENERATE and MUTATE).
 set(ENKI_SOURCES
  Source/EnkiProcessor.cpp Source/EnkiProcessor.h
