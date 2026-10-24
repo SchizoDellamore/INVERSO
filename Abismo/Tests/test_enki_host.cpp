@@ -80,9 +80,58 @@ int main(){
  verify(std::abs(raw(p,"REV_MIX")-42.f)<.5f,"locked space changed");
  param(p,"LOCK_SPACE",0.f);
  // A recording from the library in a source.
- p.useLibrarySample(0,5);
+ p.useLibraryRecording(0,5);
  param(p,"A_TYPE",3.f);
  verify(play(p,48000,512)>1e-5f,"a library recording produced no audio");
+ // The recording must be what sounds: source B silent, then source A on and off.
+ {
+  for(auto* prm:p.getParameters()) if(auto* r=dynamic_cast<juce::RangedAudioParameter*>(prm)) r->setValueNotifyingHost(r->getDefaultValue());
+  param(p,"B_LEVEL",0.f); param(p,"A_LEVEL",0.f);
+  p.allSoundOffForTests();
+  const float off=play(p,48000,512);
+  std::printf("both sources at zero: rms %.6f\n",off);
+  param(p,"A_LEVEL",80.f);
+  for(int type:{3,4}){
+   param(p,"A_TYPE",static_cast<float>(type));
+   for(int index:{0,5,20,47}){
+    param(p,"A_CHAR",50.f); // the default; choosing the recording must still be heard from its start
+    p.useLibraryRecording(0,index);
+    p.allSoundOffForTests();
+    const float on=play(p,48000,512);
+    std::printf("library recording %2d as %s: rms %.5f\n",index,type==3?"sample":"grains",on);
+    verify(on>(type==3?3e-3f:1.5e-3f),"a library recording is silent or nearly so in a source");
+   }
+  }
+  // Files from disk, loaded one after another while the plugin runs.
+  auto dir=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("enki_host_files");
+  dir.createDirectory();
+  juce::WavAudioFormat wav;
+  auto write=[&](const char* name,float freq,float amp){
+   auto f=dir.getChildFile(name);
+   f.deleteFile();
+   std::unique_ptr<juce::FileOutputStream> out(f.createOutputStream().release());
+   std::unique_ptr<juce::AudioFormatWriter> w(wav.createWriterFor(out.get(),44100,1,16,{},0));
+   verify(w!=nullptr,"cannot write a test file");
+   out.release();
+   juce::AudioBuffer<float> b(1,44100);
+   for(int i=0;i<44100;++i) b.setSample(0,i,amp*std::sin(6.2831853f*freq*static_cast<float>(i)/44100.f));
+   w->writeFromAudioSampleBuffer(b,0,44100);
+   return f;
+  };
+  const auto tone=write("tone.wav",261.6f,.5f), quiet=write("silence.wav",261.6f,0.f), tone2=write("tone2.wav",523.2f,.5f);
+  int k=0;
+  for(const auto& f:{tone,quiet,tone2,quiet,tone,quiet,tone2}){
+   param(p,"A_TYPE",3.f); param(p,"A_CHAR",50.f);
+   verify(p.loadSourceFile(0,f),"a file did not load");
+   juce::Thread::sleep(20); juce::Timer::callPendingTimersSynchronously(); // a host's message thread runs briefly between loads
+   p.allSoundOffForTests();
+   const float level=play(p,48000,512);
+   const bool silent=f==quiet;
+   std::printf("file %d (%s): rms %.5f\n",k++,f.getFileName().toRawUTF8(),level);
+   verify(silent?level<1e-5f:level>1e-2f,"a file loaded into a source is not what plays");
+  }
+  dir.deleteRecursively();
+ }
 
  // MIDI learn: arm a knob, turn CC 21, the knob follows; the assignment is saved with the session.
  {

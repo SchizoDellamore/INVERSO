@@ -44,7 +44,7 @@ int main(){
  for(int sr:{44100,48000,96000}){
   p.prepareToPlay(sr,64); // Hosts may send other block sizes than announced.
   for(int program=0;program<p.getNumPrograms();program+=3){
-   p.setCurrentProgram(program);
+   p.selectProgram(program);
    for(int size:{1,17,64,512,2048}){
     const float level=play(p,sr,size,57);
     verify(level>1e-4f,"note produced no audio");
@@ -52,7 +52,7 @@ int main(){
   }
   // Each machine on its own must sound.
   for(const char* machine:{"FITA_LEVEL","HARM_LEVEL","FORK_LEVEL","ORGAN_LEVEL"}){
-   p.setCurrentProgram(1); p.setCurrentProgram(0);
+   p.selectProgram(1); p.selectProgram(0);
    for(const char* other:{"FITA_LEVEL","HARM_LEVEL","FORK_LEVEL","ORGAN_LEVEL"}) param(p,other,0.f);
    param(p,machine,100.f);
    verify(play(p,sr,256,57)>1e-4f,"a machine on its own produced no audio");
@@ -71,7 +71,7 @@ int main(){
  }
  // Sustain pedal and automation inside a running block.
  p.prepareToPlay(48000,512);
- p.setCurrentProgram(0);
+ p.selectProgram(0);
  juce::MidiBuffer midi;
  midi.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0);
  midi.addEvent(juce::MidiMessage::noteOn(1,60,1.f),10);
@@ -112,8 +112,19 @@ int main(){
   p.midiLearn.forget(index);
   verify(p.midiLearn.ccFor(index)<0,"forget did not forget");
  }
+ // A host re-sending a (stale) program must not wipe edits; with no edits it applies.
+ {
+  p.selectProgram(3);
+  param(p,"WEAR",12.f); param(p,"FITA_ON",0.f);
+  p.setCurrentProgram(0);
+  verify(std::abs(p.apvts.getRawParameterValue("WEAR")->load()-12.f)<.01f && p.apvts.getRawParameterValue("FITA_ON")->load()<.5f,
+         "a program change from the host wiped the user's settings");
+  p.selectProgram(3);
+  p.setCurrentProgram(0);
+  verify(p.getCurrentProgram()==0,"an unedited preset did not follow the host's program change");
+ }
  // Program change and state round trip.
- p.setCurrentProgram(5);
+ p.selectProgram(5);
  param(p,"LOOP_LENGTH",7.5f);
  juce::MemoryBlock saved;
  p.getStateInformation(saved);
@@ -133,7 +144,7 @@ int main(){
  // Optional: ABISMO_SNAPSHOT=<file.png> saves a picture of the editor for review.
  if(const char* path=std::getenv("ABISMO_SNAPSHOT")){
   if(const char* program=std::getenv("ABISMO_SNAPSHOT_PROGRAM")){
-   p.setCurrentProgram(std::atoi(program));
+   p.selectProgram(std::atoi(program));
    editor.reset(p.createEditor());
   }
   const auto image=editor->createComponentSnapshot(editor->getLocalBounds());

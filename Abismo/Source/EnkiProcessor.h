@@ -44,7 +44,10 @@ public:
 
  // ---- sources: a library recording (0-47) or a file from ENKI's sound library
  bool loadSourceFile(int source,const juce::File&); // also points the source at it
+ void allSoundOffForTests() { engine.allSoundOff(); }
+ void playFromStart(int source);
  void useLibrarySample(int source,int index);
+ void useLibraryRecording(int source,int index); // and makes the source play it (type Sample, audible level)
  juce::String sourceSampleName(int source) const;
  std::shared_ptr<const inverso_abismo::enki::Sample> sourceDisplay(int source) const;
  // The top-level folder the generator draws files from ("" = all, "-" = none, recordings only).
@@ -83,7 +86,9 @@ private:
  juce::AudioFormatManager formats;
  juce::Random random;
  std::vector<Sample> librarySamples;
- struct Slot { std::shared_ptr<Sample> current,pending,retired; bool hasPending=false; juce::String path; std::shared_ptr<const Sample> display; };
+ // retired: replaced recordings, freed later on the message thread (never on the audio thread);
+ // room for many, so a quick run of loads never waits for the clean-up.
+ struct Slot { Slot(){retired.reserve(64);} std::shared_ptr<Sample> current,pending; std::vector<std::shared_ptr<Sample>> retired; bool hasPending=false; juce::String path; std::shared_ptr<const Sample> display; };
  std::array<Slot,2> slots;
  juce::SpinLock swapLock;
  mutable juce::CriticalSection pathLock;

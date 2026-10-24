@@ -40,6 +40,7 @@ private:
  void refreshFolders();
  void refreshList();
  void sendToSource(int source);
+ int recordingRows() const;
  juce::Rectangle<int> tabArea(int) const;
  InversoEnkiProcessor& processor;
  int tab = 0, seenIndex = -1, seenResults = -1;

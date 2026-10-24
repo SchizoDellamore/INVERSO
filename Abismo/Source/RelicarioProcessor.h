@@ -23,7 +23,8 @@ public:
  double getTailLengthSeconds()const override{return 20.0;}
  int getNumPrograms()override;
  int getCurrentProgram()override{return currentProgram;}
- void setCurrentProgram(int)override;
+ void setCurrentProgram(int)override; // from the host: never over your edits
+ void selectProgram(int);            // from the preset bar: always applies
  const juce::String getProgramName(int)override;
  void changeProgramName(int,const juce::String&)override{}
  void getStateInformation(juce::MemoryBlock&) override;

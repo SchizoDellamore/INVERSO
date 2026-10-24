@@ -53,7 +53,15 @@ InversoEnkiProcessor::InversoEnkiProcessor()
  const auto& lib=library();
  librarySamples.resize(lib.objects.size());
  for (std::size_t i=0;i<lib.objects.size() && i<static_cast<std::size_t>(numLibrarySamples);++i) {
-  librarySamples[i].data=lib.objects[i].layers.back();
+  auto& d=librarySamples[i].data;
+  d=lib.objects[i].layers.back();
+  // like a file from disk: no silence before the hit, the loudest moment at -1 dBFS
+  std::size_t first=0;
+  float peak=0.f;
+  for (float x : d) peak=std::max(peak,std::abs(x));
+  while (first<d.size() && std::abs(d[first])<peak*.01f) ++first;
+  d.erase(d.begin(),d.begin()+static_cast<std::ptrdiff_t>(first>8?first-8:0));
+  if (peak>1e-5f) for (auto& x : d) x*=.89f/peak;
   librarySamples[i].sampleRate=lib.objects[i].sampleRate;
   engine.setSample(static_cast<int>(i),&librarySamples[i]);
  }
@@ -88,8 +96,8 @@ void InversoEnkiProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::Mi
  if (swapLock.tryEnter()) {
   for (int k=0;k<2;++k) {
    auto& slot=slots[static_cast<std::size_t>(k)];
-   if (slot.hasPending && !slot.retired) {
-    slot.retired=std::move(slot.current);
+   if (slot.hasPending && slot.retired.size()<slot.retired.capacity()) {
+    slot.retired.push_back(std::move(slot.current));
     slot.current=std::move(slot.pending);
     slot.hasPending=false;
     engine.setSample(numLibrarySamples+k,slot.current.get());
@@ -157,7 +165,7 @@ void InversoEnkiProcessor::queueSlot(int source,std::shared_ptr<Sample> s,const 
   slot.pending=s;
   slot.hasPending=true;
   if (!prepared) {
-   slot.retired=std::move(slot.current);
+   slot.current.reset();
    slot.current=std::move(slot.pending);
    slot.hasPending=false;
    engine.setSample(numLibrarySamples+source,slot.current.get());
@@ -170,7 +178,7 @@ void InversoEnkiProcessor::queueSlot(int source,std::shared_ptr<Sample> s,const 
 
 void InversoEnkiProcessor::collectGarbage() {
  const juce::SpinLock::ScopedLockType lock(swapLock);
- for (auto& slot : slots) slot.retired.reset();
+ for (auto& slot : slots) slot.retired.clear();
 }
 
 SamplePool InversoEnkiProcessor::poolWith(const std::shared_ptr<Sample>& a,const std::shared_ptr<Sample>& b) const {
@@ -199,6 +207,7 @@ bool InversoEnkiProcessor::loadSourceFile(int source,const juce::File& file) {
  const int type=juce::roundToInt(raw[static_cast<std::size_t>(P::AType+b)]->load());
  if (type!=3 && type!=4) set(P::AType+b,3.f);
  if (raw[static_cast<std::size_t>(P::ALevel+b)]->load()<5.f) set(P::ALevel+b,70.f);
+ playFromStart(source);
  ++soundVersion;
  pushHistory(snapshot());
  return true;
@@ -208,8 +217,30 @@ void InversoEnkiProcessor::useLibrarySample(int source,int index) {
  const int b=source*P::SourceStride;
  if (auto* param=apvts.getParameter(specs()[static_cast<std::size_t>(P::ASample+b)].id))
   param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(std::clamp(index,0,numLibrarySamples-1))));
+ playFromStart(source);
  ++soundVersion;
  pushHistory(snapshot());
+}
+
+// A recording just chosen is heard from its beginning (CHAR is the start point
+// for a Sample source; from the middle of a hit there is only the quiet tail).
+void InversoEnkiProcessor::playFromStart(int source) {
+ const int b=source*P::SourceStride;
+ const int type=juce::roundToInt(raw[static_cast<std::size_t>(P::AType+b)]->load());
+ if (type!=3 && type!=4) return;
+ // Sample: from the top, played once; Grains: the grains start at the top too
+ for (int p : {P::AChar+b,P::AMotion+b})
+  if (p==P::AChar+b || type==3)
+   if (auto* param=apvts.getParameter(specs()[static_cast<std::size_t>(p)].id)) param->setValueNotifyingHost(0.f);
+}
+
+void InversoEnkiProcessor::useLibraryRecording(int source,int index) {
+ const int b=source*P::SourceStride;
+ auto set=[this](int p,float v){ if (auto* param=apvts.getParameter(specs()[static_cast<std::size_t>(p)].id)) param->setValueNotifyingHost(param->convertTo0to1(v)); };
+ const int type=juce::roundToInt(raw[static_cast<std::size_t>(P::AType+b)]->load());
+ if (type!=3 && type!=4) set(P::AType+b,3.f);
+ if (raw[static_cast<std::size_t>(P::ALevel+b)]->load()<5.f) set(P::ALevel+b,70.f);
+ useLibrarySample(source,index);
 }
 
 juce::String InversoEnkiProcessor::sourceSampleName(int source) const {

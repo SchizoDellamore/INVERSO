@@ -74,10 +74,23 @@ const juce::String InversoRelicarioProcessor::getProgramName(int index) {
  if (index<0 || index>=getNumPrograms()) return {};
  return juce::String::fromUTF8(presets()[static_cast<std::size_t>(index)].name);
 }
-// Hosts re-send the current program (Cubase does on load and while playing);
-// re-applying it would wipe the user's edits, so only a different preset is applied.
+// Hosts re-send a program number on load, on activation and while playing, and
+// it can be a stale one (Cubase keeps its own program parameter). Applied blindly,
+// it puts a factory preset over the knobs you set. So a program change from the
+// host is applied only while nothing has been edited since the last preset.
 void InversoRelicarioProcessor::setCurrentProgram(int index) {
  if (index<0 || index>=getNumPrograms() || index==currentProgram) return;
+ const auto expected=presetValues(static_cast<std::size_t>(currentProgram));
+ for (std::size_t i=0;i<expected.size();++i) {
+  if (i==static_cast<std::size_t>(P::PressureCC)) continue;
+  const auto& spec=specs()[i];
+  if (std::abs(raw[i]->load()-expected[i])>(spec.max-spec.min)*1e-4f) return; // edited: keep it
+ }
+ selectProgram(index);
+}
+
+void InversoRelicarioProcessor::selectProgram(int index) {
+ if (index<0 || index>=getNumPrograms()) return;
  currentProgram=index;
  const auto values=presetValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {

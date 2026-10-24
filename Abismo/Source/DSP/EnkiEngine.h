@@ -309,13 +309,14 @@ public:
  // Adds this voice to the stereo mix.
  void render(const Controls& c, float* left, float* right, int n, float panLfo) {
   const float vel = 1.f - c.velSens + c.velSens * velocity;
-  const float la = c.src[0].level, lb = c.src[1].level;
+  const float la = c.src[0].level, lb = c.src[1].level, ringLevel = std::sqrt(la * lb);
   for (int i = 0; i < n; ++i) {
    const float e = amp.next();
    modEnv.next();
    const float a = la > 0.f || c.ring > 0.f ? srcs[0].next(c.lfoChar * c.lfo) : 0.f;
    const float b = lb > 0.f || c.ring > 0.f ? srcs[1].next(c.lfoChar * c.lfo) : 0.f;
-   float x = (1.f - c.ring) * (a * la + b * lb) + c.ring * a * b * 2.f;
+   // the ring product follows both levels: a source at zero silences it too
+   float x = (1.f - c.ring) * (a * la + b * lb) + c.ring * a * b * 2.f * ringLevel;
    if (c.filterMode == 3) {
     const int size = static_cast<int>(comb.size());
     const float pos = static_cast<float>(combAt) - combDelay + static_cast<float>(size);

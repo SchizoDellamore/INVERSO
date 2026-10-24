@@ -268,14 +268,27 @@ void EnkiSoundsPanel::refreshList() {
  list.repaint();
 }
 
+// The list starts with ENKI's own recordings (unless a folder of yours is chosen), then your sounds.
+int EnkiSoundsPanel::recordingRows() const {
+ return processor.drawFolder.isEmpty() || processor.drawFolder == "-" ? inverso_abismo::enki::numLibrarySamples : 0;
+}
+
 int EnkiSoundsPanel::getNumRows() {
- return tab == 0 ? static_cast<int>(shown.size()) : static_cast<int>(EnkiLibrary::instance().results().size());
+ return tab == 0 ? recordingRows() + static_cast<int>(shown.size()) : static_cast<int>(EnkiLibrary::instance().results().size());
 }
 
 void EnkiSoundsPanel::paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool selected) {
  if (selected) { g.setColour(c::orange.withAlpha(.35f)); g.fillRect(0, 0, width, height); }
  g.setFont(soft::monoFont(11.f));
  if (tab == 0) {
+  if (row < recordingRows()) {
+   g.setColour(c::orange.withAlpha(.9f));
+   g.drawText("ENKI", 8, 0, 40, height, juce::Justification::centredLeft);
+   g.setColour(c::screenInk);
+   g.drawText(inverso_abismo::drums::sampleObjectName(row), 52, 0, width - 56, height, juce::Justification::centredLeft);
+   return;
+  }
+  row -= recordingRows();
   if (row < 0 || row >= static_cast<int>(shown.size())) return;
   const auto f = EnkiLibrary::instance().file(shown[static_cast<std::size_t>(row)]);
   g.setColour(c::screenInk);
@@ -297,7 +310,14 @@ void EnkiSoundsPanel::listBoxItemDoubleClicked(int, const juce::MouseEvent&) {
 }
 
 void EnkiSoundsPanel::sendToSource(int source) {
- const int row = list.getSelectedRow();
+ int row = list.getSelectedRow();
+ if (row >= 0 && row < recordingRows()) {
+  processor.useLibraryRecording(source, row);
+  status = juce::String("PLAYING IN SOURCE ") + (source == 0 ? "A" : "B") + ": " + juce::String(inverso_abismo::drums::sampleObjectName(row)).toUpperCase();
+  repaint();
+  return;
+ }
+ row -= recordingRows();
  if (row < 0 || row >= static_cast<int>(shown.size())) return;
  const auto f = EnkiLibrary::instance().file(shown[static_cast<std::size_t>(row)]);
  status = processor.loadSourceFile(source, f) ? juce::String("PLAYING IN SOURCE ") + (source == 0 ? "A" : "B") + ": " + f.getFileNameWithoutExtension().toUpperCase()
@@ -348,7 +368,7 @@ void EnkiSoundsPanel::paint(juce::Graphics& g) {
  g.setColour(c::ink);
  g.setFont(soft::titleFont(12.5f));
  g.drawText("SOUNDS", inner.getX() + 16, inner.getY(), 80, 20, juce::Justification::centredLeft);
- const char* names[] = {"MY SOUNDS", "FREESOUND"};
+ const char* names[] = {"LIBRARY", "FREESOUND"};
  for (int i = 0; i < 2; ++i) {
   const auto t = tabArea(i);
   g.setColour(i == tab ? c::ink : c::muted.withAlpha(.8f));
@@ -366,8 +386,8 @@ void EnkiSoundsPanel::paint(juce::Graphics& g) {
 void EnkiSoundsPanel::paintOverChildren(juce::Graphics& g) {
  g.setFont(soft::monoFont(10.f));
  g.setColour(c::screenMuted);
- if (tab == 0 && shown.empty())
-  g.drawFittedText("Your library is empty. IMPORT a folder (a sample library) or files: ENKI copies them into Documents/INVERSO ENKI/Sounds.",
+ if (tab == 0 && shown.empty() && recordingRows() == 0)
+  g.drawFittedText("This folder is empty. IMPORT a folder (a sample library) or files: ENKI copies them into Documents/INVERSO ENKI/Sounds.",
                    list.getBounds().reduced(20), juce::Justification::centred, 4);
  if (tab == 1 && EnkiLibrary::instance().results().empty())
   g.drawFittedText(EnkiLibrary::instance().apiKey().isEmpty()
@@ -682,7 +702,7 @@ void InversoEnkiEditor::chooseSample(int source) {
  menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&sampleButtons[static_cast<std::size_t>(source)]).withMaximumNumColumns(3),
                     [safe, files, source](int chosen) {
   if (safe == nullptr || chosen <= 0) return;
-  if (chosen <= numLibrarySamples) { safe->processor.useLibrarySample(source, chosen - 1); return; }
+  if (chosen <= numLibrarySamples) { safe->processor.useLibraryRecording(source, chosen - 1); return; }
   const auto at = static_cast<std::size_t>(chosen - 1000);
   if (at < files.size()) safe->processor.loadSourceFile(source, files[at]);
  });

@@ -129,6 +129,10 @@ private:
   v[static_cast<std::size_t>(P::AChar + b)] = range(0.f, 100.f);
   v[static_cast<std::size_t>(P::AMotion + b)] = range(0.f, 100.f);
   v[static_cast<std::size_t>(P::ASample + b)] = static_cast<float>(pickSample(k));
+  // A recording starts at its beginning (CHAR is where it starts): from the
+  // middle of a hit there is only its quiet tail.
+  if (type == SampleSrc) { v[static_cast<std::size_t>(P::AChar + b)] = range(0.f, 8.f); v[static_cast<std::size_t>(P::AMotion + b)] = chance(.5f) ? 0.f : range(10.f, 60.f); }
+  if (type == Grains) v[static_cast<std::size_t>(P::AChar + b)] = range(0.f, 30.f);
  }
  void set(Values& v, int p, float x) { v[static_cast<std::size_t>(p)] = x; }
 
