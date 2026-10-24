@@ -80,7 +80,13 @@ public:
   if (retrigger || !amp.active()) {
    amp.gateOn(); fenv.gateOn();
    fmEnv = 1.f; lfoFade = 0.f;
-   if (!wasPlaying()) { ph1 = rng.next() * .5f + .5f; ph2 = rng.next() * .5f + .5f; phSub = ph1 * .5f; }
+   // a single voice starts every note the same way (the same punch each time);
+   // unison voices start apart, which is what makes them wide
+   if (wasPlaying() && uniGain > .99f) duck = duckLength; // still sounding: a 1.3 ms dip, then the same clean start
+   else if (!wasPlaying()) {
+    if (uniGain > .99f) resetPhases();
+    else { ph1 = rng.next() * .5f + .5f; ph2 = rng.next() * .5f + .5f; phSub = ph1 * .5f; }
+   }
   }
  }
  void glideTo(int n, float velocity, float accent) { note = n; target = static_cast<float>(n); vel = velocity; accentBoost = accent; released = false; }
@@ -162,11 +168,14 @@ public:
     u = detail::softTanh(u * 1.2f) / 1.2f;
     auto stage = [&](float in, float& s) { const float v = G * (in - s); const float out = v + s; s = out + v; return out; };
     const float y1 = stage(u, s1), y2 = stage(y1, s2), y3 = stage(y2, s3);
-    y = stage(y3, s4) * (1.f + k * .35f);
+    y = stage(y3, s4) * (1.f + k * .9f); // the ladder loses lows as resonance rises: put them back
    } else {
     y = svf.process(x, a1, a2, a3, svfK, c.filterType == 2 ? 1 : c.filterType == 3 ? 2 : 0);
    }
-   const float lvl = e * ampVel * uniGain * (1.f - c.lfoAmp * .5f * (1.f - c.lfo) * lfoFade);
+   float dip = 1.f;
+   if (duck > 0) { dip = static_cast<float>(--duck) / duckLength; if (duck == 0) { resetPhases(); rise = 1; } }
+   else if (rise > 0) { dip = static_cast<float>(rise) / duckLength; if (++rise > duckLength) rise = 0; }
+   const float lvl = dip * e * ampVel * uniGain * (1.f - c.lfoAmp * .5f * (1.f - c.lfo) * lfoFade);
    outL[i] += y * lvl * gl;
    outR[i] += y * lvl * gr;
   }
@@ -177,12 +186,14 @@ public:
  float vel = 1.f;
 
 private:
- bool wasPlaying() const { return amp.value() > 1e-3f; }
+ static constexpr int duckLength = 64;
+ void resetPhases() { ph1 = ph2 = .5f; phSub = .25f; phMod = phCar = 0.f; }
+ bool wasPlaying() const { return amp.value() > .05f; } // a tail below -26 dB can restart cleanly
  detail::Random rng;
  float ph1 = 0.f, ph2 = 0.f, phSub = 0.f, phMod = 0.f, phCar = 0.f;
  float inc1 = .01f, inc2 = .01f, incSub = .005f, incMod = .01f, incCar = .01f;
  float pitch = 60.f, target = 60.f, driftNow = 0.f, driftTarget = 0.f, lfoFade = 0.f, fmEnv = 0.f, fenvNow = 0.f, accentBoost = 0.f;
- int driftTicks = 0;
+ int driftTicks = 0, duck = 0, rise = 0;
  float g = .1f, G = .1f, k = 0.f, svfK = 1.4f, a1 = 1.f, a2 = 0.f, a3 = 0.f, ampVel = 1.f;
  float s1 = 0.f, s2 = 0.f, s3 = 0.f, s4 = 0.f;
  SVF svf;
@@ -530,11 +541,11 @@ private:
   }
  }
 
- // untouched below -2 dBFS, then rounded off so nothing passes -0.2 dBFS
+ // untouched below -1 dBFS, then rounded off so nothing passes -0.2 dBFS
  static float ceiling(float x) {
   const float a = std::abs(x);
-  if (a <= .8f) return x;
-  const float y = .8f + .175f * std::tanh((a - .8f) / .175f);
+  if (a <= .89f) return x;
+  const float y = .89f + .088f * std::tanh((a - .89f) / .088f);
   return x < 0.f ? -y : y;
  }
 
