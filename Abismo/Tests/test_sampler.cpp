@@ -95,6 +95,38 @@ static void granular() {
         "granular transposition must not depend on scan speed");
 }
 
+// Granular: LOOP decides how SCAN travels. Off: round the whole region; Forward: round the loop;
+// Ping-pong: back and forth inside the loop. Grains come from the region only.
+static void granularLoops() {
+ const int sr = 48000;
+ auto sine = sineSample(440.0, 4.0);
+ for (int mode : {0, 1, 2}) {
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 100; v[S::P::Spray] = 0; v[S::P::Position] = 45;
+  v[S::P::LoopMode] = static_cast<float>(mode); v[S::P::LoopStart] = 40; v[S::P::LoopEnd] = 60;
+  v[S::P::Start] = 10; v[S::P::End] = 90;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&sine);
+  e.noteOn(69, 1.f);
+  float lo = 1.f, hi = 0.f, prev = -1.f; int wraps = 0, turns = 0; float lastStep = 0.f;
+  std::vector<float> l(256), r(256);
+  for (int b = 0; b < sr * 12 / 256; ++b) {
+   e.render(l.data(), r.data(), 256);
+   const float at = e.playheadPosition();
+   if (b > 10) { lo = std::min(lo, at); hi = std::max(hi, at); }
+   if (prev >= 0.f) {
+    const float step = at - prev;
+    if (step < -.1f) ++wraps;
+    else if (std::abs(step) > 1e-6f && std::abs(lastStep) > 1e-6f && (step > 0.f) != (lastStep > 0.f)) ++turns;
+    if (std::abs(step) > 1e-6f && std::abs(step) < .1f) lastStep = step;
+   }
+   prev = at;
+  }
+  std::printf("granular loop %s: cloud %.2f..%.2f, %d wraps, %d turns\n", mode == 0 ? "off" : mode == 1 ? "forward" : "ping-pong", lo, hi, wraps, turns);
+  if (mode == 0) verify(lo < .15f && hi > .85f && lo >= .099f && hi <= .901f && wraps >= 2, "granular, loop off: the cloud must travel the whole region (START..END), round and round");
+  if (mode == 1) verify(lo >= .399f && hi <= .601f && wraps >= 5 && turns == 0, "granular, loop forward: the cloud must go round the loop");
+  if (mode == 2) verify(lo >= .399f && hi <= .601f && hi > .58f && lo < .42f && turns >= 5 && wraps == 0, "granular, ping-pong: the cloud must go back and forth inside the loop");
+ }
+}
+
 static void swapping() {
  const int sr = 48000;
  auto a = sineSample(440.0, 1.0), b = sineSample(220.0, 1.0);
@@ -159,6 +191,7 @@ int main(int argc, char** argv) {
  resampler();
  classic();
  granular();
+ granularLoops();
  swapping();
  const int sr = 48000;
  const auto voice = S::makeDefaultSample(sr);

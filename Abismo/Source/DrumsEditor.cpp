@@ -144,7 +144,7 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
  kits.getCount=[this]{return processor.getNumPrograms();};
  kits.getCurrent=[this]{return processor.getCurrentProgram();};
  kits.getName=[this](int i){return processor.getProgramName(i);};
- kits.select=[this](int i){processor.setCurrentProgram(i);};
+ kits.select=[this](int i){processor.selectKit(i);};
  body.addAndMakeVisible(kits);
  grid.onPress=[this](int pad){ selectPad(pad); processor.auditionPad(pad); };
  body.addAndMakeVisible(grid);

@@ -65,6 +65,7 @@ public:
   const double len = sample ? static_cast<double>(sample->length()) : 0.0;
   playhead = c.start * len;
   cloudCentre = c.position * len;
+  scanDirection = 1.0;
   nextGrain = 0.0;
   for (auto& g : grains) g.active = false;
   if (!stolen) { filterL.reset(); filterR.reset(); formant.reset(); driftValue = driftTarget = 0.f; }
@@ -203,12 +204,39 @@ private:
  void granular(const Controls& c, const std::vector<float>& L, const std::vector<float>& R, double len,
                float& l, float& r, double sampleRate, double sr) {
   mode = 1;
-  // Cloud centre moves at SCAN x real time through the sample, independent of pitch.
-  cloudCentre += static_cast<double>(c.scan) * sampleRate / sr;
-  while (cloudCentre >= len) cloudCentre -= len;
-  while (cloudCentre < 0.0) cloudCentre += len;
+  // The cloud centre travels at SCAN x real time, independent of pitch, inside the region
+  // (START..END). LOOP decides how: Off runs round the whole region; Forward goes round the loop
+  // (LOOP START..LOOP END) once it reaches it; Ping-pong goes back and forth inside the loop.
+  const double lo = std::clamp(static_cast<double>(std::min(c.start, c.end)) * len, 0.0, len - 2.0);
+  const double hi = std::clamp(static_cast<double>(std::max(c.start, c.end)) * len, lo + 1.0, len);
+  const double loopLo = std::clamp(static_cast<double>(std::min(c.loopStart, c.loopEnd)) * len, lo, hi - 1.0);
+  const double loopHi = std::clamp(static_cast<double>(std::max(c.loopStart, c.loopEnd)) * len, loopLo + 1.0, hi);
+  const bool loopUsable = c.loopMode != 0 && loopHi - loopLo >= 16.0;
+  const bool pingPong = loopUsable && c.loopMode == 2;
+  if (pingPong) { // outside the loop the cloud heads for it
+   if (cloudCentre < loopLo) scanDirection = c.scan >= 0.f ? 1.0 : -1.0;
+   else if (cloudCentre > loopHi) scanDirection = c.scan >= 0.f ? -1.0 : 1.0;
+  } else scanDirection = 1.0;
+  const double before = cloudCentre;
+  cloudCentre += static_cast<double>(c.scan) * sampleRate / sr * scanDirection;
+  if (pingPong) { // inside, it turns round at each end
+   if (before <= loopHi && cloudCentre > loopHi) { cloudCentre = 2.0 * loopHi - cloudCentre; scanDirection = -scanDirection; }
+   else if (before >= loopLo && cloudCentre < loopLo) { cloudCentre = 2.0 * loopLo - cloudCentre; scanDirection = -scanDirection; }
+  } else if (loopUsable) { // forward: round the loop once it gets there
+   const double span = loopHi - loopLo;
+   if (c.scan >= 0.f && before < loopHi && cloudCentre >= loopHi) cloudCentre -= span;
+   else if (c.scan < 0.f && before > loopLo && cloudCentre <= loopLo) cloudCentre += span;
+   const double region = hi - lo; // from outside the loop it comes round the region to it
+   while (cloudCentre >= hi) cloudCentre -= region;
+   while (cloudCentre < lo) cloudCentre += region;
+  } else { // off: round the whole region
+   const double span = hi - lo;
+   while (cloudCentre >= hi) cloudCentre -= span;
+   while (cloudCentre < lo) cloudCentre += span;
+  }
+  cloudCentre = std::clamp(cloudCentre, 0.0, len - 1.0);
   if (nextGrain <= 0.0) {
-   spawn(c, len, sampleRate, sr);
+   spawn(c, len, sampleRate, sr, lo, hi);
    const double interval = sr / std::max(1.f, c.density);
    nextGrain += interval * (1.0 + .3 * static_cast<double>(rng.next()));
   }
@@ -227,14 +255,16 @@ private:
   }
  }
 
- void spawn(const Controls& c, double len, double sampleRate, double sr) {
+ void spawn(const Controls& c, double len, double sampleRate, double sr, double lo, double hi) {
   Grain* slot = nullptr;
   for (auto& g : grains) if (!g.active) { slot = &g; break; }
   if (!slot) return;
   const double centre = cloudCentre + static_cast<double>(c.lfoPosition) * .25 * len * lfoNow;
   const double sprayRange = static_cast<double>(c.spray) * .5 * sampleRate; // up to +-500 ms
   double pos = centre + sprayRange * static_cast<double>(rng.next());
-  pos = std::fmod(std::fmod(pos, len) + len, len);
+  // grains come from the region only
+  const double span = std::max(1.0, hi - lo);
+  pos = lo + std::fmod(std::fmod(pos - lo, span) + span, span);
   const float pitch = c.grainPitchSt * rng.next();
   const bool backwards = (.5f * (rng.next() + 1.f)) < c.grainReverse;
   const double step = rate * static_cast<double>(detail::semitoneRatio(pitch)) * (c.reverse != backwards ? -1.0 : 1.0);
@@ -252,7 +282,7 @@ private:
  SVF filterL, filterR;
  FormantFilter formant;
  detail::Random rng;
- double playhead = 0.0, direction = 1.0, rate = 1.0, cloudCentre = 0.0, nextGrain = 0.0;
+ double playhead = 0.0, direction = 1.0, rate = 1.0, cloudCentre = 0.0, nextGrain = 0.0, scanDirection = 1.0;
  int driftHold = 0;
  bool ended = false;
  float velocity = 1.f, pitchEnvTime = 0.f, driftValue = 0.f, driftTarget = 0.f, ampVel = 1.f, endFade = 1.f;

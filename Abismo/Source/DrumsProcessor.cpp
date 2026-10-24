@@ -276,8 +276,24 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
  updateHostDisplay(ChangeDetails().withProgramChanged(true));
 }
 
+// From the editor: always applies, even the kit already selected, so choosing a kit again
+// brings its own sounds back.
+void InversoAbismoDrumsProcessor::selectKit(int index) {
+ if (index<0 || index>=getNumPrograms()) return;
+ applyKit(index);
+ updateHostDisplay(ChangeDetails().withProgramChanged(true));
+}
+
 void InversoAbismoDrumsProcessor::applyKit(int index) {
  currentProgram=index;
+ // A kit is its own sounds: recordings loaded on pads (or reported missing) give way to it.
+ for (int pad=0;pad<numPads;++pad) {
+  bool user;
+  { const juce::ScopedLock lock(pathLock);
+    const auto& slot=slots[static_cast<std::size_t>(pad)];
+    user=!slot.paths.isEmpty() || !slot.missing.isEmpty() || slot.display!=nullptr; }
+  if (user) clearPadSample(pad);
+ }
  const auto values=kitValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {
   if (auto* param=apvts.getParameter(specs()[i].id)) {

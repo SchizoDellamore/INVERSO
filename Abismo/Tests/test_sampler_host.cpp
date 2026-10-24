@@ -132,7 +132,7 @@ int main(){
  verify(editor!=nullptr && editor->getWidth()>0,"editor failed to open");
  if(const char* path=std::getenv("ABISMO_SNAPSHOT")){
   p.setCurrentProgram(std::getenv("ABISMO_SNAPSHOT_PROGRAM")?std::atoi(std::getenv("ABISMO_SNAPSHOT_PROGRAM")):1);
-  if(std::getenv("ABISMO_SNAPSHOT_REGION")){ for(auto [id,v]:{std::pair<const char*,float>{"MODE",0.f},{"START",.2f},{"END",.7f},{"LOOP_MODE",.5f},{"LOOP_START",.35f},{"LOOP_END",.6f}}) p.apvts.getParameter(id)->setValueNotifyingHost(v); }
+  if(std::getenv("ABISMO_SNAPSHOT_REGION")){ for(auto [id,v]:{std::pair<const char*,float>{"MODE",juce::String(std::getenv("ABISMO_SNAPSHOT_REGION"))=="granular"?1.f:0.f},{"POSITION",.42f},{"START",.2f},{"END",.7f},{"LOOP_MODE",.5f},{"LOOP_START",.35f},{"LOOP_END",.6f}}) p.apvts.getParameter(id)->setValueNotifyingHost(v); }
   verify(p.loadSampleFile(stereo),"reload for snapshot");
   p.useBuiltInSample();
   if(auto* e=dynamic_cast<InversoAbismoSamplerEditor*>(editor.get())) e->refreshFromProcessor();

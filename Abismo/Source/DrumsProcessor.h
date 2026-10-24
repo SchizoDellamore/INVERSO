@@ -25,6 +25,7 @@ public:
  int getNumPrograms()override;
  int getCurrentProgram()override{return currentProgram;}
  void setCurrentProgram(int)override;
+ void selectKit(int index); // from the editor: applies even the current kit
  const juce::String getProgramName(int)override;
  void changeProgramName(int,const juce::String&)override{}
  void getStateInformation(juce::MemoryBlock&) override;
