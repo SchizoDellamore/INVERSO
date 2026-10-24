@@ -87,6 +87,7 @@ void SampleView::refresh(){
 
 void SampleView::paint(juce::Graphics& g){
  flags.clear();
+ lines.clear();
  const auto area=getLocalBounds().toFloat().reduced(12.f,8.f);
  const auto wave=area.withTrimmedTop(16.f);
  g.setFont(soft::monoFont(10.f));
@@ -129,6 +130,7 @@ void SampleView::paint(juce::Graphics& g){
  auto marker=[&](const char* id,float x,juce::Colour col,const juce::String& label,bool flagRight){
   g.setColour(col);
   g.fillRect(x-1.f,wave.getY(),2.f,wave.getHeight());
+  lines.push_back({id,x});
   g.setFont(soft::uiFont(9.f,true));
   const float fw=juce::GlyphArrangement::getStringWidth(g.getCurrentFont(),label)+8.f;
   float left=flagRight?x:x-fw;
@@ -146,12 +148,12 @@ void SampleView::paint(juce::Graphics& g){
   g.setColour(c::screenBottom);
   g.drawText(label,flag,juce::Justification::centred);
  };
- const bool loopSwapped=param("LOOP_START")>param("LOOP_END");
+ const bool swapped=loopSwapped();
  marker("START",xs,c::cyan,"START",true);
  marker("END",xe,c::pink,"END",false);
  if(loop>0){
-  marker(loopSwapped?"LOOP_END":"LOOP_START",xa,c::amber,"LOOP IN",true);
-  marker(loopSwapped?"LOOP_START":"LOOP_END",xb,c::amber,"LOOP OUT",false);
+  marker(swapped?"LOOP_END":"LOOP_START",xa,c::amber,"LOOP IN",true);
+  marker(swapped?"LOOP_START":"LOOP_END",xb,c::amber,"LOOP OUT",false);
  }
  if(granular){
   // drawn where the cloud starts: a POSITION outside START..END starts at the nearest edge
@@ -182,19 +184,21 @@ void SampleView::paint(juce::Graphics& g){
  if(head>=0.f){ g.setColour(juce::Colours::white); g.fillRect(wave.getX()+head*w,wave.getY(),1.5f,wave.getHeight()); }
 }
 
-// Which marker a click grabs: a flag clicked is that marker; elsewhere the nearest line shown
-// (START, END, the loop points when looping, POSITION in granular mode), POSITION first on a tie.
+// LOOP IN is LOOP START unless the loop was saved the other way round (LOOP START after LOOP END).
+bool SampleView::loopSwapped() const { return param("LOOP_START")>param("LOOP_END"); }
+
+// Which marker a click grabs: a flag clicked is that marker; elsewhere the nearest line as drawn,
+// POSITION first on a tie.
 const char* SampleView::markerAt(juce::Point<float> p) const {
  for(const auto& f:flags) if(f.second.expanded(2.f).contains(p)) return f.first;
- const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
- const float at=(p.x-wave.getX())/std::max(1.f,wave.getWidth())*100.f;
- std::vector<const char*> ids;
- if(param("MODE")>=.5f) ids.push_back("POSITION");
- ids.push_back("START"); ids.push_back("END");
- if(juce::roundToInt(param("LOOP_MODE"))>0){ ids.push_back("LOOP_START"); ids.push_back("LOOP_END"); }
- const char* best=ids[0];
- float bestDistance=std::abs(param(best)-at);
- for(auto* id:ids){ const float d=std::abs(param(id)-at); if(d<bestDistance){ best=id; bestDistance=d; } }
+ if(lines.empty()) return "START";
+ const char* best=nullptr;
+ float bestDistance=0.f;
+ for(const auto& [id,x]:lines){
+  const float d=std::abs(x-p.x);
+  const bool position=std::strcmp(id,"POSITION")==0;
+  if(best==nullptr || d<bestDistance || (position && d<=bestDistance)){ best=id; bestDistance=d; }
+ }
  return best;
 }
 void SampleView::setFromX(float x){
@@ -213,12 +217,11 @@ void SampleView::setFromX(float x){
  repaint();
 }
 void SampleView::mouseDown(const juce::MouseEvent& e){
- // loop points saved the other way round (LOOP START after LOOP END) are put in order first,
- // so LOOP IN is LOOP START and dragging it keeps it before LOOP OUT
+ // LOOP IN must stay before LOOP OUT, whichever parameter holds which (see loopSwapped)
  dragging=markerAt(e.position); // from the flags as last drawn
  // a loop point drags as LOOP IN or LOOP OUT, whichever it is now (saved loops can be reversed)
  const bool loopPoint=std::strcmp(dragging,"LOOP_START")==0 || std::strcmp(dragging,"LOOP_END")==0;
- draggingLoopIn=loopPoint && param(dragging)<=param(std::strcmp(dragging,"LOOP_START")==0?"LOOP_END":"LOOP_START");
+ draggingLoopIn=loopPoint && (std::strcmp(dragging,loopSwapped()?"LOOP_END":"LOOP_START")==0);
  processor.apvts.getParameter(dragging)->beginChangeGesture();
  setFromX(e.position.x);
 }

@@ -266,9 +266,10 @@ private:
   const double centre = cloudCentre + static_cast<double>(c.lfoPosition) * .25 * len * lfoNow;
   const double sprayRange = static_cast<double>(c.spray) * .5 * sampleRate; // up to +-500 ms
   double pos = centre + sprayRange * static_cast<double>(rng.next());
-  // grains come from the region only
-  const double span = std::max(1.0, hi - lo);
-  pos = lo + std::fmod(std::fmod(pos - lo, span) + span, span);
+  // grains come from the region only: spray past an edge turns back, like the grains themselves
+  if (pos > hi) pos = 2.0 * hi - pos;
+  if (pos < lo) pos = 2.0 * lo - pos;
+  pos = std::clamp(pos, lo, hi);
   const float pitch = c.grainPitchSt * rng.next();
   const bool backwards = (.5f * (rng.next() + 1.f)) < c.grainReverse;
   const double step = rate * static_cast<double>(detail::semitoneRatio(pitch)) * (c.reverse != backwards ? -1.0 : 1.0);
@@ -278,8 +279,15 @@ private:
   slot->length = std::max(8, static_cast<int>(c.grainMs * .001f * static_cast<float>(sr)));
   // nothing outside START..END is heard: a grain reaching the region's edge turns back (see
   // granular()), so it keeps its length and level and the sound follows the cloud to the edge
-  slot->lo = c.reverse ? len - 1.0 - hi : lo; // REVERSE mirrors the file
-  slot->hi = c.reverse ? len - 1.0 - lo : hi;
+  // turning points one sample in from START and two from END: the interpolation reads one sample
+  // before and two after, and those stay inside the region too
+  const double physLo = c.reverse ? len - 1.0 - hi : lo, physHi = c.reverse ? len - 1.0 - lo : hi; // REVERSE mirrors the file
+  slot->lo = physHi - physLo > 4.0 ? physLo + 1.0 : physLo;
+  slot->hi = physHi - physLo > 4.0 ? physHi - 2.0 : physHi;
+  slot->pos = std::clamp(slot->pos, slot->lo, slot->hi);
+  // a region shorter than the grain's travel shortens the grain to one pass, not a buzz of turns
+  const double pass = (slot->hi - slot->lo) / std::max(1e-6, std::abs(step));
+  slot->length = std::clamp(static_cast<int>(pass), 2, slot->length);
   slot->elapsed = 0;
   const float pan = .5f + .5f * c.grainSpread * rng.next();
   slot->gainL = std::cos(pan * 1.5707963f) * 1.4142f;

@@ -26,6 +26,8 @@ private:
  InversoAbismoSamplerProcessor& processor;
  std::vector<std::pair<float,float>> peaks;
  std::vector<std::pair<const char*,juce::Rectangle<float>>> flags; // drawn flags, for clicks
+ std::vector<std::pair<const char*,float>> lines; // drawn marker lines (x), for clicks
+ bool loopSwapped() const;
 };
 
 class InversoAbismoSamplerEditor final : public juce::AudioProcessorEditor,public juce::FileDragAndDropTarget,

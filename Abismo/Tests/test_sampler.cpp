@@ -190,6 +190,40 @@ static void granularEdges() {
  }
 }
 
+// What is heard, not only where the cloud is drawn: a cloud parked at END plays from END (also
+// with spray), and a region much shorter than a grain gives a short grain, not a buzz.
+static void granularHeard() {
+ const int sr = 48000;
+ S::SampleData d; d.sampleRate = sr; d.name = "two tones";
+ const std::size_t n = static_cast<std::size_t>(sr) * 4;
+ d.left.resize(n);
+ for (std::size_t i = 0; i < n; ++i) {
+  const double x = static_cast<double>(i) / static_cast<double>(n);
+  const double f = x >= .8 ? 440.0 : 1760.0; // the last 20% sounds different
+  d.left[i] = .5f * static_cast<float>(std::sin(2.0 * 3.14159265358979 * f * static_cast<double>(i) / sr));
+ }
+ for (float spray : {0.f, 30.f}) {
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 0; v[S::P::Spray] = spray; v[S::P::Position] = 95; v[S::P::Start] = 10; v[S::P::End] = 90;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&d);
+  e.noteOn(69, 1.f);
+  auto out = play(e, sr * 2);
+  const double nearEnd = goertzel(out.l, sr, 440.0, sr / 2, sr * 2), start = goertzel(out.l, sr, 1760.0, sr / 2, sr * 2);
+  std::printf("granular cloud parked at END, spray %.0f%%: END tone %.3f, START tone %.4f\n", spray, nearEnd, start);
+  verify(nearEnd > .01 && start < nearEnd * .2, "a cloud parked at END must play from END, not from START");
+ }
+ {
+  auto sine = sineSample(440.0, 4.0);
+  auto v = plain(); v[S::P::Mode] = 1; v[S::P::Scan] = 0; v[S::P::Spray] = 0; v[S::P::GrainSize] = 400; v[S::P::Start] = 50; v[S::P::End] = 50.01f;
+  S::Engine e; e.setValues(v); e.prepare(sr); e.setSample(&sine);
+  e.noteOn(69, 1.f);
+  auto out = play(e, sr * 2);
+  float hf = 0.f, prev = 0.f;
+  for (std::size_t i = static_cast<std::size_t>(sr) / 2; i < out.l.size(); ++i) { hf = std::max(hf, std::abs(out.l[i] - prev)); prev = out.l[i]; }
+  std::printf("granular, region of a few samples: largest step %.4f, rms %.4f\n", hf, rms(out.l, sr / 2, sr * 2));
+  verify(finite(out) && hf < .05f, "a tiny region must not turn grains into a buzz");
+ }
+}
+
 static void swapping() {
  const int sr = 48000;
  auto a = sineSample(440.0, 1.0), b = sineSample(220.0, 1.0);
@@ -256,6 +290,7 @@ int main(int argc, char** argv) {
  granular();
  granularLoops();
  granularEdges();
+ granularHeard();
  swapping();
  const int sr = 48000;
  const auto voice = S::makeDefaultSample(sr);

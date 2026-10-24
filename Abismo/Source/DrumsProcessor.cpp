@@ -83,9 +83,9 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // Pick up pads' new recordings without freeing memory on this thread:
  // the replaced ones are parked in `retired` and released by the message thread.
  // While the old kit fades out (kitChanged), its recordings keep playing: they swap with the new kit.
- // Checked under the lock: selectKit raises kitChanged before it queues anything under it.
+ // Checked under the lock; selectKit raises kitQueueing before it queues anything, and kitChanged before lowering it.
  if (swapLock.tryEnter()) {
-  if (!kitChanged.load()) for (int pad=0;pad<numPads;++pad) {
+  if (!kitChanged.load() && !kitQueueing.load()) for (int pad=0;pad<numPads;++pad) {
    auto& slot=slots[static_cast<std::size_t>(pad)];
    if (slot.hasPending && !slot.retired) {
     slot.retired=std::move(slot.current);
@@ -284,7 +284,9 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
 // never discards your recordings (or the paths of missing ones).
 void InversoAbismoDrumsProcessor::selectKit(int index) {
  if (index<0 || index>=getNumPrograms()) return;
- applyKit(index); // starts the kit fade first, so the recordings leave with the old kit, not cut
+ // Every pad's recording is queued to go before the kit starts fading (kitQueueing holds the
+ // swaps meanwhile), so all of them leave together with the old kit, faded, not cut.
+ kitQueueing=true;
  for (int pad=0;pad<numPads;++pad) {
   bool user;
   { const juce::ScopedLock lock(pathLock);
@@ -292,6 +294,8 @@ void InversoAbismoDrumsProcessor::selectKit(int index) {
     user=!slot.paths.isEmpty() || !slot.missing.isEmpty() || slot.display!=nullptr; }
   if (user) clearPadSample(pad);
  }
+ applyKit(index); // raises kitChanged: the fade, then the swaps with the new kit
+ kitQueueing=false;
  updateHostDisplay(ChangeDetails().withProgramChanged(true));
 }
 

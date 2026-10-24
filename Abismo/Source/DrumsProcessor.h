@@ -79,6 +79,7 @@ private:
  std::atomic<std::uint32_t> auditions{0},padLights{0};
  // Kit change: fade the current block out, then switch cleanly on the next one.
  std::atomic<bool> kitChanged{false};
+ std::atomic<bool> kitQueueing{false}; // selectKit is queueing pad changes for a kit change
  bool kitFadePending=false;
  juce::MidiBuffer deferredMidi; // notes that arrive while the old kit fades: played on the new one
  void applyKit(int index);
