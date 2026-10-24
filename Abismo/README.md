@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.16.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.17.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -143,6 +143,12 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 ### Presets do RELICÁRIO (29)
 Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
 
+## RESAMPLE (RELICÁRIO, ENKI, SAMPLER)
+Módulo próprio, no lugar do antigo bit crush. RATE escolhe a taxa de amostragem (20000, 10000, 7500, 5000, 2500, 1000 ou 500 Hz): o som passa por um filtro íngreme na nova metade da taxa, é amostrado nela e volta, como um áudio renderizado numa taxa baixa e trazido de volta. Os agudos somem, o corpo e o volume ficam, sem o chiado de redução de bits. SATURATION dá peso (arredonda os picos e levanta os detalhes baixos). ON/OFF no cabeçalho; trocar a taxa tocando não estala. Sons antigos que usavam crush ou downsample passam a usar a taxa mais próxima.
+
+## Garantia de qualidade
+Cada release é gerado no GitHub (Windows) e só é publicado se: os testes de som passarem (afinação, níveis, cliques, estabilidade com automação aleatória, todos os presets), e cada plugin passar pelo pluginval (Tracktion) no rigor máximo: abrir e fechar, todas as taxas de amostragem e tamanhos de bloco, automação de todos os parâmetros, estado salvo e recarregado, editor. Antes de cada envio, os testes de host rodam também no Linux.
+
 ## TIDE
 EQ dinâmico para instrumentos. Vai num insert. Sem latência. Mono ou estéreo (os dois lados recebem a mesma curva).
 
@@ -177,7 +183,7 @@ Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (
 **Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.16.0** e baixe `INVERSO_ABISMO_Setup_0.16.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.16.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
+No GitHub, abra **Releases > INVERSO ABISMO 0.17.0** e baixe `INVERSO_ABISMO_Setup_0.17.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.17.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
 
 O instalador não é assinado digitalmente.
 

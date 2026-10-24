@@ -1,4 +1,4 @@
-#define Ver "0.16.0"
+#define Ver "0.17.0"
 #define Plugin "INVERSO ABISMO.vst3"
 #define SourcePlugin "..\build\InversoAbismo_artefacts\Release\VST3\" + Plugin
 #define SamplerPlugin "INVERSO ABISMO SAMPLER.vst3"
