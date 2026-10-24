@@ -90,6 +90,20 @@ int main(){
   float after=0.f; // the kit may stumble the hit by up to 80 ms
   for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); after=std::max(after,b.getMagnitude(0,256)); }
   verify(after>1e-2f,"note at the kit switch was lost");
+  // Two kit choices in a row: one fade, then the last kit, once; nothing of the old kit comes
+  // back after the fade, and a note played in between sounds on the last kit.
+  for(int i=0;i<10;++i){ b.clear(); juce::MidiBuffer m; if(i%3==0) m.addEvent(juce::MidiMessage::noteOn(10,36+i,1.f),0); p.processBlock(b,m); }
+  p.selectKit(5);
+  p.selectKit(8);
+  b.clear(); { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),5); p.processBlock(b,m); }
+  verify(std::abs(b.getSample(0,255))<1e-3f,"old kit not faded out at a double kit change");
+  verify(p.getCurrentProgram()==8,"the last kit chosen is not the current one");
+  float back=0.f,later=0.f;
+  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); back=b.getMagnitude(0,256); }
+  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); later=std::max(later,b.getMagnitude(0,256)); }
+  std::printf("double kit change: first block after the fade %.4f, note on the new kit %.4f\n",back,later);
+  verify(std::lround(p.apvts.getRawParameterValue("P01_OBJECT")->load())==std::lround(inverso_abismo::drums::kitValues(8)[inverso_abismo::drums::P::Object]),"kit values of the last choice not applied");
+  verify(std::max(back,later)>1e-2f,"note at a double kit change was lost");
  }
  // Audition from the editor path, and pad lights.
  p.prepareToPlay(48000,512);

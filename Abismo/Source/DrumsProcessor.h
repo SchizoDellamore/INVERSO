@@ -86,7 +86,9 @@ private:
   KitBusy(const KitBusy&)=delete; KitBusy& operator=(const KitBusy&)=delete;
   std::atomic<int>& count;
  };
- bool kitFadePending=false;
+ enum class KitStage { Playing, Faded }; // see processBlock
+ KitStage kitStage=KitStage::Playing; // audio thread only
+ static constexpr int maxDeferredEvents=512;
  juce::MidiBuffer deferredMidi; // notes that arrive while the old kit fades: played on the new one
  void applyKit(int index);
  int currentProgram=0;
