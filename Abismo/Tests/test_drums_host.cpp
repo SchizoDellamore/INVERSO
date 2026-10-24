@@ -93,17 +93,26 @@ int main(){
   // Two kit choices in a row: one fade, then the last kit, once; nothing of the old kit comes
   // back after the fade, and a note played in between sounds on the last kit.
   for(int i=0;i<10;++i){ b.clear(); juce::MidiBuffer m; if(i%3==0) m.addEvent(juce::MidiMessage::noteOn(10,36+i,1.f),0); p.processBlock(b,m); }
+  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); }
+  const float ringing=b.getMagnitude(0,256);
   p.selectKit(5);
   p.selectKit(8);
-  b.clear(); { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),5); p.processBlock(b,m); }
-  verify(std::abs(b.getSample(0,255))<1e-3f,"old kit not faded out at a double kit change");
+  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); }
+  const float fadeStart=std::abs(b.getSample(0,0)), fadeEnd=std::abs(b.getSample(0,255));
+  verify(fadeEnd<1e-3f,"old kit not faded out at a double kit change");
   verify(p.getCurrentProgram()==8,"the last kit chosen is not the current one");
-  float back=0.f,later=0.f;
-  b.clear(); { juce::MidiBuffer none; p.processBlock(b,none); back=b.getMagnitude(0,256); }
-  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); later=std::max(later,b.getMagnitude(0,256)); }
-  std::printf("double kit change: first block after the fade %.4f, note on the new kit %.4f\n",back,later);
+  float quiet=0.f; // no note: after the one fade, nothing (the old kit must not come back)
+  for(int i=0;i<8;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); quiet=std::max(quiet,b.getMagnitude(0,256)); }
+  std::printf("double kit change: ringing %.4f, fade %.4f -> %.4f, then %.6f\n",ringing,fadeStart,fadeEnd,quiet);
+  verify(ringing>1e-3f,"test needs the old kit ringing at the change");
+  verify(quiet<1e-4f,"the old kit came back after its fade");
   verify(std::lround(p.apvts.getRawParameterValue("P01_OBJECT")->load())==std::lround(inverso_abismo::drums::kitValues(8)[inverso_abismo::drums::P::Object]),"kit values of the last choice not applied");
-  verify(std::max(back,later)>1e-2f,"note at a double kit change was lost");
+  // a note played during a kit change sounds on the new kit
+  p.selectKit(2);
+  b.clear(); { juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,38,1.f),5); p.processBlock(b,m); }
+  float note=0.f;
+  for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); note=std::max(note,b.getMagnitude(0,256)); }
+  verify(note>1e-2f,"note at a kit change was lost");
  }
  // Audition from the editor path, and pad lights.
  p.prepareToPlay(48000,512);
