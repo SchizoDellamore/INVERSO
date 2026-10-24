@@ -1,5 +1,6 @@
 #include "../Source/DrumsProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -47,6 +48,7 @@ struct HostSpy final : juce::AudioProcessorListener {
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoAbismoDrumsProcessor rt; if (!stateRoundTrip(rt, "drums")) return 1; }
  InversoAbismoDrumsProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

@@ -1,5 +1,6 @@
 #include "../Source/NeonProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +36,7 @@ static float play(InversoNeonProcessor& p,int sr,int blockSize,int note){
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoNeonProcessor rt; if (!stateRoundTrip(rt, "neon")) return 1; }
  InversoNeonProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

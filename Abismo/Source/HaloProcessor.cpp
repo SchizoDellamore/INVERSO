@@ -1,4 +1,5 @@
 #include "HaloProcessor.h"
+#include "StateRestore.h"
 #include "HaloEditor.h"
 #include "AbismoUI.h"
 #include <cmath>
@@ -83,6 +84,7 @@ void InversoHaloProcessor::setStateInformation(const void* data,int size) {
   auto state=juce::ValueTree::fromXml(*xml);
   currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
   apvts.replaceState(state);
+  restoreEveryParameter(apvts);
  }
 }
 

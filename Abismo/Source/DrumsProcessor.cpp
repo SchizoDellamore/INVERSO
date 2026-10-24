@@ -1,4 +1,5 @@
 #include "DrumsProcessor.h"
+#include "StateRestore.h"
 #include "DrumsEditor.h"
 #include "AbismoUI.h"
 #include <algorithm>
@@ -317,6 +318,7 @@ void InversoAbismoDrumsProcessor::setStateInformation(const void* data,int size)
    state.removeProperty(key,nullptr);
   }
   apvts.replaceState(state);
+  restoreEveryParameter(apvts);
   midiLearn.load(state);
   for (int pad=0;pad<numPads;++pad) {
    const auto& paths=wanted[static_cast<std::size_t>(pad)];

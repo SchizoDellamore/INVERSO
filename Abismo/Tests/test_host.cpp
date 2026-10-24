@@ -1,5 +1,6 @@
 #include "../Source/PluginProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +36,7 @@ static float play(InversoAbismoProcessor& p,int sr,int blockSize,int note){
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoAbismoProcessor rt; if (!stateRoundTrip(rt, "abismo")) return 1; }
  InversoAbismoProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

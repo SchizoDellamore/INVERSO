@@ -1,5 +1,6 @@
 #include "../Source/EnkiProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -36,6 +37,7 @@ static float play(InversoEnkiProcessor& p,int sr,int blockSize){
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoEnkiProcessor rt; if (!stateRoundTrip(rt, "enki")) return 1; }
  InversoEnkiProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

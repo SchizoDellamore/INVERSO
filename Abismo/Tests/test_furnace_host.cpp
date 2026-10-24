@@ -1,6 +1,7 @@
 #include "../Source/FurnaceProcessor.h"
 #include "FurnaceDI.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -44,6 +45,7 @@ static void settle(){ juce::Thread::sleep(400); }
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoFurnaceProcessor rt; if (!stateRoundTrip(rt, "furnace")) return 1; }
  InversoFurnaceProcessor p;
  for(auto layout:{std::pair{juce::AudioChannelSet::mono(),juce::AudioChannelSet::mono()},
                   std::pair{juce::AudioChannelSet::mono(),juce::AudioChannelSet::stereo()},

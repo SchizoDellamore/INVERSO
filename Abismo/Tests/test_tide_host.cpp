@@ -1,6 +1,7 @@
 #include "../Source/TideProcessor.h"
 #include "../Source/TideEditor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +12,7 @@ static void verify(bool okay,const char* message){
 }
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoTideProcessor rt; if (!stateRoundTrip(rt, "tide")) return 1; }
  InversoTideProcessor p;
  for(auto set:{juce::AudioChannelSet::mono(),juce::AudioChannelSet::stereo()}){
   juce::AudioProcessor::BusesLayout l; l.inputBuses.add(set); l.outputBuses.add(set);

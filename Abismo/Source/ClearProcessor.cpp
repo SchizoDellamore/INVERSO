@@ -1,4 +1,5 @@
 #include "ClearProcessor.h"
+#include "StateRestore.h"
 #include "ClearEditor.h"
 #include "AbismoUI.h"
 
@@ -72,6 +73,7 @@ void InversoClearProcessor::setStateInformation(const void* data,int size) {
   auto state=juce::ValueTree::fromXml(*xml);
   currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
   apvts.replaceState(state);
+  restoreEveryParameter(apvts);
  }
 }
 

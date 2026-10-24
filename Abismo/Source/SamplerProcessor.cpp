@@ -1,4 +1,5 @@
 #include "SamplerProcessor.h"
+#include "StateRestore.h"
 #include "SamplerEditor.h"
 #include "AbismoUI.h"
 #include "DSP/SamplerDefault.h"
@@ -187,6 +188,7 @@ void InversoAbismoSamplerProcessor::setStateInformation(const void* data,int siz
  const juce::String path=state.getProperty("samplePath",juce::String()).toString();
  state.removeProperty("samplePath",nullptr);
  apvts.replaceState(state);
+ restoreEveryParameter(apvts);
  midiLearn.load(state);
  if (path.isEmpty()) { if (getSamplePath().isNotEmpty()) useBuiltInSample(); return; }
  if (path==getSamplePath()) return;

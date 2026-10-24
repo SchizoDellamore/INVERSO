@@ -1,4 +1,5 @@
 #include "RelicarioProcessor.h"
+#include "StateRestore.h"
 #include "RelicarioEditor.h"
 #include <algorithm>
 #include <cmath>
@@ -118,6 +119,7 @@ void InversoRelicarioProcessor::setStateInformation(const void* data,int size) {
   auto state=juce::ValueTree::fromXml(*xml);
   currentProgram=juce::jlimit(0,getNumPrograms()-1,static_cast<int>(state.getProperty("program",0)));
   apvts.replaceState(state);
+  restoreEveryParameter(apvts);
   midiLearn.load(state);
  }
 }

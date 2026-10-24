@@ -1,6 +1,7 @@
 #include "../Source/SamplerEditor.h"
 #include "../Source/SamplerProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -60,6 +61,7 @@ int main(){
  const auto stereo=writeTestWav(dir.getChildFile("tone440_stereo.wav"),440.0,44100,2);
  const auto mono=writeTestWav(dir.getChildFile("tone220_mono.wav"),220.0,96000,1);
 
+ { InversoAbismoSamplerProcessor rt; if (!stateRoundTrip(rt, "sampler")) return 1; }
  InversoAbismoSamplerProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

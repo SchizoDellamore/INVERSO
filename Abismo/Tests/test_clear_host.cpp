@@ -1,6 +1,7 @@
 #include "../Source/ClearProcessor.h"
 #include "../Source/ClearEditor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +12,7 @@ static void verify(bool okay,const char* message){
 }
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoClearProcessor rt; if (!stateRoundTrip(rt, "clear")) return 1; }
  InversoClearProcessor p;
  for(auto set:{juce::AudioChannelSet::mono(),juce::AudioChannelSet::stereo()}){
   juce::AudioProcessor::BusesLayout l; l.inputBuses.add(set); l.outputBuses.add(set);

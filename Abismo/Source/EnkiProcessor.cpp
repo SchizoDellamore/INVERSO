@@ -1,4 +1,5 @@
 #include "EnkiProcessor.h"
+#include "StateRestore.h"
 #include "EnkiEditor.h"
 #include "EnkiLibrary.h"
 #include "AbismoUI.h"
@@ -448,6 +449,7 @@ void InversoEnkiProcessor::setStateInformation(const void* data,int size) {
  drawFolder=state.getProperty("drawFolder",{}).toString();
  for (auto key : {"fileA","fileB","drawFolder"}) state.removeProperty(key,nullptr);
  apvts.replaceState(state);
+ restoreEveryParameter(apvts);
  midiLearn.load(state);
  for (int k=0;k<2;++k)
   if (files[k].isNotEmpty())

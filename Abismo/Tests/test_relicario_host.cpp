@@ -1,5 +1,6 @@
 #include "../Source/RelicarioProcessor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +36,7 @@ static float play(InversoRelicarioProcessor& p,int sr,int blockSize,int note){
 
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoRelicarioProcessor rt; if (!stateRoundTrip(rt, "relicario")) return 1; }
  InversoRelicarioProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());

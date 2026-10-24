@@ -1,6 +1,7 @@
 #include "../Source/HaloProcessor.h"
 #include "../Source/HaloEditor.h"
 #include <JuceHeader.h>
+#include "StateRoundTrip.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +12,7 @@ static void verify(bool okay,const char* message){
 }
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
+ { InversoHaloProcessor rt; if (!stateRoundTrip(rt, "halo")) return 1; }
  InversoHaloProcessor p;
  for(auto set:{juce::AudioChannelSet::mono(),juce::AudioChannelSet::stereo()}){
   juce::AudioProcessor::BusesLayout l; l.inputBuses.add(set); l.outputBuses.add(set);

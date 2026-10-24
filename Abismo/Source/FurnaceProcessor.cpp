@@ -1,4 +1,5 @@
 #include "FurnaceProcessor.h"
+#include "StateRestore.h"
 #include "FurnaceEditor.h"
 #include "AbismoUI.h"
 #include "DSP/AbismoCommon.h"
@@ -190,6 +191,7 @@ void InversoFurnaceProcessor::setStateInformation(const void* data,int size) {
   const juce::String path=state.getProperty("userIR","").toString();
   { const juce::ScopedLock l(userIRLock); userIR=path.isNotEmpty() && juce::File::isAbsolutePath(path)?juce::File(path):juce::File(); }
   apvts.replaceState(state);
+  restoreEveryParameter(apvts);
   requestCab();
  }
 }
