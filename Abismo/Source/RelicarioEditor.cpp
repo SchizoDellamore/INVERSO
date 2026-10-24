@@ -31,7 +31,7 @@ const char* const* shortNames(){
   "LOOP 1","LOOP 2",
   "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
   "ATTACK","DECAY","SUSTAIN","RELEASE","ATTACK","DECAY","SUSTAIN","RELEASE",
-  "ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","RESAMPLE","SATURATION"};
+  "ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","RATE","SATURATION","ON"};
  return names;
 }
 
@@ -129,7 +129,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  // ---- keys and the effects rack, in signal order
  add("KEYS",c::violet,{{"Play",{P::VelSens,P::Glide,P::BendRange,P::Fine}},
                        {"Age",{P::Age},{P::Age}}},96,{P::Octave});
- add("DESTROY",c::blood,{{"Drive",{P::Drive,P::Resample,P::ResampleSat},{P::Drive}},
+ add("DESTROY",c::blood,{{"Drive",{P::Drive},{P::Drive}},
                          {"Ring",{P::RingMix,P::RingFreq}}},96,{P::DriveType});
  add("FILTER",c::orange,{{"Filter",{P::Cutoff,P::Resonance,P::FilterEnv,P::FilterDecay},{P::Cutoff}},
                          {"LFO",{P::FilterLfo,P::FilterLfoRate}}},96,{P::FilterMode});
@@ -143,14 +143,16 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),{{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Dust},{P::RevMix}}},96,{});
  // The envelope of the whole instrument, on faders.
  add("ENVELOPE",c::violet.interpolatedWith(c::pink,.4f),{{"ADSR",{P::Attack,P::Decay,P::Sustain,P::Release},{},true}},96,{});
+ // Resampling, in its own module (after DESTROY in the chain).
+ add("RESAMPLE",c::blood.interpolatedWith(c::amber,.5f),{{"Resample",{P::ResampleSat},{P::ResampleSat}}},96,{P::Resample});
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
  // ON/OFF in each module's header, separate from its level.
  {
-  const int onParams[10]={P::FitaOn,P::HarmOn,P::ForkOn,P::OrganOn,P::DestroyOn,P::FilterOn,P::ChopOn,P::ModOn,P::EchoOn,P::SpaceOn};
-  const int onModules[10]={0,1,2,3,5,6,7,8,9,10};
-  for(int i=0;i<10;++i){
+  const int onParams[11]={P::FitaOn,P::HarmOn,P::ForkOn,P::OrganOn,P::DestroyOn,P::FilterOn,P::ChopOn,P::ModOn,P::EchoOn,P::SpaceOn,P::ResampleOn};
+  const int onModules[11]={0,1,2,3,5,6,7,8,9,10,12};
+  for(int i=0;i<11;++i){
    auto& b=onButtons[static_cast<std::size_t>(i)];
    b.setClickingTogglesState(true);
    b.setTooltip("Switch this module on or off (its settings stay)");
@@ -308,20 +310,13 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   const float drive=value(P::Drive)*.01f;
   const int type=juce::roundToInt(value(P::DriveType));
   caption(g,area,"DRIVE "+juce::String(juce::roundToInt(drive*100.f))+"%",
-          "RESAMPLE "+(juce::roundToInt(value(P::Resample))==0?juce::String("OFF"):juce::String(inverso_abismo::Resampler::rateOf(juce::roundToInt(value(P::Resample))),0)+" Hz"));
+          "");
   inverso_abismo::relicario::Drive preview;
-  // RESAMPLE: a waveform that loses its edges as the rate drops
-  const int rateChoice=juce::roundToInt(value(P::Resample));
-  const float rate=inverso_abismo::Resampler::rateOf(rateChoice);
-  const float keep=rateChoice==0?1.f:juce::jlimit(.05f,1.f,rate/20000.f);
   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),160,[&](float t){
-   // a square-ish wave: its corners round off as the top end goes
-   float x=0.f;
-   for(int h=1;h<=15;h+=2) if(h*1000.f<keep*20000.f*.45f+1000.f) x+=std::sin(t*6.2831853f*h)/static_cast<float>(h);
-   x*=.6f;
+   const float x=std::sin(t*6.2831853f)*.6f;
    float y=drive>0.f?preview.process(x,type==4?0:type,drive):x;
    return .85f*juce::jlimit(-1.f,1.f,y);
-  }),c::blood.brighter(.3f).withAlpha(drive>0.f || rateChoice>0?1.f:.35f));
+  }),c::blood.brighter(.3f).withAlpha(drive>0.f?1.f:.35f));
  };
  // FILTER: the response, and where the envelope takes it.
  m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
@@ -420,6 +415,11 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   }
   if(mix<=0.f) notice(g,plot,"ECHO OFF");
  };
+ // RESAMPLE: what is kept and where it falls away.
+ m[12]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  soft::drawResampleScreen(g,r.withTrimmedBottom(34.f),inverso_abismo::Resampler::rateOf(juce::roundToInt(value(P::Resample))),
+                           value(P::ResampleSat)*.01f,value(P::ResampleOn)>=.5f,c::blood.interpolatedWith(c::amber,.5f).brighter(.3f));
+ };
  m[10]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
   const float mix=value(P::RevMix)*.01f,decay=value(P::RevDecay),dark=value(P::RevDamp)*.01f;
   caption(g,r,abismo_ui::formatValue(specs()[P::RevDecay],decay),"MIX "+juce::String(juce::roundToInt(mix*100.f))+"%");
@@ -512,8 +512,9 @@ void InversoRelicarioEditor::resized(){
  place(*modules[5],x0+435,y0+r1,255,r2);
  place(*modules[6],x0+690,y0+r1,245,r2);
  place(*modules[7],x0+935,y0+r1,mainW-935,r2);
- place(*modules[8],x0,y0+r1+r2,520,r3);
- place(*modules[9],x0+520,y0+r1+r2,340,r3);
+ place(*modules[8],x0,y0+r1+r2,370,r3);
+ place(*modules[12],x0+370,y0+r1+r2,200,r3);
+ place(*modules[9],x0+570,y0+r1+r2,290,r3);
  place(*modules[10],x0+860,y0+r1+r2,mainW-860,r3);
  place(*master,x0+mainW,y0,designW-(x0+mainW)-10,r1+r2+r3);
 }

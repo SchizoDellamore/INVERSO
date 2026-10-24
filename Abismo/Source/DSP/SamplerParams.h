@@ -22,7 +22,7 @@ enum : int {
  // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
  PressureCC,
  End,
- Resample, ResampleSat,
+ Resample, ResampleSat, ResampleOn,
  Count
 };
 }
@@ -92,6 +92,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"END","End",0,100,100,0,.01f,Kind::Float,nullptr,"%"}, // where a one-shot stops (START..END is the region)
   {"RESAMPLE","Resample rate",0,7,0,0,1,Kind::Choice,inverso_abismo::Resampler::choices(),""},
   {"RESAMPLE_SAT","Resample saturation",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RESAMPLE_ON","Resample on",0,1,1,0,1,Kind::Bool,nullptr,""},
  }};
  return table;
 }

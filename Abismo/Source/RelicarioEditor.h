@@ -19,8 +19,8 @@ private:
  soft::PresetBar presets;
  std::vector<std::unique_ptr<soft::Module>> modules;
  std::unique_ptr<soft::Master> master;
- std::array<juce::TextButton,10> onButtons;
- std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,10> onAttach;
+ std::array<juce::TextButton,11> onButtons;
+ std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,11> onAttach;
  juce::TooltipWindow tooltips{this,600};
  float animation=0.f;
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoRelicarioEditor)

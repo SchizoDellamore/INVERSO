@@ -61,6 +61,8 @@ void paintCard(juce::Graphics&, juce::Rectangle<float>, float radius = 14.f);
 void paintScreen(juce::Graphics&, juce::Rectangle<float>, float radius = 10.f);
 // A glowing line on a screen.
 void glowStroke(juce::Graphics&, const juce::Path&, juce::Colour, float width = 1.8f);
+// The RESAMPLE module's screen: what is kept (flat) and where it falls away.
+void drawResampleScreen(juce::Graphics&, juce::Rectangle<float>, float rateHz, float saturation, bool on, juce::Colour);
 
 class Knob final : public juce::Slider, private juce::Timer {
 public:

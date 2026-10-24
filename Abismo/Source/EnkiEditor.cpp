@@ -20,7 +20,7 @@ const char* const* shortNames() {
   "GATE","STEPS","PATTERN","GLITCH","REVERSE",
   "ECHO","SYNC","TIME","REPEATS","REVERB","SIZE","DECAY",
   "OCTAVE","GLIDE","VELOCITY","BEND","AT KNOB","WIDTH","OUTPUT",
-  "CATEGORY","MUTATE","LOCK","LOCK","LOCK","LOCK","LOCK","RESAMPLE","SATURATION"};
+  "CATEGORY","MUTATE","LOCK","LOCK","LOCK","LOCK","LOCK","RATE","SATURATION","ON"};
  static_assert(sizeof(names) / sizeof(names[0]) == P::Count, "one short name per parameter");
  return names;
 }
@@ -487,7 +487,7 @@ InversoEnkiEditor::InversoEnkiEditor(InversoEnkiProcessor& p) : AudioProcessorEd
   add(k == 0 ? "SOURCE A" : "SOURCE B", k == 0 ? c::amber : c::cyan,
       {{"Sound", {P::ALevel + b, P::APitch + b, P::AFine + b, P::AChar + b, P::AMotion + b}, {P::ALevel + b}}}, 130, {P::AType + b});
  }
- add("SHAPE", c::violet, {{"Filter", {P::Cutoff, P::Resonance, P::FilterEnv, P::Keytrack}, {P::Cutoff}}, {"Drive", {P::Drive, P::Resample, P::ResampleSat, P::Ring}}}, 96,
+ add("SHAPE", c::violet, {{"Filter", {P::Cutoff, P::Resonance, P::FilterEnv, P::Keytrack}, {P::Cutoff}}, {"Drive", {P::Drive, P::Ring}}}, 96,
      {P::FilterMode, P::DriveType});
  add("ENVELOPES", c::green, {{"Level", {P::Attack, P::Decay, P::Sustain, P::Release, P::Hold}}, {"Mod", {P::ModAttack, P::ModDecay, P::PitchEnv}}}, 96, {});
  add("MOTION", c::blue, {{"LFO", {P::LfoRate, P::LfoPitch, P::LfoFilter, P::LfoAmp, P::LfoPan, P::LfoChar}, {P::LfoRate}},
@@ -495,6 +495,24 @@ InversoEnkiEditor::InversoEnkiEditor(InversoEnkiProcessor& p) : AudioProcessorEd
  add("SPACE", c::blue.interpolatedWith(c::violet, .5f), {{"Echo", {P::EchoMix, P::EchoTime, P::EchoFeedback}, {P::EchoMix}},
                                                          {"Reverb", {P::RevMix, P::RevSize, P::RevDecay}, {P::RevMix}}}, 96, {P::EchoSync});
  add("PLAY", c::pink, {{"Play", {P::Octave, P::Glide, P::VelSens, P::BendRange}}}, 0, {});
+ // Resampling, in its own module.
+ add("RESAMPLE", c::orange, {{"Resample", {P::ResampleSat}, {P::ResampleSat}}}, 96, {P::Resample});
+ modules.back()->screen.draw = [this](juce::Graphics& g, juce::Rectangle<float> r, int) {
+  auto v = [this](const char* id) { return processor.apvts.getRawParameterValue(id)->load(); };
+  soft::drawResampleScreen(g, r.withTrimmedBottom(34.f), inverso_abismo::Resampler::rateOf(juce::roundToInt(v("RESAMPLE"))), v("RESAMPLE_SAT") * .01f,
+                           v("RESAMPLE_ON") >= .5f, c::orange);
+ };
+ {
+  auto& b = resampleOn;
+  b.setClickingTogglesState(true);
+  b.setTooltip("Switch resampling on or off (its settings stay)");
+  b.setColour(juce::TextButton::textColourOnId, c::ink);
+  b.setColour(juce::TextButton::textColourOffId, c::muted);
+  b.onStateChange = [&b] { const auto text = b.getToggleState() ? "ON" : "OFF"; if (b.getButtonText() != text) b.setButtonText(text); };
+  resampleOnAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts, "RESAMPLE_ON", b);
+  b.onStateChange();
+  modules.back()->addHeaderComponent(b, 44);
+ }
  master = std::make_unique<soft::Master>(processor.apvts, specs()[P::Output], &specs()[P::Width], juce::String("WIDTH"), c::ink);
  body.addAndMakeVisible(*master);
 
@@ -765,6 +783,7 @@ void InversoEnkiEditor::resized() {
  m[4]->setBounds(x0 + 760, y0 + r1, 390, r2);
  m[5]->setBounds(x0, y0 + r1 + r2, 380, r3);
  m[6]->setBounds(x0 + 380, y0 + r1 + r2, 240, r3);
- recipe.setBounds(x0 + 620, y0 + r1 + r2, 530, r3);
+ m[7]->setBounds(x0 + 620, y0 + r1 + r2, 230, r3);
+ recipe.setBounds(x0 + 850, y0 + r1 + r2, 300, r3);
  master->setBounds(x0 + 1150, y0 + r1, designW - (x0 + 1150) - 10, r2 + r3);
 }

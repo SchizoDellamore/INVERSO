@@ -827,7 +827,8 @@ private:
    chop.setReverse(chopOn ? pct(P::ChopReverse) : 0.f);
    chop.configure(chopOn ? divisions[std::clamp(choice(P::ChopDiv), 0, 6)] : 0.0, pct(P::ChopDepth), pct(P::ChopChaos),
                   0.f, 0.f); // the old bit crush is replaced by RESAMPLE
-   resampler.set(onGain[4] > .5f ? choice(P::Resample) : 0, pct(P::ResampleSat) * onGain[4]);
+   const bool resampleOn = s[P::ResampleOn] >= .5f; // its own module now, with its own switch
+   resampler.set(resampleOn ? choice(P::Resample) : 0, resampleOn ? pct(P::ResampleSat) : 0.f);
   }
   outGain = std::pow(10.f, s[P::Output] / 20.f);
   // Reed cabinet: bakelite boxy and dark, plastic thin and nasal.

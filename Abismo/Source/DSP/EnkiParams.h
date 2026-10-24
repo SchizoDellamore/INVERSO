@@ -40,7 +40,7 @@ enum : int {
  // The generator's settings (saved with the session).
  Category, Mutate, LockA, LockB, LockShape, LockMotion, LockSpace,
  // Added later: the RESAMPLE stage (in place of the bit crush).
- Resample, ResampleSat,
+ Resample, ResampleSat, ResampleOn,
  Count
 };
 constexpr int SourceStride = BType - AType;
@@ -118,6 +118,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"LOCK_SPACE","Lock space",0,1,0,0,1,Kind::Bool,nullptr,""},
   {"RESAMPLE","Resample rate",0,7,0,0,1,Kind::Choice,inverso_abismo::Resampler::choices(),""},
   {"RESAMPLE_SAT","Resample saturation",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RESAMPLE_ON","Resample on",0,1,1,0,1,Kind::Bool,nullptr,""},
  }};
  return table;
 }
@@ -138,7 +139,7 @@ inline Section sectionOf(int p) {
  if ((p >= P::Ring && p <= P::Crush) || (p >= P::Attack && p <= P::Hold)) return Section::Shape;
  if (p >= P::LfoRate && p <= P::Reverse) return Section::Motion;
  if (p >= P::EchoMix && p <= P::RevDecay) return Section::Space;
- if (p == P::Resample || p == P::ResampleSat) return Section::Shape;
+ if (p == P::Resample || p == P::ResampleSat || p == P::ResampleOn) return Section::Shape;
  if (p >= P::Category) return Section::Generator;
  return Section::Play;
 }

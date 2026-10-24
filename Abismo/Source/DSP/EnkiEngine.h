@@ -554,7 +554,7 @@ private:
   const float glitch = pct(P::Glitch);
   chop.setReverse(pct(P::Reverse));
   chop.configure(glitch > 0.f ? (glitch > .6f ? .125 : .25) : 0.0, .35f * glitch, glitch, 0.f, 0.f);
-  resampler.set(choice(P::Resample), pct(P::ResampleSat));
+  resampler.set(s[P::ResampleOn] >= .5f ? choice(P::Resample) : 0, s[P::ResampleOn] >= .5f ? pct(P::ResampleSat) : 0.f);
   gateCoef = 1.f - std::exp(-1.f / (.002f * static_cast<float>(sr)));
   outGain = std::pow(10.f, s[P::Output] / 20.f);
  }

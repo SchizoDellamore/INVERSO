@@ -53,7 +53,7 @@ enum : int {
  ForkAttack, ForkDecay, ForkSustain, ForkRelease,
  OrganAttack, OrganDecay, OrganSustain, OrganRelease,
  FitaOn, HarmOn, ForkOn, OrganOn, DestroyOn, FilterOn, ChopOn, ModOn, EchoOn, SpaceOn,
- Resample, ResampleSat,
+ Resample, ResampleSat, ResampleOn,
  Count
 };
 }
@@ -186,6 +186,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"SPACE_ON","Space on",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"RESAMPLE","Resample rate",0,7,0,0,1,Kind::Choice,inverso_abismo::Resampler::choices(),""},
   {"RESAMPLE_SAT","Resample saturation",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
+  {"RESAMPLE_ON","Resample on",0,1,1,0,1,Kind::Bool,nullptr,""},
  }};
  return table;
 }

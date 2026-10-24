@@ -19,7 +19,7 @@ const char* const* shortNames(){
   "RATE","PITCH","FILTER","VOLUME","POSITION",
   "TENSION","BITS","RATE","DIVISION","DEPTH","CHAOS",
   "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
-  "TIMING","TIME","AT KNOB","END","RESAMPLE","SATURATION"};
+  "TIMING","TIME","AT KNOB","END","RATE","SATURATION","ON"};
  return names;
 }
 
@@ -218,10 +218,22 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  add("VOICE",c::pink,{{"Voice",{P::VoiceMix,P::Vowel,P::FormantShift}}},96,{});
  add("MOVEMENT",c::blue,{{"Pitch",{P::PitchEnv,P::PitchTime,P::Drift,P::BendRange,P::Tension}},
                           {"LFO",{P::LfoRate,P::LfoPitch,P::LfoFilter,P::LfoAmp}}},96,{});
- add("MUTILATION",c::orange,{{"Chop",{P::StutterMs,P::StutterDepth,P::Chaos}},
-                                                              {"Resample",{P::Resample,P::ResampleSat}}},104,{P::StutterSync,P::StutterDiv});
+ add("MUTILATION",c::orange,{{"Chop",{P::StutterMs,P::StutterDepth,P::Chaos}}},104,{P::StutterSync,P::StutterDiv});
  add("SPACE",c::blue.interpolatedWith(c::violet,.5f),
      {{"Reverb",{P::RevMix,P::RevSize,P::RevDecay,P::RevDamp,P::Freeze},{P::RevMix}}},104,{});
+ // Resampling, in its own module (modules[8]).
+ add("RESAMPLE",c::orange.interpolatedWith(c::amber,.5f),{{"Resample",{P::ResampleSat},{P::ResampleSat}}},104,{P::Resample});
+ {
+  auto& b=resampleOn;
+  b.setClickingTogglesState(true);
+  b.setTooltip("Switch resampling on or off (its settings stay)");
+  b.setColour(juce::TextButton::textColourOnId,c::ink);
+  b.setColour(juce::TextButton::textColourOffId,c::muted);
+  b.onStateChange=[&b]{ const auto text=b.getToggleState()?"ON":"OFF"; if(b.getButtonText()!=text) b.setButtonText(text); };
+  resampleOnAttach=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts,"RESAMPLE_ON",b);
+  b.onStateChange();
+  modules.back()->addHeaderComponent(b,44);
+ }
  master=std::make_unique<soft::Master>(processor.apvts,specs()[P::Output],&specs()[P::Width],juce::String("WIDTH"),c::ink);
  body.addAndMakeVisible(*master);
 
@@ -309,19 +321,12 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
    return juce::jlimit(0.f,1.f,t/timeShare)*gl/24.f+drift*.12f*std::sin(t*23.f+std::sin(t*7.f)*2.f);
   }),c::blue);
  };
+ m[8]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
+  soft::drawResampleScreen(g,r.withTrimmedBottom(34.f),inverso_abismo::Resampler::rateOf(juce::roundToInt(value(P::Resample))),
+                           value(P::ResampleSat)*.01f,value(P::ResampleOn)>=.5f,c::orange.interpolatedWith(c::amber,.5f));
+ };
  m[6]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int page){
   auto area=r.withTrimmedBottom(34.f);
-  if(page==1){
-   const int rateChoice=juce::roundToInt(value(P::Resample));
-   const float keep=rateChoice==0?1.f:juce::jlimit(.05f,1.f,inverso_abismo::Resampler::rateOf(rateChoice)/20000.f);
-   caption(g,area,rateChoice==0?juce::String("RESAMPLE OFF"):juce::String(inverso_abismo::Resampler::rateOf(rateChoice),0)+" Hz");
-   soft::glowStroke(g,curve(area.withTrimmedTop(14.f),240,[&](float t){
-    float x=0.f; // a square-ish wave: its corners round off as the top end goes
-    for(int h=1;h<=15;h+=2) if(h*1000.f<keep*20000.f*.45f+1000.f) x+=std::sin(t*6.2831853f*2.f*h)/static_cast<float>(h);
-    return .7f*x;
-   }),c::orange.withAlpha(rateChoice>0?1.f:.35f));
-   return;
-  }
   const int div=juce::roundToInt(value(P::StutterDiv));
   const bool free=juce::roundToInt(value(P::StutterSync))==1;
   const float depth=value(P::StutterDepth)*.01f,chaos=value(P::Chaos)*.01f;
@@ -439,8 +444,9 @@ void InversoAbismoSamplerEditor::resized(){
  place(*modules[3],x0+350,y0+r1,290,r2);
  place(*modules[4],x0+640,y0+r1,190,r2);
  place(*modules[5],x0+830,y0+r1,mainW-830,r2);
- place(*modules[6],x0,y0+r1+r2,560,r3);
- place(*modules[7],x0+560,y0+r1+r2,mainW-560,r3);
+ place(*modules[6],x0,y0+r1+r2,380,r3);
+ place(*modules[8],x0+380,y0+r1+r2,220,r3);
+ place(*modules[7],x0+600,y0+r1+r2,mainW-600,r3);
  place(*master,x0+mainW,y0,designW-(x0+mainW)-10,r1+r2+r3);
  view.setBounds(modules[0]->screen.getBounds().withTrimmedBottom(34));
 }

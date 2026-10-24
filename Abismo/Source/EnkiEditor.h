@@ -74,6 +74,8 @@ private:
  EnkiSoundsPanel sounds;
  std::vector<std::unique_ptr<soft::Module>> modules;
  std::unique_ptr<soft::Master> master;
+ juce::TextButton resampleOn;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> resampleOnAttach;
  std::array<juce::TextButton, 5> locks;
  std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, 5> lockAttach;
  std::array<juce::TextButton, 2> sampleButtons;

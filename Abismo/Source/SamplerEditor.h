@@ -51,6 +51,8 @@ private:
  std::unique_ptr<soft::Master> master;
  SampleView view;
  juce::TextButton loadButton{"LOAD"},builtInButton{"BUILT-IN VOICE"};
+ juce::TextButton resampleOn;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> resampleOnAttach;
  juce::TooltipWindow tooltips{this,600};
  std::unique_ptr<juce::FileChooser> chooser;
  juce::String loadError;

@@ -128,6 +128,34 @@ void paintScreen(juce::Graphics& g, juce::Rectangle<float> r, float radius) {
  for (float y = r.getY() + 16.f; y < r.getBottom(); y += 16.f) g.drawHorizontalLine(juce::roundToInt(y), r.getX() + 4.f, r.getRight() - 4.f);
 }
 
+void drawResampleScreen(juce::Graphics& g, juce::Rectangle<float> r, float rateHz, float saturation, bool on, juce::Colour accent) {
+ auto area = r.reduced(10.f, 6.f);
+ const bool active = on && rateHz > 0.f;
+ g.setFont(monoFont(10.f));
+ g.setColour((vintage ? juce::Colour(0xffb8c9a0) : colour::screenMuted).withAlpha(.9f));
+ g.drawText(!on ? juce::String("OFF") : rateHz > 0.f ? juce::String(juce::roundToInt(rateHz)) + " Hz" : juce::String("NO RATE"),
+            area.withHeight(12.f), juce::Justification::topLeft);
+ g.drawText("SAT " + juce::String(juce::roundToInt(saturation * 100.f)) + "%", area.withHeight(12.f), juce::Justification::topRight);
+ auto plot = area.withTrimmedTop(16.f);
+ // 20 Hz .. 20 kHz across, 0 .. -60 dB down
+ auto xOf = [&](float f) { return plot.getX() + std::log(f / 20.f) / std::log(1000.f) * plot.getWidth(); };
+ const float fc = .45f * rateHz;
+ juce::Path p;
+ for (int i = 0; i <= 120; ++i) {
+  const float f = 20.f * std::pow(1000.f, static_cast<float>(i) / 120.f);
+  float db = 0.f;
+  if (active) { const float ratio = f / fc; db = -10.f * std::log10(1.f + std::pow(ratio, 32.f)); } // two 8-pole slopes
+  const float y = plot.getY() + juce::jlimit(0.f, 1.f, -db / 60.f) * plot.getHeight() * .85f + plot.getHeight() * .05f;
+  const float x = xOf(f);
+  if (i == 0) p.startNewSubPath(x, y); else p.lineTo(x, y);
+ }
+ glowStroke(g, p, accent.withAlpha(active ? 1.f : .35f), 1.8f);
+ if (active) {
+  g.setColour(accent.withAlpha(.25f));
+  g.drawVerticalLine(juce::roundToInt(xOf(juce::jlimit(20.f, 20000.f, rateHz * .5f))), plot.getY(), plot.getBottom());
+ }
+}
+
 void glowStroke(juce::Graphics& g, const juce::Path& p, juce::Colour c, float width) {
  g.setColour(c.withAlpha(.12f));
  g.strokePath(p, juce::PathStrokeType(width * 5.f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
