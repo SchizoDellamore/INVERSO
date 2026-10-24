@@ -133,8 +133,8 @@ InversoNeonEditor::InversoNeonEditor(InversoNeonProcessor& p) : AudioProcessorEd
           sync ? juce::String("SYNC") : juce::String());
   const auto colour = neonViolet.withAlpha(value(P::Osc2Level) > 0.f ? 1.f : .35f);
   soft::glowStroke(g, curve(a.withTrimmedTop(14.f), 240, [&](float t) {
-   const float master = std::fmod(t * 2.f, 1.f);
-   const float ph = sync ? std::fmod(master * ratio, 1.f) : std::fmod(t * 2.f * ratio, 1.f);
+   const float lead = std::fmod(t * 2.f, 1.f);
+   const float ph = sync ? std::fmod(lead * ratio, 1.f) : std::fmod(t * 2.f * ratio, 1.f);
    return .8f * waveAt(wave, ph, .5f);
   }), colour);
  };
@@ -165,7 +165,7 @@ InversoNeonEditor::InversoNeonEditor(InversoNeonProcessor& p) : AudioProcessorEd
   const int type = juce::roundToInt(value(P::FilterType));
   caption(g, a, abismo_ui::formatValue(specs()[P::Cutoff], fc), "ENV " + juce::String(juce::roundToInt(value(P::FilterEnv))) + "%");
   auto plot = a.withTrimmedTop(14.f);
-  juce::Path p;
+  juce::Path path;
   for (int i = 0; i <= 200; ++i) {
    const float t = static_cast<float>(i) / 200.f, f = 20.f * std::pow(1000.f, t);
    const float x = f / fc;
@@ -177,9 +177,9 @@ InversoNeonEditor::InversoNeonEditor(InversoNeonProcessor& p) : AudioProcessorEd
    if (type == 0) h = h * h; // 4 poles
    const float db = 20.f * std::log10(std::abs(h) + 1e-6f);
    const float y = plot.getY() + juce::jlimit(0.f, 1.f, (12.f - db) / 60.f) * plot.getHeight();
-   if (i == 0) p.startNewSubPath(plot.getX() + t * plot.getWidth(), y); else p.lineTo(plot.getX() + t * plot.getWidth(), y);
+   if (i == 0) path.startNewSubPath(plot.getX() + t * plot.getWidth(), y); else path.lineTo(plot.getX() + t * plot.getWidth(), y);
   }
-  soft::glowStroke(g, p, sunset);
+  soft::glowStroke(g, path, sunset);
  };
  m[4]->screen.draw = [this, screenArea](juce::Graphics& g, juce::Rectangle<float> r, int page) {
   auto a = r.reduced(4.f, 2.f);
@@ -218,10 +218,10 @@ InversoNeonEditor::InversoNeonEditor(InversoNeonProcessor& p) : AudioProcessorEd
   for (int u = 0; u < uni; ++u) {
    const float pos = uni > 1 ? static_cast<float>(u) / static_cast<float>(uni - 1) * 2.f - 1.f : 0.f;
    const float x = plot.getCentreX() + pos * spread * plot.getWidth() * .45f;
-   juce::Path p;
-   p.startNewSubPath(plot.getCentreX(), plot.getBottom());
-   p.lineTo(x, plot.getY() + (1.f - std::abs(pos) * detune) * 6.f);
-   soft::glowStroke(g, p, neonViolet, 1.4f);
+   juce::Path path;
+   path.startNewSubPath(plot.getCentreX(), plot.getBottom());
+   path.lineTo(x, plot.getY() + (1.f - std::abs(pos) * detune) * 6.f);
+   soft::glowStroke(g, path, neonViolet, 1.4f);
   }
  };
  m[7]->screen.draw = [this, screenArea](juce::Graphics& g, juce::Rectangle<float> r, int) {

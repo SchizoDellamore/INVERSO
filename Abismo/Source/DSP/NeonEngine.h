@@ -210,12 +210,13 @@ public:
   sr = sampleRate > 0 ? sampleRate : 48000.0;
   for (auto& v : voices) v.kill();
   chorusLine.prepare(static_cast<int>(.03 * sr) + 8);
+  cBase = static_cast<float>(.0035 * sr); cDepth = 0.f;
   delayL.prepare(static_cast<int>(2.2 * sr) + 8); delayR.prepare(static_cast<int>(2.2 * sr) + 8);
   reverb.prepare(sr);
   smoothed = target;
   control();
   countdown = 0;
-  held.clear(); held.reserve(64); order.clear(); order.reserve(64); mono.clear(); mono.reserve(64); sustained.clear(); sustained.reserve(128);
+  held.clear(); held.reserve(64); order.clear(); order.reserve(64); mono.clear(); mono.reserve(256); sustained.clear(); sustained.reserve(256);
   stepPos = 0.0; nextStep = 0; patternRunning = false; pending = {};
  }
  void setValues(const Values& v) { target = v; }
@@ -246,7 +247,7 @@ public:
    if (order.empty()) { patternRunning = false; stopPatternNote(); }
    return;
   }
-  if (sustain) { sustained.push_back(note); return; }
+  if (sustain) { if (sustained.size() < sustained.capacity()) sustained.push_back(note); return; }
   releaseNote(note);
  }
  void allNotesOff() { for (auto& v : voices) if (v.active()) v.release(); held.clear(); order.clear(); patternRunning = false; mono.clear(); }
@@ -294,7 +295,7 @@ private:
   }
   // mono and legato: one note at a time, the newest wins; legato and slides glide without retrigger
   mono.erase(std::remove(mono.begin(), mono.end(), note), mono.end());
-  mono.push_back(note);
+  if (mono.size() < mono.capacity()) mono.push_back(note);
   bool sounding = false;
   for (auto& v : voices) if (v.active() && !v.released && v.note >= 0) sounding = true;
   const bool legato = (mode == 2 && sounding) || slide;
@@ -423,8 +424,22 @@ private:
  // ---------------------------------------------------------------- control and effects
  void control() {
   for (std::size_t i = 0; i < smoothed.size(); ++i) {
-   if (specs()[i].kind == Kind::Float) smoothed[i] += .3f * (target[i] - smoothed[i]);
-   else smoothed[i] = target[i];
+   if (specs()[i].kind == Kind::Float) {
+    smoothed[i] += .3f * (target[i] - smoothed[i]);
+    if (std::abs(target[i] - smoothed[i]) < 1e-5f) smoothed[i] = target[i]; // arrive, so a mix at 0 really is 0
+   } else smoothed[i] = target[i];
+  }
+  // The arpeggiator switched while keys are down: the notes it (or the keyboard)
+  // started would never get their note-off. Let everything go and start clean.
+  {
+   const bool arpOn = smoothed[P::Arp] >= .5f;
+   if (arpOn != arpWasOn) {
+    stopPatternNote();
+    for (auto& v : voices) if (v.active() && !v.released) v.release();
+    held.clear(); order.clear(); mono.clear(); sustained.clear();
+    patternRunning = false;
+    arpWasOn = arpOn;
+   }
   }
   const auto& s = smoothed;
   auto pct = [&](int p) { return s[static_cast<std::size_t>(p)] * .01f; };
@@ -496,21 +511,24 @@ private:
   // chorus: one bucket-brigade line, read with opposite LFO phases left and right (as the Juno)
   static const float rates[5] = {0.f, .513f, .863f, 9.75f, .25f};
   static const float depths[5] = {0.f, 1.85f, 1.85f, .3f, .9f}; // ms
-  const float cRate = rates[std::clamp(chorusMode, 0, 4)], cDepth = depths[std::clamp(chorusMode, 0, 4)] * .001f * static_cast<float>(sr);
-  const float cBase = (chorusMode == 4 ? 6.f : 3.5f) * .001f * static_cast<float>(sr);
+  const float cRate = rates[std::clamp(chorusMode, 0, 4)];
+  const float depthTarget = depths[std::clamp(chorusMode, 0, 4)] * .001f * static_cast<float>(sr);
+  const float baseTarget = (chorusMode == 4 ? 6.f : 3.5f) * .001f * static_cast<float>(sr);
   const float revWet = std::sin(revMix * 1.5707963f) * 1.1f, revDry = std::cos(revMix * 1.5707963f);
   for (int i = 0; i < n; ++i) {
    float a = l[i], b = r[i];
+   chorusLine.push(.5f * (a + b)); // always fed, so switching it on never reads old sound
    if (chorusMode > 0 || chorusFade > 0.f) {
     chorusFade += (chorusMode > 0 ? 1.f : 0.f) - chorusFade > 0.f ? .002f : -.002f;
     chorusFade = std::clamp(chorusFade, 0.f, 1.f);
-    chorusLine.push(.5f * (a + b));
     chorusPhase += cRate / static_cast<float>(sr); if (chorusPhase >= 1.f) chorusPhase -= 1.f;
     const float tri = chorusPhase < .5f ? 4.f * chorusPhase - 1.f : 3.f - 4.f * chorusPhase;
+    cBase += .0005f * (baseTarget - cBase); cDepth += .0005f * (depthTarget - cDepth); // switching modes glides, no click
     float wl = chorusLine.read(cBase + cDepth * tri), wr = chorusLine.read(cBase - cDepth * tri);
-    if (chorusMode == 4) { // Dimension: two more taps, slower, crossed
-     wl = .6f * wl + .4f * chorusLine.read(cBase * 1.7f - cDepth * tri);
-     wr = .6f * wr + .4f * chorusLine.read(cBase * 1.7f + cDepth * tri);
+    dimension += .002f * ((chorusMode == 4 ? 1.f : 0.f) - dimension); // its extra taps fade in and out
+    if (dimension > 1e-3f) { // Dimension: two more taps, slower, crossed
+     wl += .4f * dimension * (chorusLine.read(cBase * 1.7f - cDepth * tri) - wl);
+     wr += .4f * dimension * (chorusLine.read(cBase * 1.7f + cDepth * tri) - wr);
     }
     bbdL += .35f * (wl - bbdL); bbdR += .35f * (wr - bbdR); // the BBD's dull top
     const float m = chorusMix * chorusFade;
@@ -552,11 +570,11 @@ private:
  struct Pending { bool active = false; double offAt = 0.0; std::array<int, 16> notes{}; int count = 0; };
 
  double sr = 48000.0, tempo = 120.0, hostPpq = 0.0, stepPos = 0.0, lfoPhase = 0.0;
- bool hostPlaying = false, resync = false, sustain = false, patternRunning = false, glideOverride = false, pingPong = true;
+ bool arpWasOn = false, hostPlaying = false, resync = false, sustain = false, patternRunning = false, glideOverride = false, pingPong = true;
  long long nextStep = 0;
  int displayStep = -1, countdown = 0, chorusMode = 0, revType = 1;
  float bend = 0.f, modWheel = 0.f, lastVelocity = .8f, lastPitch = -1.f, heldRandom = 0.f, randomSmooth = 0.f;
- float chorusMix = 1.f, chorusPhase = 0.f, chorusFade = 0.f, bbdL = 0.f, bbdR = 0.f;
+ float cBase = 168.f, cDepth = 0.f, dimension = 0.f, chorusMix = 1.f, chorusPhase = 0.f, chorusFade = 0.f, bbdL = 0.f, bbdR = 0.f;
  float delayMix = 0.f, delayFb = .35f, delaySamples = 18000.f, delaySamplesTarget = 18000.f, delayLpL = 0.f, delayLpR = 0.f, delayToneCoef = .5f, delayTail = 0.f;
  float revMix = .2f, width = 1.f, outGain = .5f, outTarget = .5f;
  std::array<Voice, maxVoices> voices{};

@@ -104,7 +104,39 @@ int main() {
   for (int b = 0; b < sr * 10 / 256; ++b) e.render(l.data(), r.data(), 256);
   const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   std::printf("CPU: 8 voices + effects, 10 s of audio in %.3f s (%.1f%% of one core)\n", seconds, seconds * 10.0);
+#ifndef NEON_SANITIZED // sanitizer builds are many times slower
   verify(seconds < 1.0, "NEON is too heavy");
+#endif
+ }
+ // 5. no stuck notes: the arpeggiator switched on, or off, with keys down
+ {
+  auto v = plain(); v[Release] = 5;
+  for (int way = 0; way < 2; ++way) {
+   N::Engine e; v[Arp] = way == 0 ? 0.f : 1.f; e.setValues(v); e.prepare(sr); e.setTransport(120, 0, false);
+   e.noteOn(60, 1.f); e.noteOn(64, 1.f);
+   play(e, sr / 2);
+   v[Arp] = way == 0 ? 1.f : 0.f; e.setValues(v); // switched with the keys still down
+   play(e, sr / 4);
+   e.noteOff(60); e.noteOff(64);
+   play(e, sr);
+   auto after = play(e, sr / 2);
+   std::printf("arpeggiator switched %s with keys down: %d voices left, rms %.6f after release\n", way == 0 ? "on" : "off", e.activeVoices(), test::rms(after.l));
+   verify(e.activeVoices() == 0 && test::rms(after.l) < 1e-5f, "switching the arpeggiator left a note hanging");
+  }
+ }
+ // 5b. switching the chorus between its modes does not click
+ {
+  auto v = plain(); v[Osc1Wave] = 3; v[ChorusMix] = 100;
+  N::Engine e; e.setValues(v); e.prepare(sr); e.noteOn(57, 1.f);
+  float worst = 0, prev = 0, prev2 = 0;
+  std::vector<float> l(256), r(256);
+  for (int b = 0; b < sr * 3 / 256; ++b) {
+   v[ChorusMode] = static_cast<float>((b / 30) % 5); e.setValues(v);
+   e.render(l.data(), r.data(), 256);
+   for (float x : l) { if (b > 4) worst = std::max(worst, std::abs(x - 2 * prev + prev2)); prev2 = prev; prev = x; }
+  }
+  std::printf("chorus switching through its modes: worst step %.5f\n", worst);
+  verify(worst < .01f, "switching the chorus clicks");
  }
  // 6. every preset: plays, finite, under the ceiling, sensible level
  for (std::size_t p = 0; p < N::presets().size(); ++p) {

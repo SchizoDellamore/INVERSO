@@ -94,9 +94,9 @@ int main(){
   p.midiLearn.arm(index);
   juce::MidiBuffer cc;
   cc.addEvent(juce::MidiMessage::controllerEvent(1,21,127),2);
-  juce::AudioBuffer<float> block(2,512);
-  block.clear();
-  p.processBlock(block,cc);
+  juce::AudioBuffer<float> ccBlock(2,512);
+  ccBlock.clear();
+  p.processBlock(ccBlock,cc);
   p.midiLearn.flush();
   verify(p.midiLearn.ccFor(index)==21,"MIDI learn must take CC 21");
   auto* param=p.apvts.getParameter("RESONANCE");

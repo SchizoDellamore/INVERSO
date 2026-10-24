@@ -57,7 +57,7 @@ InversoHaloEditor::InversoHaloEditor(InversoHaloProcessor& p) : AudioProcessorEd
   auto plot = a.withTrimmedTop(16.f);
   const float span = mode == 3 ? 1.2f : std::max(1.f, decay * 1.2f);
   const float hold = value(P::GateHold) * .001f, rel = value(P::GateRelease) * .001f;
-  juce::Path p;
+  juce::Path path;
   juce::Random rnd(11);
   for (int i = 0; i <= 260; ++i) {
    const float t = span * static_cast<float>(i) / 260.f - pre * .001f;
@@ -65,10 +65,10 @@ InversoHaloEditor::InversoHaloEditor(InversoHaloProcessor& p) : AudioProcessorEd
    if (mode == 3) env *= t < .05f + hold ? 1.f : std::exp(-(t - .05f - hold) / std::max(.005f, rel * .3f));
    const float y = env * (.6f + .4f * rnd.nextFloat());
    const float x = plot.getX() + plot.getWidth() * static_cast<float>(i) / 260.f;
-   p.addRectangle(x, plot.getBottom() - y * plot.getHeight(), plot.getWidth() / 260.f * .7f, y * plot.getHeight());
+   path.addRectangle(x, plot.getBottom() - y * plot.getHeight(), plot.getWidth() / 260.f * .7f, y * plot.getHeight());
   }
   g.setColour(neonViolet.withAlpha(.85f));
-  g.fillPath(p);
+  g.fillPath(path);
  };
  // GATE: whether it is open now, over the last few seconds.
  m[1]->screen.draw = [this](juce::Graphics& g, juce::Rectangle<float> r, int) {
@@ -77,14 +77,14 @@ InversoHaloEditor::InversoHaloEditor(InversoHaloProcessor& p) : AudioProcessorEd
   caption(g, a, gated ? juce::String("OPENS AT ") + abismo_ui::formatValue(specs()[P::GateThresh], value(P::GateThresh)) : juce::String("ONLY IN THE GATED ROOM"),
           gated ? juce::String(processor.engine.gateNow.load() > .5f ? "OPEN" : "SHUT") : juce::String());
   auto plot = a.withTrimmedTop(16.f).reduced(0.f, 4.f);
-  juce::Path p;
+  juce::Path path;
   const int n = static_cast<int>(gateHistory.size());
   for (int i = 0; i < n; ++i) {
    const float x = plot.getX() + plot.getWidth() * static_cast<float>(i) / static_cast<float>(n - 1);
    const float y = plot.getBottom() - std::max(0.f, gateHistory[static_cast<std::size_t>(i)]) * plot.getHeight();
-   if (i == 0) p.startNewSubPath(x, y); else p.lineTo(x, y);
+   if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y);
   }
-  soft::glowStroke(g, p, neonPink.withAlpha(gated ? 1.f : .3f));
+  soft::glowStroke(g, path, neonPink.withAlpha(gated ? 1.f : .3f));
  };
  // INPUT: the band that goes into the reverb.
  m[2]->screen.draw = [this](juce::Graphics& g, juce::Rectangle<float> r, int) {
@@ -92,15 +92,15 @@ InversoHaloEditor::InversoHaloEditor(InversoHaloProcessor& p) : AudioProcessorEd
   const float lo = value(P::LowCut), hi = value(P::HighCut);
   caption(g, a, abismo_ui::formatValue(specs()[P::LowCut], lo), abismo_ui::formatValue(specs()[P::HighCut], hi));
   auto plot = a.withTrimmedTop(16.f).reduced(0.f, 6.f);
-  juce::Path p;
+  juce::Path path;
   for (int i = 0; i <= 200; ++i) {
    const float t = static_cast<float>(i) / 200.f, f = 20.f * std::pow(1000.f, t);
    const float hp = f / std::sqrt(f * f + lo * lo), lp = 1.f / (1.f + (f / hi) * (f / hi));
    const float y = plot.getBottom() - hp * lp * plot.getHeight();
    const float x = plot.getX() + t * plot.getWidth();
-   if (i == 0) p.startNewSubPath(x, y); else p.lineTo(x, y);
+   if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y);
   }
-  soft::glowStroke(g, p, neonCyan);
+  soft::glowStroke(g, path, neonCyan);
  };
  setResizable(true, true);
  setResizeLimits(designW * 6 / 10, designH * 6 / 10, designW * 3 / 2, designH * 3 / 2);

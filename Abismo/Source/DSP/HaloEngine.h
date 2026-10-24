@@ -25,7 +25,7 @@ public:
   keyEnv = 0.f; gate = 0.f; holdLeft = 0;
   smoothed = target;
   control();
-  mixNow = mix; outNow = out;
+  mixNow = mix; outNow = out; preNow = preSamples;
  }
  void setValues(const Values& v) { target = v; }
  void reset() {
@@ -43,9 +43,14 @@ public:
     const float dl = left[i], dr = stereo ? right[i] : left[i];
     // pre-delay
     preL[write] = dl; preR[write] = dr;
+    // the read point glides (a pre-delay turned while playing does not click) and is interpolated
+    preNow += std::clamp(.0008f * (preSamples - preNow), -.25f, .25f); // at most a quarter-tone-ish slide, never a jump
     const std::size_t size = preL.size();
-    const std::size_t at = (write + size - static_cast<std::size_t>(preSamples)) % size;
-    float sl = preL[at], sr2 = preR[at];
+    const float back = std::clamp(preNow, 0.f, static_cast<float>(size - 3));
+    const auto whole = static_cast<std::size_t>(back);
+    const float frac = back - static_cast<float>(whole);
+    const std::size_t a0 = (write + size - whole) % size, a1 = (a0 + size - 1) % size;
+    float sl = preL[a0] + frac * (preL[a1] - preL[a0]), sr2 = preR[a0] + frac * (preR[a1] - preR[a0]);
     if (++write >= size) write = 0;
     // what goes in: no mud below LOW CUT, no fizz above HIGH CUT
     hpL += hpCoef * (sl - hpL); hpR += hpCoef * (sr2 - hpR);
@@ -120,7 +125,7 @@ private:
  Values target = defaults(), smoothed = defaults();
  int countdown = 0, holdSamples = 0, holdLeft = 0;
  bool gated = true;
- float preSamples = 0.f, hpCoef = .01f, lpCoef = .5f, threshold = .03f, gateOpen = .02f, gateClose = .01f, keyFall = .999f;
+ float preSamples = 0.f, preNow = 0.f, hpCoef = .01f, lpCoef = .5f, threshold = .03f, gateOpen = .02f, gateClose = .01f, keyFall = .999f;
  float hpL = 0.f, hpR = 0.f, lp1L = 0.f, lp1R = 0.f, lp2L = 0.f, lp2R = 0.f, keyEnv = 0.f, gate = 0.f, gateTarget = 0.f;
  float width = 1.f, mix = .3f, out = 1.f, mixNow = .3f, outNow = 1.f;
 };

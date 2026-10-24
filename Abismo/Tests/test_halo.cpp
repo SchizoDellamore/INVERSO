@@ -70,6 +70,29 @@ int main() {
   double diff = 0; for (std::size_t i = 0; i < l.size(); ++i) diff += std::pow(l[i] - r[i], 2);
   verify(diff > 1e-3, "the reverb has no width");
  }
+ // 5b. turning the reverb type, pre-delay and mix while it plays does not click. Glides bend the
+ // pitch of a 220 Hz tone (that is fine); a click is broadband, so measure what passes above 8 kHz.
+ {
+  H::Engine e; auto v = H::presetValues(8); e.setValues(v); e.prepare(sr);
+  std::vector<float> l(256), r(256);
+  float worst = 0, steady = 0;
+  double h1 = 0, h2 = 0, h3 = 0, h4 = 0, x1 = 0, x2 = 0, x3 = 0, x4 = 0;
+  const double rc = 1.0 / (1.0 + 2 * 3.14159265 * 8000.0 / sr);
+  for (int b = 0; b < sr * 6 / 256; ++b) {
+   if (b > sr * 3 / 256) { v[Mode] = static_cast<float>((b / 40) % 4); v[PreDelay] = (b / 25) % 2 ? 10.f : 180.f; v[Mix] = (b / 33) % 2 ? 20.f : 60.f; e.setValues(v); }
+   for (int i = 0; i < 256; ++i) l[static_cast<std::size_t>(i)] = r[static_cast<std::size_t>(i)] = .3f * std::sin(6.2831853f * 220.f * static_cast<float>(b * 256 + i) / sr);
+   e.process(l.data(), r.data(), 256);
+   for (float x : l) {
+    // four one-pole high-passes at 8 kHz
+    h1 = rc * (h1 + x - x1); x1 = x; h2 = rc * (h2 + h1 - x2); x2 = h1; h3 = rc * (h3 + h2 - x3); x3 = h2; h4 = rc * (h4 + h3 - x4); x4 = h3;
+    const float a = static_cast<float>(std::abs(h4));
+    if (b > 20 && b <= sr * 3 / 256) steady = std::max(steady, a);
+    if (b > sr * 3 / 256) worst = std::max(worst, a);
+   }
+  }
+  std::printf("halo: above 8 kHz %.5f while turning, %.5f held\n", worst, steady);
+  verify(worst < steady * 3.f + .001f, "turning HALO's controls clicks");
+ }
  // 6. parameter storm
  {
   H::Engine e; e.prepare(44100);

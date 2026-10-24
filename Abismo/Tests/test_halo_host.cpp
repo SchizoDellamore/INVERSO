@@ -48,7 +48,6 @@ int main(){
   p.prepareToPlay(48000,512);
   p.selectProgram(std::getenv("ABISMO_SNAPSHOT_PROGRAM")?std::atoi(std::getenv("ABISMO_SNAPSHOT_PROGRAM")):2);
   juce::MidiBuffer midi;
-  double ph=0;
   for(int k=0;k<200;++k){
    juce::AudioBuffer<float> b(2,512);
    for(int i=0;i<512;++i){ const float x=(k%20<2)?g(rng)*6.f*std::exp(-(static_cast<float>((k%20)*512+i))/700.f):0.f; b.setSample(0,i,x); b.setSample(1,i,x); }
