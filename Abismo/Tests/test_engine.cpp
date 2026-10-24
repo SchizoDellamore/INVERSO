@@ -145,16 +145,20 @@ static void voiceAndMutilation() {
  auto recovered = render(e, sr / 2);
  verify(rms(recovered.l) > .5f * rms(s.l, 0, step / 8), "audio must return when stutter is switched off");
 
- // Crush at maximum quantises to very few levels.
+ // Crush at maximum quantises to very few steps (counted against the sound's
+ // own level since 0.14): far from the clean sine, and silent in silence.
  v = pureSine(); v[P::Crush] = 100;
  Engine c; c.setValues(v); c.prepare(sr);
  c.noteOn(69, 1.f);
  auto crushed = render(c, sr / 2);
- std::vector<float> levels;
- for (std::size_t n = sr / 4; n < crushed.l.size(); ++n)
-  if (std::find(levels.begin(), levels.end(), crushed.l[n]) == levels.end()) levels.push_back(crushed.l[n]);
- std::printf("crushed distinct levels: %zu\n", levels.size());
- verify(levels.size() < 40, "crush must quantise the signal");
+ v[P::Crush] = 0;
+ Engine clean; clean.setValues(v); clean.prepare(sr);
+ clean.noteOn(69, 1.f);
+ auto smooth = render(clean, sr / 2);
+ double err = 0, sig = 0;
+ for (std::size_t n = sr / 4; n < crushed.l.size(); ++n) { const double d = crushed.l[n] - smooth.l[n]; err += d * d; sig += static_cast<double>(smooth.l[n]) * smooth.l[n]; }
+ std::printf("crush error: %.1f dB below the signal\n", 10 * std::log10(err / sig));
+ verify(err > sig * .004, "crush must quantise the signal"); // 3 bits: about 20 dB
 }
 
 // A struck resonator alone (no oscillator, no reverb): its spectrum is the material.

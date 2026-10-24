@@ -43,7 +43,7 @@ void MidiLearn::handle(const juce::MidiMessage& m){
  }
  if(map[static_cast<std::size_t>(cc)].load(std::memory_order_relaxed)>=0) pending[static_cast<std::size_t>(cc)].store(m.getControllerValue(),std::memory_order_relaxed);
 }
-void MidiLearn::timerCallback(){
+void MidiLearn::flush(){
  const auto& params=processor.getParameters();
  for(std::size_t cc=0;cc<map.size();++cc){
   const int v=pending[cc].exchange(-1,std::memory_order_relaxed);

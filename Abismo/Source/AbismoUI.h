@@ -37,8 +37,10 @@ public:
  void load(const juce::ValueTree& state);
  // The learn object of the processor that owns this parameter tree (for the knobs).
  static MidiLearn* find(const juce::AudioProcessor*);
+ // Applies the CC values the audio thread received (the timer calls it 60 times a second).
+ void flush();
 private:
- void timerCallback() override;
+ void timerCallback() override { flush(); }
  juce::AudioProcessor& processor;
  std::array<std::atomic<int>,128> map, pending;
  std::atomic<int> armed{-1};

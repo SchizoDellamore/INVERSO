@@ -100,7 +100,7 @@ float InversoRelicarioEditor::value(int param) const {
 InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):AudioProcessorEditor(&p),processor(p){
  setLookAndFeel(&look);
  body.title="RELICARIO";
- body.subtitle=juce::String::fromUTF8("FOUR FORGOTTEN MACHINES   \xc2\xb7   MOD WHEEL: TAPE WEAR + ORGAN TREMOLO\nAFTERTOUCH (OR A LEARNED KNOB): BELLOWS + SPARK   \xc2\xb7   KEYS > AGE: HOW WORN AND ALIVE THE MACHINES ARE");
+ body.subtitle=juce::String::fromUTF8("FOUR FORGOTTEN MACHINES   \xc2\xb7   MOD WHEEL: TAPE WEAR + ORGAN TREMOLO\nAFTERTOUCH: BELLOWS + SPARK   \xc2\xb7   RIGHT-CLICK ANY KNOB: MIDI LEARN   \xc2\xb7   KEYS > AGE: HOW WORN AND ALIVE THE MACHINES ARE");
  addAndMakeVisible(body);
  presets.getCount=[this]{return processor.getNumPrograms();};
  presets.getCurrent=[this]{return processor.getCurrentProgram();};
@@ -121,10 +121,10 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  add("TAPE LOOPS",c::amber,{{"Loops",{P::FitaLevel,P::Loop1Level,P::Loop2Level,P::Loop2Detune},{P::FitaLevel}},
                             {"Tape",{P::Wear,P::Wow,P::TapeSat,P::FitaTone,P::LoopLength}},envelope(0)},112,{P::Loop1Wave,P::Loop2Wave,P::Loop2Octave});
  add("REED ORGAN",c::green,{{"Reeds",{P::HarmLevel,P::Era,P::Breath,P::Speak},{P::HarmLevel}},
-                            {"Bellows",{P::Motor,P::Sag}},envelope(1)},112,{});
+                            {"Fan",{P::Motor,P::Sag}},envelope(1)},112,{});
  add("TUNING FORK",c::cyan,{{"Fork",{P::ForkLevel,P::Spark,P::Clang,P::Maintain,P::Beat},{P::ForkLevel}},envelope(2)},112,{});
  add("SOVIET ORGAN",c::red,{{"Stops",{P::OrganLevel,P::Reg16,P::Reg8,P::Reg4,P::Upper},{P::OrganLevel}},
-                            {"Sound",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}},envelope(3)},112,{P::UpperInterval});
+                            {"Tone",{P::OrganTone,P::TremDepth,P::TremRate,P::SpeakerBreak,P::Hum}},envelope(3)},112,{P::UpperInterval});
  // ---- keys and the effects rack, in signal order
  add("KEYS",c::violet,{{"Envelope",{P::Attack,P::Decay,P::Sustain,P::Release,P::VelSens}},
                        {"Age",{P::Age,P::Fine,P::Glide,P::BendRange},{P::Age}}},96,{P::Octave});
@@ -151,10 +151,14 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
    auto& b=onButtons[static_cast<std::size_t>(i)];
    b.setClickingTogglesState(true);
    b.setTooltip("Switch this module on or off (its settings stay)");
+   b.setColour(juce::TextButton::textColourOnId,c::amber.brighter(.3f));
+   b.setColour(juce::TextButton::textColourOffId,c::muted);
+   b.setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xff1c1712));
+   b.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff3a332c));
    b.onStateChange=[&b]{ const auto text=b.getToggleState()?"ON":"OFF"; if(b.getButtonText()!=text) b.setButtonText(text); };
    onAttach[static_cast<std::size_t>(i)]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts,specs()[static_cast<std::size_t>(onParams[i])].id,b);
    b.onStateChange();
-   modules[static_cast<std::size_t>(onModules[i])]->addHeaderComponent(b,46);
+   modules[static_cast<std::size_t>(onModules[i])]->addHeaderComponent(b,40);
   }
  }
  auto& m=modules;

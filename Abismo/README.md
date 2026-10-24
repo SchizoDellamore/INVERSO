@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.13.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.14.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -11,7 +11,9 @@ Este pacote instala quatro instrumentos VST3 para Windows x64:
 
 O SAMPLER, o DRUMS, o RELICÁRIO e o ENKI têm seções próprias mais adiante.
 
-**Knob como aftertouch (0.10.1):** teclados sem aftertouch (Alesis V49, por exemplo) podem usar um knob no lugar. No ABISMO, no SAMPLER, no RELICÁRIO e no ENKI, clique em **LEARN** no MASTER (embaixo, em AFTERTOUCH KNOB) e gire o knob: ele passa a fazer tudo o que o aftertouch faz (arco e filtro no ABISMO, fole e faísca no RELICÁRIO). O knob escolhido fica salvo no projeto e não muda quando você troca de preset; o X ao lado desliga. O mod wheel e o pedal de sustain não podem ser escolhidos.
+**MIDI learn (0.14):** em qualquer knob de qualquer instrumento, clique com o botão direito e escolha *MIDI learn*; o knob pisca até você girar um knob do teclado (Alesis V49, por exemplo), e daí em diante ele segue esse controle. Um ponto colorido no knob mostra que ele está ligado a um CC; *Forget MIDI* desfaz. As ligações ficam salvas no projeto. Substitui o antigo LEARN de aftertouch.
+
+**Presets seus (0.14):** SAVE, ao lado do nome do preset, guarda o som atual em *Documentos/INVERSO/<plugin>/Presets*; o menu do preset (clique no nome) lista os seus embaixo dos de fábrica.
 
 **Idioma (0.10):** a interface dos quatro instrumentos está em inglês: controles, módulos, presets, kits e objetos. Este manual continua em português; onde ele cita um controle pelo nome antigo em português, procure o equivalente em inglês na mesma seção da tela (por exemplo RESSONADOR → RESONATOR, MUTILAÇÃO → MUTILATION, SERROTE → MUSICAL SAW, Ferro-Velho → Scrapyard). Projetos salvos abrem iguais: só os nomes mudaram.
 
@@ -109,6 +111,15 @@ Percussão de ferro-velho na linha de Tom Waits, Einstürzende Neubauten e músi
 - **Mudança da 0.6/0.7**: a numeração do OBJECT mudou. Projetos salvos com a 0.5 abrem com gravações no lugar dos objetos sintetizados; para voltar ao som antigo, escolha o objeto "(sint)" equivalente ou o kit Ferro-Velho Sintético.
 
 ## RELICÁRIO
+
+**Novo na 0.14 (a partir do retorno de uso):**
+- Cada máquina tem seu envelope (página ENV): ataque, decaimento, sustentação, soltura. O envelope de KEYS continua valendo para todas; o de cada máquina vem aberto, então só muda algo quando você o ajusta.
+- Botão ON/OFF em cada módulo (máquinas e efeitos), independente do volume; desliga e liga sem estalo.
+- TAPE LOOPS: volume próprio para cada loop (LOOP 1, LOOP 2), no lugar do balanço.
+- Alto-falante quebrado do órgão soviético: cone pequeno, bobina que bate no fundo e aba rasgada que vibra nos movimentos grandes; a distorção acompanha a música, sem chiado.
+- Diapasão: a faísca é um estalo e um zumbido no tom do diapasão; o clang são os modos de uma barra de aço (6,27x, 17,55x, 34,4x a fundamental), com batimento.
+- DESTROY: Tape aquece (mantém o volume dos sons baixos e arredonda o agudo, em vez de realçar o chiado); Rectify mantém a nota; Shatter nunca deixa a nota sumir; o bit crusher conta os bits em relação ao volume do som (o grão acompanha a música e as partes quietas não viram chiado).
+- Chop, troca de tipo de drive e de filtro: sem estalos.
 Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da Rhythmic Robot (Loopscape, Magnus, Spark Gap, órgãos soviéticos). Não usa gravações nem copia nada deles: as quatro máquinas são sintetizadas, imitando o mecanismo de cada uma. Cada máquina tem seu próprio LEVEL; em 0% ela fica desligada e os controles dela aparecem apagados. Dá para tocar uma de cada vez ou as quatro juntas. A interface é vintage: madeira, placas creme com parafusos, knobs de baquelite, telas de fósforo verde e um VU de ponteiro.
 
 **As máquinas**
@@ -117,7 +128,7 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 - **TUNING FORK** (à la Spark Gap): garfo mantido por eletroímã. CLANG é a pancada inicial; DRIVE é quanto o circuito mantém o garfo soando (em 0% ele morre como um diapasão batido); SPARK é o estalo do contato; BEAT é um segundo garfo desafinado.
 - **SOVIET ORGAN** (à la Junost/Lel): ondas quadradas divididas de um oscilador só. Registros 16', 8', 4' e UPPER (Octave, Fifth ou Third). Em SOUND: TONE, TREMOLO e RATE do próprio órgão, SPEAKER (o falante rasgado) e HUM (50 Hz da rede).
 - **KEYS**: envelope ADSR das quatro máquinas, velocity, oitava, afinação fina, glide e bend.
-- **AGE** (KEYS › Age, 0.13.0): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
+- **AGE** (KEYS › Age, 0.14.0): quanto as máquinas são velhas e vivas. Cada tecla tem o seu pequeno erro de afinação e o seu próprio pedaço de fita; afinação e volume derivam devagar; o harmônio ganha uma segunda palheta levemente desafinada e tremulação; o órgão perde a quadrada perfeita (divisores assimétricos, bordas arredondadas, contato de tecla que repica); a fita passa por um pré-amplificador que satura de leve e pelo grave do cabeçote; as máquinas ganham sala (reflexões curtas) e largura estéreo. Em 0% o instrumento fica limpo e exato, como saído da fábrica; o padrão é 60%.
 
 **O rack de efeitos** (0.10; o som passa por eles nesta ordem)
 1. **DESTROY**: DRIVE com cinco tipos (Tape, Fuzz, Fold, Rectify, Shatter), CRUSH (bits) e DOWNSAMPLE. Na página RING, um modulador em anel com frequência fixa (20 Hz a 3 kHz).
@@ -167,7 +178,7 @@ Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (
 **Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.13.0** e baixe `INVERSO_ABISMO_Setup_0.13.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.13.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE (*Distortion*) e CLEAR (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.14.0** e baixe `INVERSO_ABISMO_Setup_0.14.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.14.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE (*Distortion*) e CLEAR (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3`.
 
 O instalador não é assinado digitalmente.
 

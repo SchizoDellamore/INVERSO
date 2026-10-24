@@ -49,7 +49,7 @@ int main(){
    param(p,"CATEGORY",static_cast<float>(category));
    for(int k=0;k<3;++k){
     p.generate();
-    for(int size:{1,64,2048}) verify(play(p,sr,size)>1e-5f,"a generated sound produced no audio");
+    for(int size:{1,64,2048}){ const float lv=play(p,sr,size); if(lv<=1e-5f) std::fprintf(stderr,"silent: sr %d category %d try %d block %d (%g)\n",sr,category,k,size,lv); verify(lv>1e-5f,"a generated sound produced no audio"); }
    }
   }
   p.mutate();
@@ -83,17 +83,31 @@ int main(){
  p.useLibrarySample(0,5);
  param(p,"A_TYPE",3.f);
  verify(play(p,48000,512)>1e-5f,"a library recording produced no audio");
- // Knob learn.
+
+ // MIDI learn: arm a knob, turn CC 21, the knob follows; the assignment is saved with the session.
  {
-  p.learnPressure.store(true);
+  const int index=p.midiLearn.indexOf("CUTOFF");
+  verify(index>=0,"parameter not found for MIDI learn");
+  p.midiLearn.arm(index);
   juce::MidiBuffer cc;
-  cc.addEvent(juce::MidiMessage::controllerEvent(1,1,90),0);
-  cc.addEvent(juce::MidiMessage::controllerEvent(1,21,100),2);
+  cc.addEvent(juce::MidiMessage::controllerEvent(1,21,127),2);
   juce::AudioBuffer<float> block(2,512);
   block.clear();
   p.processBlock(block,cc);
-  verify(p.learnedCC.load()==21,"knob learn must pick CC 21");
-  p.learnPressure.store(false);
+  p.midiLearn.flush();
+  verify(p.midiLearn.ccFor(index)==21,"MIDI learn must take CC 21");
+  auto* param=p.apvts.getParameter("CUTOFF");
+  verify(param->getValue()>.99f,"CC 21 at 127 must turn the knob fully up");
+  cc.clear(); cc.addEvent(juce::MidiMessage::controllerEvent(1,21,0),0);
+  block.clear(); p.processBlock(block,cc); p.midiLearn.flush();
+  verify(param->getValue()<.01f,"CC 21 at 0 must turn the knob fully down");
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+  InversoEnkiProcessor other;
+  other.setStateInformation(saved.getData(),static_cast<int>(saved.getSize()));
+  verify(other.midiLearn.ccFor(index)==21,"MIDI learn not restored with the session");
+  p.midiLearn.forget(index);
+  verify(p.midiLearn.ccFor(index)<0,"forget did not forget");
  }
  // State round trip.
  param(p,"CUTOFF",1234.f);
