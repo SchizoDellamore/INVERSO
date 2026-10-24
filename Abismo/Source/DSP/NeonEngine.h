@@ -120,15 +120,16 @@ public:
   const float gl = std::cos((pan + 1.f) * .7853982f) * 1.41421356f, gr = std::sin((pan + 1.f) * .7853982f) * 1.41421356f;
   const float duty = std::clamp(c.pw + c.pwm * c.lfo * .4f, .05f, .95f);
   const float fmVelScale = 1.f - c.fmVel + c.fmVel * vel;
+  const bool osc2Needed = c.l2 > 0.f || c.xmod > 0.f;
   for (int i = 0; i < n; ++i) {
    const float e = amp.next();
    fenvNow = fenv.next();
    // oscillator 2 first: it can modulate oscillator 1
-   const float o2 = nd::wave(c.wave2, ph2, inc2, duty);
+   const float o2 = osc2Needed ? nd::wave(c.wave2, ph2, inc2, duty) : 0.f;
    float i1 = inc1 * (1.f + c.xmod * 1.5f * o2);
    i1 = std::clamp(i1, 0.f, .45f);
    const float o1 = nd::wave(c.wave1, ph1, inc1, duty);
-   const float sub = nd::pulse(phSub, incSub, .5f);
+   const float sub = c.sub > 0.f ? nd::pulse(phSub, incSub, .5f) : 0.f;
    ph1 += i1;
    if (ph1 >= 1.f) {
     ph1 -= 1.f;
@@ -136,7 +137,8 @@ public:
    }
    if (!c.sync || ph1 > 0.f) { ph2 += inc2; if (ph2 >= 1.f) ph2 -= 1.f; }
    phSub += incSub; if (phSub >= 1.f) phSub -= 1.f;
-   float x = o1 * c.l1 + o2 * c.l2 + sub * c.sub + rng.next() * noiseLevel;
+   float x = o1 * c.l1 + o2 * c.l2 + sub * c.sub;
+   if (noiseLevel > 0.f) x += rng.next() * noiseLevel;
    if (c.fmLevel > 0.f) {
     fmEnv *= 1.f - c.fmDecayCoef;
     const float index = c.fmIndex * 7.f * (.15f + .85f * fmEnv) * fmVelScale;
@@ -240,7 +242,7 @@ public:
  void allSoundOff() {
   for (auto& v : voices) v.kill();
   held.clear(); order.clear(); mono.clear(); patternRunning = false;
-  chorusLine.clear(); delayL.clear(); delayR.clear(); reverb.clear(); gateEnv = 0.f;
+  chorusLine.clear(); delayL.clear(); delayR.clear(); reverb.clear();
  }
  int activeVoices() const { int n = 0; for (const auto& v : voices) n += v.active() ? 1 : 0; return n; }
  int currentStep() const { return patternRunning ? displayStep : -1; }
@@ -267,8 +269,8 @@ public:
 
 private:
  // ---------------------------------------------------------------- voices
- int patternMode() const { return static_cast<int>(std::lround(smoothed[P::Pattern])); }
- int voiceMode() const { return patternMode() == 2 ? 2 : c.voiceMode; } // the bass sequencer plays legato (slides)
+ int patternMode() const { return smoothed[P::Arp] >= .5f ? 1 : 0; }
+ int voiceMode() const { return c.voiceMode; }
 
  void playNote(int note, float velocity, float accent, bool slide) {
   const int mode = voiceMode();
@@ -337,7 +339,7 @@ private:
  // ---------------------------------------------------------------- pattern
  double stepBeats() const {
   static const double beats[6] = {1.0, .5, 1.0 / 3.0, .25, 1.0 / 6.0, .125};
-  return beats[std::clamp(static_cast<int>(std::lround(smoothed[P::PatternRate])), 0, 5)];
+  return beats[std::clamp(static_cast<int>(std::lround(smoothed[P::ArpRate])), 0, 5)];
  }
  void addHeld(int note) {
   if (std::find(held.begin(), held.end(), note) == held.end()) held.push_back(note);
@@ -368,22 +370,6 @@ private:
   const double gate = std::clamp(smoothed[P::Gate] * .01, .05, 1.0);
   const double swing = smoothed[P::Swing] * .01 * .5;
   const double start = static_cast<double>(step) + ((step & 1) ? swing : 0.0);
-  if (patternMode() == 2) { // bass sequencer: the step pattern, transposed to the held key
-   const int length = std::clamp(static_cast<int>(std::lround(smoothed[P::SeqLength])), 1, seqSteps);
-   const int k = static_cast<int>(step % length);
-   displayStep = k;
-   if (smoothed[static_cast<std::size_t>(P::SeqOn0 + k)] < .5f) { stopPatternNote(); return; }
-   const int root = order.back();
-   const int note = std::clamp(root + static_cast<int>(std::lround(smoothed[static_cast<std::size_t>(P::SeqNote0 + k)])), 0, 127);
-   const bool accent = smoothed[static_cast<std::size_t>(P::SeqAccent0 + k)] >= .5f;
-   const bool slide = smoothed[static_cast<std::size_t>(P::SeqSlide0 + k)] >= .5f && pending.active;
-   const int nextK = static_cast<int>((step + 1) % length);
-   const bool nextSlides = smoothed[static_cast<std::size_t>(P::SeqSlide0 + nextK)] >= .5f && smoothed[static_cast<std::size_t>(P::SeqOn0 + nextK)] >= .5f;
-   if (!slide && pending.active) stopPatternNote();
-   playNote(note, accent ? 1.f : std::min(lastVelocity, .8f), accent ? 1.f : 0.f, slide);
-   pending = {true, nextSlides ? start + 1.0 + .02 : start + gate, {note}, 1};
-   return;
-  }
   // arpeggiator
   std::vector<int>& src = order;
   const int octaves = std::clamp(static_cast<int>(std::lround(smoothed[P::ArpOctaves])), 1, 4);
@@ -486,8 +472,8 @@ private:
   delayToneCoef = 1.f - std::exp(-6.2831853f * (1500.f + 14000.f * pct(P::DelayTone) * pct(P::DelayTone)) / static_cast<float>(sr));
   revMix = pct(P::RevMix); revType = choice(P::RevType);
   {
-   const float size = revType == 0 ? .35f + .3f * pct(P::RevSize) : revType == 2 ? .9f : pct(P::RevSize);
-   const float decay = revType == 2 ? 6.f : s[P::RevDecay] * (revType == 0 ? .7f : 1.f);
+   const float size = revType == 0 ? .35f + .3f * pct(P::RevSize) : pct(P::RevSize);
+   const float decay = s[P::RevDecay] * (revType == 0 ? .7f : 1.f);
    const float damp = revType == 0 ? .2f + .4f * pct(P::RevDamp) : pct(P::RevDamp);
    reverb.configure(size, decay, damp, false);
   }
@@ -533,14 +519,6 @@ private:
    if (revMix > 0.f) {
     float rl, rr;
     reverb.process(a, b, rl, rr);
-    if (revType == 2) { // gated: the big room is cut short a moment after each hit
-     const float level = std::abs(a) + std::abs(b);
-     if (level > gateEnv) { gateEnv = level; gateHold = static_cast<int>(.22 * sr); }
-     else if (gateHold > 0) --gateHold;
-     else gateEnv *= .9985f;
-     gateGain += ((gateEnv > 1e-3f ? 1.f : 0.f) - gateGain) * (gateGain < .5f ? .02f : .004f);
-     rl *= gateGain; rr *= gateGain;
-    }
     a = a * revDry + rl * revWet;
     b = b * revDry + rr * revWet;
    }
@@ -565,11 +543,11 @@ private:
  double sr = 48000.0, tempo = 120.0, hostPpq = 0.0, stepPos = 0.0, lfoPhase = 0.0;
  bool hostPlaying = false, resync = false, sustain = false, patternRunning = false, glideOverride = false, pingPong = true;
  long long nextStep = 0;
- int displayStep = -1, countdown = 0, chorusMode = 0, revType = 1, gateHold = 0;
+ int displayStep = -1, countdown = 0, chorusMode = 0, revType = 1;
  float bend = 0.f, modWheel = 0.f, lastVelocity = .8f, lastPitch = -1.f, heldRandom = 0.f, randomSmooth = 0.f;
  float chorusMix = 1.f, chorusPhase = 0.f, chorusFade = 0.f, bbdL = 0.f, bbdR = 0.f;
  float delayMix = 0.f, delayFb = .35f, delaySamples = 18000.f, delaySamplesTarget = 18000.f, delayLpL = 0.f, delayLpR = 0.f, delayToneCoef = .5f, delayTail = 0.f;
- float revMix = .2f, gateEnv = 0.f, gateGain = 0.f, width = 1.f, outGain = .5f, outTarget = .5f;
+ float revMix = .2f, width = 1.f, outGain = .5f, outTarget = .5f;
  std::array<Voice, maxVoices> voices{};
  Controls c;
  Envelope ampShape, filterShape;

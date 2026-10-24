@@ -916,8 +916,11 @@ void PresetBar::paint(juce::Graphics& g) {
  if (saveWidth() > 0) { save = all.removeFromRight(static_cast<float>(saveWidth()) - 8.f); all.removeFromRight(8.f); }
  const auto r = all;
  const int count = getCount ? getCount() : 0, current = getCurrent ? getCurrent() : 0;
- const juce::String name = userName.isNotEmpty() ? userName : getName ? getName(current) : juce::String();
- const juce::String counter = userName.isNotEmpty() ? juce::String("YOUR PRESET") : juce::String(current + 1).paddedLeft('0', 2) + " / " + juce::String(count);
+ const juce::String full = userName.isNotEmpty() ? userName : getName ? getName(current) : juce::String();
+ // "Category/Name": the category goes up with the counter
+ const juce::String category = userName.isEmpty() && full.containsChar('/') ? full.upToFirstOccurrenceOf("/", false, false).toUpperCase() + juce::String::fromUTF8("  \xc2\xb7  ") : juce::String();
+ const juce::String name = category.isNotEmpty() ? full.fromFirstOccurrenceOf("/", false, false) : full;
+ const juce::String counter = userName.isNotEmpty() ? juce::String("YOUR PRESET") : category + juce::String(current + 1).paddedLeft('0', 2) + " / " + juce::String(count);
  if (vintage) { // a black program window with amber lettering
   juce::Path p;
   p.addRoundedRectangle(r, 5.f);
@@ -1006,7 +1009,25 @@ void PresetBar::mouseUp(const juce::MouseEvent& e) {
  if (e.x > width - 48 && e.x < width) { userName = {}; select((current + 1) % count); repaint(); return; }
  juce::PopupMenu menu;
  if (userApvts != nullptr) menu.addSectionHeader("FACTORY");
- for (int i = 0; i < count; ++i) menu.addItem(i + 1, getName(i), true, i == current && userName.isEmpty());
+ // Factory names written "Category/Name" are grouped in one submenu per category.
+ {
+  juce::StringArray categories;
+  std::vector<juce::PopupMenu> subs;
+  for (int i = 0; i < count; ++i) {
+   const auto name = getName(i);
+   const bool ticked = i == current && userName.isEmpty();
+   if (!name.containsChar('/')) { menu.addItem(i + 1, name, true, ticked); continue; }
+   const auto cat = name.upToFirstOccurrenceOf("/", false, false);
+   int at = categories.indexOf(cat);
+   if (at < 0) { categories.add(cat); subs.emplace_back(); at = categories.size() - 1; }
+   subs[static_cast<std::size_t>(at)].addItem(i + 1, name.fromFirstOccurrenceOf("/", false, false), true, ticked);
+  }
+  for (int k = 0; k < categories.size(); ++k) {
+   bool holdsCurrent = false;
+   for (int i = 0; i < count; ++i) if (i == current && getName(i).upToFirstOccurrenceOf("/", false, false) == categories[k] && getName(i).containsChar('/')) holdsCurrent = true;
+   menu.addSubMenu(categories[k].toUpperCase(), subs[static_cast<std::size_t>(k)], true, nullptr, holdsCurrent && userName.isEmpty());
+  }
+ }
  juce::Array<juce::File> files;
  if (userApvts != nullptr) {
   files = abismo_ui::userPresets(userPlugin);

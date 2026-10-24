@@ -1,8 +1,9 @@
-// NEON: tuning, unison, the arpeggiator and the bass sequencer on the clock,
-// gated reverb, every preset sane, voice stealing, a parameter storm.
+// NEON: tuning, unison, the arpeggiator on the clock, CPU, every preset sane,
+// voice stealing, a parameter storm.
 #include "TestUtil.h"
 #include "../Source/DSP/NeonEngine.h"
 #include <cstdio>
+#include <chrono>
 #include <random>
 
 namespace N = inverso_abismo::neon;
@@ -75,7 +76,7 @@ int main() {
  }
  // 3. arpeggiator: C E G up, 1/16 at 120 BPM = a note every 125 ms, rising
  {
-  auto v = plain(); v[Pattern] = 1; v[PatternRate] = 3; v[ArpMode] = 0; v[ArpOctaves] = 1; v[Gate] = 50; v[Release] = 5;
+  auto v = plain(); v[Arp] = 1; v[ArpRate] = 3; v[ArpMode] = 0; v[ArpOctaves] = 1; v[Gate] = 50; v[Release] = 5;
   N::Engine e; e.setValues(v); e.prepare(sr); e.setTransport(120, 0, false);
   e.noteOn(60, 1.f); e.noteOn(64, 1.f); e.noteOn(67, 1.f);
   auto s = play(e, sr);
@@ -93,29 +94,17 @@ int main() {
   auto quiet = play(e, sr / 2);
   verify(test::rms(quiet.l) < 1e-4f, "arpeggiator keeps playing after the keys are released");
  }
- // 4. bass sequencer: one bar of 16ths, transposed to the key, octave steps where set
+ // 4. lightness: an 8-note chord, one voice each, must run far faster than real time
  {
-  auto v = N::presetValues(15); // Moroder Bass
-  v[RevMix] = 0; v[Drift] = 0;
-  N::Engine e; e.setValues(v); e.prepare(sr); e.setTransport(120, 0, false);
-  e.noteOn(45, 1.f);
-  auto s = play(e, sr * 2);
-  const auto on = onsets(s.l);
-  std::printf("sequencer: %zu notes in one bar\n", on.size());
-  verify(on.size() >= 14 && on.size() <= 17, "the bass sequencer does not play 16 steps");
- }
- // 5. gated reverb ends sooner than the hall
- {
-  auto tail = [&](int type) {
-   auto v = plain(); v[RevMix] = 60; v[RevType] = static_cast<float>(type); v[RevDecay] = 6; v[Release] = 5; v[Osc1Wave] = 0;
-   N::Engine e; e.setValues(v); e.prepare(sr);
-   e.noteOn(60, 1.f); play(e, sr / 10); e.noteOff(60);
-   auto s = play(e, sr);
-   return test::rms(s.l, sr / 2, sr);
-  };
-  const float hall = tail(1), gated = tail(2);
-  std::printf("reverb 0.5-1 s after a hit: hall %.5f, gated %.5f\n", hall, gated);
-  verify(gated < hall * .2f, "the gated reverb is not gated");
+  auto v = N::presetValues(6); // Polysynth/Juno Poly
+  N::Engine e; e.setValues(v); e.prepare(sr);
+  for (int n : {48, 52, 55, 59, 60, 64, 67, 71}) e.noteOn(n, .8f);
+  std::vector<float> l(256), r(256);
+  const auto t0 = std::chrono::steady_clock::now();
+  for (int b = 0; b < sr * 10 / 256; ++b) e.render(l.data(), r.data(), 256);
+  const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  std::printf("CPU: 8 voices + effects, 10 s of audio in %.3f s (%.1f%% of one core)\n", seconds, seconds * 10.0);
+  verify(seconds < 1.0, "NEON is too heavy");
  }
  // 6. every preset: plays, finite, under the ceiling, sensible level
  for (std::size_t p = 0; p < N::presets().size(); ++p) {
