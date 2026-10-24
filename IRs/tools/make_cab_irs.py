@@ -55,16 +55,35 @@ def shelf(f, fc, gain, slope_oct=1.0):
     return gain / (1 + np.exp(-np.log2(f / fc) * 4.0 / slope_oct))
 
 
+class Rng:
+    """splitmix64 + Box-Muller: the same numbers in Python and in the C++ port."""
+    def __init__(self, seed):
+        self.state = seed & 0xFFFFFFFFFFFFFFFF
+
+    def next_u64(self):
+        self.state = (self.state + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+        z = self.state
+        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+        return z ^ (z >> 31)
+
+    def uniform(self):
+        return ((self.next_u64() >> 11) + .5) / float(1 << 53)
+
+    def normal(self, n):
+        out = np.empty(n)
+        for i in range(n):
+            u1, u2 = self.uniform(), self.uniform()
+            out[i] = np.sqrt(-2 * np.log(u1)) * np.cos(2 * np.pi * u2)
+        return out
+
+
 def smooth_noise_db(f, seed, depth, start, width_oct=1 / 10):
     """Cone breakup: a fixed, speaker-specific ripple that grows above `start`."""
-    rng = np.random.default_rng(seed)
-    lo, hi = np.log2(20), np.log2(f[-1])
-    knots = np.arange(lo, hi + width_oct, width_oct)
-    vals = rng.standard_normal(len(knots))
+    lo, hi = np.log2(20), np.log2(24000)
+    knots = lo + width_oct * np.arange(int(np.ceil((hi - lo) / width_oct)) + 2)
+    vals = Rng(seed).normal(len(knots))
     ripple = np.interp(np.log2(f), knots, vals)
-    # smooth again so peaks are rounded like real cone modes
-    k = 9
-    ripple = np.convolve(np.pad(ripple, k, mode='edge'), np.hanning(2 * k + 1) / np.hanning(2 * k + 1).sum(), 'same')[k:-k]
     weight = np.clip(np.log2(f / start) / 2.0, 0, 1)
     return depth * ripple * weight
 
@@ -126,7 +145,7 @@ def magnitude(fs, spk, mic, pos):
         hf = hp2(f, lo, .7) + lp2(f, hi, .7) + lvl
         db = 20 * np.log10(10 ** (db / 20) + 10 ** (hf / 20))
     depth, start, seed = s['brk']
-    db += smooth_noise_db(f, seed, depth * (1.3 if p['bright'] > 2 else 1.0), start)
+    db += smooth_noise_db(f, seed, depth, start)
     # position on the cone
     db += shelf(f, 3000, p['bright'], 1.2)
     if p['axis'] > 0:
@@ -181,7 +200,6 @@ def make_ir(fs, spk, mic, pos, length):
     h = minimum_phase(db)[:length].copy()
     s = SPEAKERS[spk]
     p = POSITIONS[pos]
-    rng = np.random.default_rng(zlib.crc32(f"{spk}|{mic}|{pos}".encode()))
     if s.get('open_back'):
         # the back wave bounces off the wall behind the cabinet and returns inverted
         h += delayed(h, .0045 if p.get('back') else .0062, fs, -(.55 if p.get('back') else .28), 2500)
@@ -193,7 +211,7 @@ def make_ir(fs, spk, mic, pos, length):
         for extra, g, lp in [(.9, .5, 6000), (2.6, .32, 4500), (3.4, .28, 4000), (4.1, .22, 3500), (6.0, .16, 3000)]:
             h += delayed(h, extra / C, fs, g * direct / (direct + extra), lp)
         n = np.arange(length)
-        tail = rng.standard_normal(length) * np.exp(-n / (fs * .09))
+        tail = Rng(zlib.crc32(f"{spk}|{mic}".encode())).normal(length) * np.exp(-n / (fs * .09))
         tail[:int(.012 * fs)] = 0
         a = np.exp(-2 * np.pi * 3000 / fs)
         from scipy.signal import lfilter

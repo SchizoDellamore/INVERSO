@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.11.0 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.12.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -11,7 +11,8 @@ add_executable(abismo_sampler Tests/test_sampler.cpp)
 add_executable(abismo_drums Tests/test_drums.cpp)
 add_executable(relicario_engine Tests/test_relicario.cpp)
 add_executable(enki_engine Tests/test_enki.cpp)
-foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine)
+add_executable(furnace_engine Tests/test_furnace.cpp)
+foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -26,6 +27,7 @@ add_test(NAME abismo_sampler COMMAND abismo_sampler)
 add_test(NAME abismo_drums COMMAND abismo_drums)
 add_test(NAME relicario_engine COMMAND relicario_engine)
 add_test(NAME enki_engine COMMAND enki_engine)
+add_test(NAME furnace_engine COMMAND furnace_engine)
 target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(enki_engine PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
@@ -272,3 +274,43 @@ add_custom_command(TARGET InversoEnki_VST3 POST_BUILD
  VERBATIM)
 target_compile_definitions(InversoEnki PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(InversoEnkiHostSmoke PRIVATE ABISMO_DRUMS_DEV_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
+
+# FURNACE: guitar and bass amplifiers with the INVERSO CABS inside (an effect).
+set(FURNACE_SOURCES
+ Source/FurnaceProcessor.cpp Source/FurnaceProcessor.h
+ Source/FurnaceEditor.cpp Source/FurnaceEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/AbismoCommon.h Source/DSP/FurnaceParams.h Source/DSP/FurnaceAmp.h Source/DSP/FurnaceCab.h)
+juce_add_plugin(InversoFurnace
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.furnace"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvFn
+ PRODUCT_NAME "INVERSO FURNACE"
+ FORMATS VST3
+ VST3_CATEGORIES Fx Distortion
+ IS_SYNTH FALSE
+ NEEDS_MIDI_INPUT FALSE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoFurnace)
+target_sources(InversoFurnace PRIVATE ${FURNACE_SOURCES})
+target_compile_definitions(InversoFurnace PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoFurnace PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoFurnaceHostSmoke PRODUCT_NAME "INVERSO Furnace Host Smoke")
+juce_generate_juce_header(InversoFurnaceHostSmoke)
+target_sources(InversoFurnaceHostSmoke PRIVATE Tests/test_furnace_host.cpp ${FURNACE_SOURCES})
+target_compile_definitions(InversoFurnaceHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoFurnaceHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME furnace_host_smoke COMMAND InversoFurnaceHostSmoke)
