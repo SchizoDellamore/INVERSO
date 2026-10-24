@@ -217,7 +217,6 @@ void SampleView::setFromX(float x){
  repaint();
 }
 void SampleView::mouseDown(const juce::MouseEvent& e){
- // LOOP IN must stay before LOOP OUT, whichever parameter holds which (see loopSwapped)
  dragging=markerAt(e.position); // from the flags as last drawn
  // a loop point drags as LOOP IN or LOOP OUT, whichever it is now (saved loops can be reversed)
  const bool loopPoint=std::strcmp(dragging,"LOOP_START")==0 || std::strcmp(dragging,"LOOP_END")==0;

@@ -82,10 +82,13 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  const int samples=audio.getNumSamples();
  // Pick up pads' new recordings without freeing memory on this thread:
  // the replaced ones are parked in `retired` and released by the message thread.
- // While the old kit fades out (kitChanged), its recordings keep playing: they swap with the new kit.
- // Checked under the lock; selectKit raises kitQueueing before it queues anything, and kitChanged before lowering it.
+ // A kit change, in order: while it is being written (kitBusy) the old kit plays on untouched;
+ // then one block fades the old kit out (kitChanged); then the next block swaps the pad
+ // recordings and starts the new kit (kitFadePending). Checked under the lock: kitBusy is raised
+ // before anything is queued and lowered only after kitChanged is set.
+ const bool kitBeingWritten=kitBusy.load()>0;
  if (swapLock.tryEnter()) {
-  if (!kitChanged.load() && !kitQueueing.load()) for (int pad=0;pad<numPads;++pad) {
+  if (!kitBeingWritten && !kitChanged.load()) for (int pad=0;pad<numPads;++pad) {
    auto& slot=slots[static_cast<std::size_t>(pad)];
    if (slot.hasPending && !slot.retired) {
     slot.retired=std::move(slot.current);
@@ -99,14 +102,14 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  if (!prepared || audio.getNumChannels()<2) { audio.clear(); return; }
  Values v{};
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
+ const bool fadeThisBlock=!kitBeingWritten && kitChanged.exchange(false);
  if (kitFadePending) {
   engine.switchKit(v);
   kitFadePending=false;
   // Notes held back during the fade start this block, on the new kit.
   if (!deferredMidi.isEmpty()) { deferredMidi.addEvents(midi,0,-1,0); midi.swapWith(deferredMidi); deferredMidi.clear(); }
  }
- else engine.setValues(v);
- const bool fadeThisBlock=kitChanged.exchange(false);
+ else if (!kitBeingWritten && !fadeThisBlock) engine.setValues(v); // the old kit keeps its own values until it is gone
  if (fadeThisBlock) {
   // This block only fades the old kit out; its notes wait for the new kit.
   for (const auto metadata : midi) deferredMidi.addEvent(metadata.getMessage(),0);
@@ -284,9 +287,9 @@ void InversoAbismoDrumsProcessor::setCurrentProgram(int index) {
 // never discards your recordings (or the paths of missing ones).
 void InversoAbismoDrumsProcessor::selectKit(int index) {
  if (index<0 || index>=getNumPrograms()) return;
- // Every pad's recording is queued to go before the kit starts fading (kitQueueing holds the
- // swaps meanwhile), so all of them leave together with the old kit, faded, not cut.
- kitQueueing=true;
+ // Every pad's recording is queued to go before the kit starts fading (kitBusy holds the swaps
+ // meanwhile), so all of them leave together with the old kit, faded, not cut.
+ ++kitBusy;
  for (int pad=0;pad<numPads;++pad) {
   bool user;
   { const juce::ScopedLock lock(pathLock);
@@ -295,11 +298,12 @@ void InversoAbismoDrumsProcessor::selectKit(int index) {
   if (user) clearPadSample(pad);
  }
  applyKit(index); // raises kitChanged: the fade, then the swaps with the new kit
- kitQueueing=false;
+ --kitBusy;
  updateHostDisplay(ChangeDetails().withProgramChanged(true));
 }
 
 void InversoAbismoDrumsProcessor::applyKit(int index) {
+ ++kitBusy; // the kit's values are written while the old kit plays on, then it fades
  currentProgram=index;
  const auto values=kitValues(static_cast<std::size_t>(index));
  for (std::size_t i=0;i<values.size();++i) {
@@ -310,6 +314,7 @@ void InversoAbismoDrumsProcessor::applyKit(int index) {
   }
  }
  kitChanged=true;
+ --kitBusy;
 }
 
 // Pad recordings are stored by path, not embedded: sessions stay small, but a
