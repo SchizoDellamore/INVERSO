@@ -49,6 +49,8 @@ struct HostSpy final : juce::AudioProcessorListener {
 int main(){
  juce::ScopedJuceInitialiser_GUI init;
  { InversoAbismoDrumsProcessor rt; if (!stateRoundTrip(rt, "drums")) return 1; }
+ // the shared pitch-wheel mapping (abismo_ui): both ends reached, centre at rest
+ verify(std::abs(abismo_ui::pitchBendOf(0)+1.f)<1e-6f && std::abs(abismo_ui::pitchBendOf(8192))<1e-6f && std::abs(abismo_ui::pitchBendOf(16383)-1.f)<1e-6f,"pitch wheel mapping");
  InversoAbismoDrumsProcessor p;
  juce::AudioProcessor::BusesLayout layout;
  layout.outputBuses.add(juce::AudioChannelSet::stereo());
@@ -237,11 +239,16 @@ int main(){
   // all-notes-off at a kit change (hosts send it at a loop's end) keeps the pad hits, as in play
   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
   p.selectKit(2);
+  param(p,"STUMBLE",0);
   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(10,36,1.f),0); m.addEvent(juce::MidiMessage::allNotesOff(1),10); p.processBlock(b,m); }
   float kick=0.f; for(int i=0;i<40;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); kick=std::max(kick,b.getMagnitude(0,256)); }
   verify(kick>1e-2f,"all-notes-off at a kit change dropped a pad hit");
-  // the pitch wheel reaches both ends and rests at the centre
-  verify(std::abs(abismo_ui::pitchBendOf(0)+1.f)<1e-6f && std::abs(abismo_ui::pitchBendOf(8192))<1e-6f && std::abs(abismo_ui::pitchBendOf(16383)-1.f)<1e-6f,"pitch wheel mapping");
+  // all-notes-off at a kit change lets go of a saw note pressed during it (no saw on the new kit)
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(2);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),0); m.addEvent(juce::MidiMessage::allNotesOff(1),10); p.processBlock(b,m); }
+  float sawAfterOff=0.f; for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>250) sawAfterOff=std::max(sawAfterOff,b.getMagnitude(0,256)); }
+  verify(sawAfterOff<1e-3f,"all-notes-off at a kit change did not let go of the saw");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }
