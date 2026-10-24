@@ -151,7 +151,7 @@ public:
 private:
  struct Grain {
   bool active = false;
-  double pos = 0.0, step = 1.0;
+  double pos = 0.0, step = 1.0, lo = 0.0, hi = 0.0; // lo..hi: the region in the file
   int length = 1, elapsed = 0;
   float gainL = 1.f, gainR = 1.f;
  };
@@ -212,8 +212,8 @@ private:
   const double loopLo = std::clamp(static_cast<double>(std::min(c.loopStart, c.loopEnd)) * len, lo, hi - 1.0);
   const double loopHi = std::clamp(static_cast<double>(std::max(c.loopStart, c.loopEnd)) * len, loopLo + 1.0, hi);
   const bool loopUsable = c.loopMode != 0 && loopHi - loopLo >= 16.0;
-  // a cloud outside the region (POSITION before START, region moved) starts at its nearest edge
-  if (cloudCentre < lo || cloudCentre > hi) cloudCentre = std::clamp(cloudCentre, lo, hi);
+  // a cloud outside the region (POSITION before START or after END, region moved) goes to its nearest edge
+  cloudCentre = std::clamp(cloudCentre, lo, hi);
   const bool pingPong = loopUsable && c.loopMode == 2;
   if (pingPong) { // outside the loop the cloud heads for it
    if (cloudCentre < loopLo) scanDirection = c.scan >= 0.f ? 1.0 : -1.0;
@@ -229,11 +229,11 @@ private:
    if (c.scan >= 0.f && before < loopHi && cloudCentre >= loopHi) cloudCentre -= span;
    else if (c.scan < 0.f && before > loopLo && cloudCentre <= loopLo) cloudCentre += span;
    const double region = hi - lo; // from outside the loop it comes round the region to it
-   while (cloudCentre >= hi) cloudCentre -= region;
+   while (cloudCentre > hi) cloudCentre -= region;
    while (cloudCentre < lo) cloudCentre += region;
   } else { // off: round the whole region
    const double span = hi - lo;
-   while (cloudCentre >= hi) cloudCentre -= span;
+   while (cloudCentre > hi) cloudCentre -= span;
    while (cloudCentre < lo) cloudCentre += span;
   }
   cloudCentre = std::clamp(cloudCentre, lo, hi);
@@ -253,6 +253,8 @@ private:
    l += sl * window * g.gainL;
    r += sr2 * window * g.gainR;
    g.pos += g.step;
+   if (g.pos > g.hi) { g.pos = std::max(g.lo, 2.0 * g.hi - g.pos); g.step = -g.step; } // turns back at the edge
+   else if (g.pos < g.lo) { g.pos = std::min(g.hi, 2.0 * g.lo - g.pos); g.step = -g.step; }
    if (++g.elapsed >= g.length) g.active = false;
   }
  }
@@ -274,15 +276,10 @@ private:
   slot->pos = c.reverse ? len - 1.0 - pos : pos;
   slot->step = step;
   slot->length = std::max(8, static_cast<int>(c.grainMs * .001f * static_cast<float>(sr)));
-  // nothing outside START..END is heard: a grain that would run past the region's edge starts
-  // earlier so it fits whole; only a region shorter than the grain shortens it
-  const double physLo = c.reverse ? len - 1.0 - hi : lo, physHi = c.reverse ? len - 1.0 - lo : hi; // REVERSE mirrors the file
-  const double travel = static_cast<double>(slot->length) * std::abs(step);
-  if (travel >= physHi - physLo) {
-   slot->length = std::max(8, static_cast<int>((physHi - physLo) / std::max(1e-6, std::abs(step))));
-   slot->pos = step >= 0.0 ? physLo : physHi;
-  } else if (step >= 0.0) slot->pos = std::min(slot->pos, physHi - travel);
-  else slot->pos = std::max(slot->pos, physLo + travel);
+  // nothing outside START..END is heard: a grain reaching the region's edge turns back (see
+  // granular()), so it keeps its length and level and the sound follows the cloud to the edge
+  slot->lo = c.reverse ? len - 1.0 - hi : lo; // REVERSE mirrors the file
+  slot->hi = c.reverse ? len - 1.0 - lo : hi;
   slot->elapsed = 0;
   const float pan = .5f + .5f * c.grainSpread * rng.next();
   slot->gainL = std::cos(pan * 1.5707963f) * 1.4142f;

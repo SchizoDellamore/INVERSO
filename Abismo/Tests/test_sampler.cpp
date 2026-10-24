@@ -158,6 +158,14 @@ static void granularEdges() {
   for (int b = 0; b < 20; ++b) e.render(l.data(), r.data(), 256);
   std::printf("granular, POSITION 5%% before START 10%%: cloud at %.3f\n", e.playheadPosition());
   verify(std::abs(e.playheadPosition() - .10f) < .002f, "a POSITION before START must start the cloud at START");
+  for (float loopMode : {0.f, 1.f}) {
+   v[S::P::Position] = 95; v[S::P::LoopMode] = loopMode; v[S::P::LoopStart] = 30; v[S::P::LoopEnd] = 60;
+   S::Engine e2; e2.setValues(v); e2.prepare(sr); e2.setSample(&sine);
+   e2.noteOn(69, 1.f);
+   for (int b = 0; b < 20; ++b) e2.render(l.data(), r.data(), 256);
+   std::printf("granular, POSITION 95%% after END 90%% (loop %s): cloud at %.3f\n", loopMode > 0.f ? "forward" : "off", e2.playheadPosition());
+   verify(std::abs(e2.playheadPosition() - .90f) < .002f, "a POSITION after END must start the cloud at END");
+  }
  }
  for (bool reversed : {false, true}) {
   // 440 Hz inside the region (30..60%), 1760 Hz outside; big grains near the region's end

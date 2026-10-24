@@ -1,4 +1,5 @@
 #include "SamplerEditor.h"
+#include <cstring>
 #include <cmath>
 
 using namespace inverso_abismo::sampler;
@@ -85,6 +86,7 @@ void SampleView::refresh(){
 }
 
 void SampleView::paint(juce::Graphics& g){
+ flags.clear();
  const auto area=getLocalBounds().toFloat().reduced(12.f,8.f);
  const auto wave=area.withTrimmedTop(16.f);
  g.setFont(soft::monoFont(10.f));
@@ -124,14 +126,13 @@ void SampleView::paint(juce::Graphics& g){
   g.fillRect(xa,wave.getY(),std::max(1.f,xb-xa),wave.getHeight());
  }
  // each flag goes on the first row where it does not cover another, kept inside the wave
- flags.clear();
  auto marker=[&](const char* id,float x,juce::Colour col,const juce::String& label,bool flagRight){
   g.setColour(col);
   g.fillRect(x-1.f,wave.getY(),2.f,wave.getHeight());
   g.setFont(soft::uiFont(9.f,true));
   const float fw=juce::GlyphArrangement::getStringWidth(g.getCurrentFont(),label)+8.f;
   float left=flagRight?x:x-fw;
-  left=juce::jlimit(wave.getX(),wave.getRight()-fw,left);
+  left=fw>=wave.getWidth()?wave.getX():juce::jlimit(wave.getX(),wave.getRight()-fw,left);
   juce::Rectangle<float> flag;
   for(int row=0;row<4;++row){
    flag={left,wave.getY()+static_cast<float>(row)*13.f,fw,12.f};
@@ -153,7 +154,9 @@ void SampleView::paint(juce::Graphics& g){
   marker(loopSwapped?"LOOP_START":"LOOP_END",xb,c::amber,"LOOP OUT",false);
  }
  if(granular){
-  const float pos=wave.getX()+param("POSITION")*.01f*w,spray=param("SPRAY")*.01f;
+  // drawn where the cloud starts: a POSITION outside START..END starts at the nearest edge
+  const float a=std::min(param("START"),param("END")),b=std::max(param("START"),param("END"));
+  const float pos=wave.getX()+juce::jlimit(a,b,param("POSITION"))*.01f*w,spray=param("SPRAY")*.01f;
   const auto sample=processor.getDisplaySample();
   if(sample && sample->length()>0){
    const float sprayPx=static_cast<float>(spray*.5*sample->sampleRate/sample->length())*w;
@@ -190,7 +193,8 @@ const char* SampleView::markerAt(juce::Point<float> p) const {
  ids.push_back("START"); ids.push_back("END");
  if(juce::roundToInt(param("LOOP_MODE"))>0){ ids.push_back("LOOP_START"); ids.push_back("LOOP_END"); }
  const char* best=ids[0];
- for(auto* id:ids) if(std::abs(param(id)-at)<std::abs(param(best)-at)) best=id;
+ float bestDistance=std::abs(param(best)-at);
+ for(auto* id:ids){ const float d=std::abs(param(id)-at); if(d<bestDistance){ best=id; bestDistance=d; } }
  return best;
 }
 void SampleView::setFromX(float x){
@@ -199,10 +203,12 @@ void SampleView::setFromX(float x){
  const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
  float value=juce::jlimit(0.f,100.f,(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f);
  // START stays before END
- if(juce::String(dragging)=="START") value=std::min(value,param("END")-.2f);
- if(juce::String(dragging)=="END") value=std::max(value,param("START")+.2f);
- if(juce::String(dragging)=="LOOP_START") value=std::min(value,param("LOOP_END")-.2f);
- if(juce::String(dragging)=="LOOP_END") value=std::max(value,param("LOOP_START")+.2f);
+ if(std::strcmp(dragging,"START")==0) value=std::min(value,param("END")-.2f);
+ if(std::strcmp(dragging,"END")==0) value=std::max(value,param("START")+.2f);
+ if(std::strcmp(dragging,"LOOP_START")==0 || std::strcmp(dragging,"LOOP_END")==0){
+  const float other=param(std::strcmp(dragging,"LOOP_START")==0?"LOOP_END":"LOOP_START");
+  value=draggingLoopIn?std::min(value,other-.2f):std::max(value,other+.2f); // LOOP IN stays before LOOP OUT
+ }
  p->setValueNotifyingHost(p->convertTo0to1(value));
  repaint();
 }
@@ -210,16 +216,9 @@ void SampleView::mouseDown(const juce::MouseEvent& e){
  // loop points saved the other way round (LOOP START after LOOP END) are put in order first,
  // so LOOP IN is LOOP START and dragging it keeps it before LOOP OUT
  dragging=markerAt(e.position); // from the flags as last drawn
- if(param("LOOP_START")>param("LOOP_END")){
-  auto* a=processor.apvts.getParameter("LOOP_START");auto* b=processor.apvts.getParameter("LOOP_END");
-  const float va=a->getValue(),vb=b->getValue();
-  a->beginChangeGesture();b->beginChangeGesture();
-  a->setValueNotifyingHost(vb);b->setValueNotifyingHost(va);
-  a->endChangeGesture();b->endChangeGesture();
-  // the marker under the mouse keeps its place: its value now lives in the other parameter
-  if(juce::String(dragging)=="LOOP_START") dragging="LOOP_END";
-  else if(juce::String(dragging)=="LOOP_END") dragging="LOOP_START";
- }
+ // a loop point drags as LOOP IN or LOOP OUT, whichever it is now (saved loops can be reversed)
+ const bool loopPoint=std::strcmp(dragging,"LOOP_START")==0 || std::strcmp(dragging,"LOOP_END")==0;
+ draggingLoopIn=loopPoint && param(dragging)<=param(std::strcmp(dragging,"LOOP_START")==0?"LOOP_END":"LOOP_START");
  processor.apvts.getParameter(dragging)->beginChangeGesture();
  setFromX(e.position.x);
 }

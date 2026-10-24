@@ -21,6 +21,7 @@ private:
  void setFromX(float x);
  const char* markerAt(juce::Point<float> p) const;
  const char* dragging=nullptr;
+ bool draggingLoopIn=false;
  float param(const char* id) const;
  InversoAbismoSamplerProcessor& processor;
  std::vector<std::pair<float,float>> peaks;

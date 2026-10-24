@@ -83,8 +83,9 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // Pick up pads' new recordings without freeing memory on this thread:
  // the replaced ones are parked in `retired` and released by the message thread.
  // While the old kit fades out (kitChanged), its recordings keep playing: they swap with the new kit.
- if (!kitChanged.load() && swapLock.tryEnter()) {
-  for (int pad=0;pad<numPads;++pad) {
+ // Checked under the lock: selectKit raises kitChanged before it queues anything under it.
+ if (swapLock.tryEnter()) {
+  if (!kitChanged.load()) for (int pad=0;pad<numPads;++pad) {
    auto& slot=slots[static_cast<std::size_t>(pad)];
    if (slot.hasPending && !slot.retired) {
     slot.retired=std::move(slot.current);
