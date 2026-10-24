@@ -1,4 +1,6 @@
 #pragma once
+#include <cmath>
+#include <algorithm>
 // ABISMO DRUMS engine. Portable C++17, no JUCE, no allocation after prepare().
 // Every hit is synthesised: a strike / click-train exciter drives a modal body
 // (up to 8 modes), an optional pitch-dropping membrane, a noise layer and a
@@ -104,6 +106,58 @@ struct SampleLibrary {
    out.objects.push_back(std::move(set));
   }
   return true;
+ }
+
+ // Perceived loudness of a hit: K-weighted (a high pass under the low bass, a
+ // lift above 1.5 kHz, as in ITU-R BS.1770) and the loudest 100 ms of it.
+ static double loudness(const std::vector<float>& x, double sr) {
+  struct Biquad { double b0, b1, b2, a1, a2, z1 = 0, z2 = 0;
+   double run(double v) { const double y = b0 * v + z1; z1 = b1 * v - a1 * y + z2; z2 = b2 * v - a2 * y; return y; } };
+  const double pi = 3.14159265358979323846;
+  auto shelf = [&] { // RBJ high shelf, +4 dB at 1681 Hz
+   const double A = std::pow(10.0, 4.0 / 40.0), w = 2 * pi * 1681.0 / sr, cs = std::cos(w), al = std::sin(w) / 2 * std::sqrt(2.0);
+   const double a0 = (A + 1) - (A - 1) * cs + 2 * std::sqrt(A) * al;
+   return Biquad{A * ((A + 1) + (A - 1) * cs + 2 * std::sqrt(A) * al) / a0, -2 * A * ((A - 1) + (A + 1) * cs) / a0,
+                 A * ((A + 1) + (A - 1) * cs - 2 * std::sqrt(A) * al) / a0, 2 * ((A - 1) - (A + 1) * cs) / a0,
+                 ((A + 1) - (A - 1) * cs - 2 * std::sqrt(A) * al) / a0};
+  };
+  auto highPass = [&] { // RBJ high pass at 38 Hz
+   const double w = 2 * pi * 38.0 / sr, cs = std::cos(w), al = std::sin(w) / (2 * .5), a0 = 1 + al;
+   return Biquad{(1 + cs) / 2 / a0, -(1 + cs) / a0, (1 + cs) / 2 / a0, -2 * cs / a0, (1 - al) / a0};
+  };
+  Biquad k1 = shelf(), k2 = highPass();
+  const auto win = std::max<std::size_t>(1, static_cast<std::size_t>(.1 * sr));
+  std::vector<double> sq(x.size());
+  for (std::size_t i = 0; i < x.size(); ++i) { const double y = k2.run(k1.run(x[i])); sq[i] = y * y; }
+  double sum = 0, best = 0;
+  for (std::size_t i = 0; i < sq.size(); ++i) {
+   sum += sq[i];
+   if (i >= win) sum -= sq[i - win];
+   best = std::max(best, sum / static_cast<double>(std::min(win, i + 1)));
+  }
+  return best;
+ }
+
+ // Brings every object to the same perceived loudness (the median of the set),
+ // the same gain on all its velocity layers so their relation stays; a hit
+ // never goes past -0.5 dBFS.
+ void equaliseLoudness() {
+  std::vector<double> level(objects.size());
+  for (std::size_t i = 0; i < objects.size(); ++i)
+   level[i] = objects[i].layers.empty() ? 0.0 : loudness(objects[i].layers.back(), objects[i].sampleRate);
+  std::vector<double> sorted;
+  for (double l : level) if (l > 0) sorted.push_back(l);
+  if (sorted.empty()) return;
+  std::sort(sorted.begin(), sorted.end());
+  const double target = sorted[sorted.size() / 2];
+  for (std::size_t i = 0; i < objects.size(); ++i) {
+   if (level[i] <= 0) continue;
+   float peak = 0.f;
+   for (const auto& layer : objects[i].layers) for (float v : layer) peak = std::max(peak, std::abs(v));
+   double gain = std::clamp(std::sqrt(target / level[i]), .125, 8.0);
+   if (peak > 0.f) gain = std::min(gain, .944 / peak);
+   for (auto& layer : objects[i].layers) for (auto& v : layer) v = static_cast<float>(v * gain);
+  }
  }
 };
 

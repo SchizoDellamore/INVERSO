@@ -35,6 +35,7 @@ const SampleLibrary& InversoAbismoDrumsProcessor::library() {
       || !SampleLibrary::parse(static_cast<const unsigned char*>(bytes.getData()),bytes.getSize(),l)
       || static_cast<int>(l.objects.size())!=numSampleObjects)
    l.objects.clear();
+  l.equaliseLoudness(); // every recording at the same perceived level
   return l;
  }();
  return lib;

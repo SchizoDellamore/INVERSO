@@ -1,3 +1,4 @@
+#include <algorithm>
 // ABISMO DRUMS engine: every object sounds and dies away, hits vary, stumble
 // delays hits, the musical saw is in tune and glides, kits stay below 0 dBFS,
 // randomised stress. With a directory argument it writes demo WAVs there.
@@ -17,6 +18,24 @@ static void loadLibrary() {
  std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
  verify(D::SampleLibrary::parse(bytes.data(), bytes.size(), library), "library does not parse");
  verify(library.objects.size() == D::numSampleObjects, "library object count");
+ {
+  auto spread = [&] {
+   double lo = 1e9, hi = -1e9;
+   for (const auto& o : library.objects) { const double l = 10 * std::log10(D::SampleLibrary::loudness(o.layers.back(), o.sampleRate)); lo = std::min(lo, l); hi = std::max(hi, l); }
+   return std::pair<double, double>{lo, hi};
+  };
+  const auto before = spread();
+  library.equaliseLoudness();
+  const auto after = spread();
+  int off = 0;
+  std::vector<double> lv;
+  for (const auto& o : library.objects) lv.push_back(10 * std::log10(D::SampleLibrary::loudness(o.layers.back(), o.sampleRate)));
+  std::vector<double> sorted = lv; std::sort(sorted.begin(), sorted.end());
+  const double median = sorted[sorted.size() / 2];
+  for (std::size_t i = 0; i < lv.size(); ++i) if (std::abs(lv[i] - median) > .5) { ++off; std::printf("  %s stays %.1f dB from the others (its peak sets the limit)\n", library.objects[i].name.c_str(), lv[i] - median); }
+  std::printf("recordings: loudness spread %.1f dB before, %.1f dB after (%d held back by their peaks)\n", before.second - before.first, after.second - after.first, off);
+  verify(off <= 4, "the recordings are not at an even level");
+ }
  for (int i = 0; i < D::numSampleObjects; ++i) {
   const auto& o = library.objects[static_cast<std::size_t>(i)];
   verify(o.name == D::libraryObjectName(i), "library object names must match the parameter list");
