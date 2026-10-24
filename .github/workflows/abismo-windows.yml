@@ -175,11 +175,13 @@ jobs:
           Compress-Archive -Path (Join-Path $env:GITHUB_WORKSPACE 'IRs\INVERSO CABS') -DestinationPath $cabsZip -Force
           $notes = Join-Path $env:RUNNER_TEMP 'notes.md'
           @'
-          INVERSO ABISMO 0.17.0: ABISMO (sintetizador), ABISMO SAMPLER, ABISMO DRUMS, RELICÁRIO, ENKI, CLEAR e TIDE, VST3 para Windows x64, e as IRs do INVERSO CABS.
+          INVERSO ABISMO 0.17.0: ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICÁRIO, ENKI e NEON (instrumentos) e CLEAR, TIDE e HALO (efeitos), VST3 para Windows x64, e as IRs do INVERSO CABS.
 
           Novo na 0.17.0:
-          - RESAMPLE, num módulo próprio do RELICÁRIO, ENKI e SAMPLER, no lugar do bit crush: escolhe-se uma taxa (20000 a 500 Hz) e o som soa como renderizado nessa taxa e trazido de volta (agudos somem de forma íngreme, corpo e volume ficam), com SATURATION para peso.
-          - Cada plugin desta versão passou pelo pluginval (validação de VST3 da Tracktion, rigor máximo) no próprio build do Windows; um release só é publicado se todos passarem.
+          - NEON: sintetizador leve de synthwave. Dois osciladores analógicos, sub, ruído e camada FM; filtro ladder 24 dB ou 12 dB; unison até 8; arpejador no tempo do DAW; chorus estilo Juno, delay e reverb leve. 40 presets prontos em categorias (Bass, Polysynth, Lead, Pad, Keys, Pluck, Arp, FX).
+          - HALO: reverbs dos anos 80, num plugin à parte: Gated (com threshold, hold e release), Plate, Hall e Room; pré-delay e filtros na entrada. 14 presets.
+          - RESAMPLE, num módulo próprio do RELICÁRIO, ENKI e SAMPLER, no lugar do bit crush: escolhe-se uma taxa (20000 a 500 Hz) e o som soa como renderizado nessa taxa e trazido de volta, com SATURATION para peso.
+          - Cada plugin desta versão passou pelo pluginval (validação de VST3 da Tracktion, rigor máximo) no próprio build; um release só é publicado se todos passarem.
 
           Da 0.16.0: RELICÁRIO com o ADSR de cada máquina e seus ajustes protegidos; ENKI com as gravações funcionando; SAMPLER com região START/END na onda; DRUMS com volumes iguais; FURNACE removido.
 
