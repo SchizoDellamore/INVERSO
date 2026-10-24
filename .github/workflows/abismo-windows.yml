@@ -185,8 +185,8 @@ jobs:
 
           Da 0.16.0: RELICÁRIO com o ADSR de cada máquina e seus ajustes protegidos; ENKI com as gravações funcionando; SAMPLER com região START/END na onda; DRUMS com volumes iguais; FURNACE removido.
 
-          - **INVERSO_ABISMO_Setup_0.17.0_x64.exe**: instala os sete plugins e as IRs (Documentos\INVERSO\INVERSO CABS, pastas Guitar e Bass). Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
-          - **INVERSO_ABISMO_PORTABLE_VST3_0.17.0.zip**: os sete plugins sem instalador (copie as pastas .vst3 para C:\Program Files\Common Files\VST3) e a pasta INVERSO CABS.
+          - **INVERSO_ABISMO_Setup_0.17.0_x64.exe**: instala os nove plugins e as IRs (Documentos\INVERSO\INVERSO CABS, pastas Guitar e Bass). Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
+          - **INVERSO_ABISMO_PORTABLE_VST3_0.17.0.zip**: os nove plugins sem instalador (copie as pastas .vst3 para C:\Program Files\Common Files\VST3) e a pasta INVERSO CABS.
           - **INVERSO_CABS_IRs.zip**: só as IRs, pastas Guitar e Bass.
           - **Gravações do DRUMS em WAV** (CC0, para qualquer sampler): https://github.com/SchizoDellamore/INVERSO/releases/download/abismo-v0.7.0/ABISMO_DRUMS_WAV_0.7.0.zip
           '@ | Set-Content -LiteralPath $notes -Encoding utf8
