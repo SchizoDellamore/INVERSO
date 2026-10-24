@@ -89,7 +89,7 @@ private:
  };
  enum class KitStage { Playing, Faded }; // see processBlock
  KitStage kitStage=KitStage::Playing; // audio thread only
- struct Held { // what a kit change keeps for the new kit (see holdNotes); audio thread
+ struct Held { // what a kit change keeps for the new kit (see hold); audio thread
   std::array<float,inverso_abismo::drums::numPads> padHit{};                 // one hit per pad, at its highest velocity
   std::array<std::uint8_t,128> saw{}; int sawCount=0; // saw notes down, in the order pressed
   std::array<bool,128> sawLetGo{};                    // released while the pedal was down: still sounding
@@ -100,8 +100,11 @@ private:
   bool holds(int note) const { for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note) return true; return false; }
   void dropSaw(int note){ for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note){ for(int k=i+1;k<sawCount;++k) saw[static_cast<std::size_t>(k-1)]=saw[static_cast<std::size_t>(k)]; --sawCount; return; } }
  } held;
- std::atomic<bool> dropHeld{false}, dropNotes{false}; // a stop / a re-prepare, done by the audio thread
- void hold(const juce::MidiMessage& m); // one message during a kit change
+ static constexpr int dropNotes=1, dropAll=2; // what the audio thread drops: held notes / also pedal and wheel
+ std::atomic<int> drop{0};
+ void raiseDrop(int level){ int now=drop.load(); while(now<level && !drop.compare_exchange_weak(now,level)){} }
+ bool transportWasPlaying=false; // audio thread
+ void hold(const juce::MidiMessageMetadata& metadata); // one message during a kit change
  bool playEngineState(const juce::MidiMessage& m);
  void applyKit(int index);
  int currentProgram=0;

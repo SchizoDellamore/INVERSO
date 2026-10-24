@@ -69,15 +69,16 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
- dropNotes=true; // nor a re-prepare: they would play late (the pedal and wheel stay as played)
+ raiseDrop(dropNotes); // a re-prepare: notes held at a kit change would play late; the pedal and
+                            // wheel stay as played (a held pedal sends nothing new)
  prepared=true;
  outputPeak.store(0.f);
 }
 
 void InversoAbismoDrumsProcessor::releaseResources() {
  prepared=false;
- dropHeld=true; // a stop: notes held at a kit change go, the pedal goes up and the wheel back to the centre
-                // (hosts often send no pedal-up when they stop); done by the audio thread
+ raiseDrop(dropAll); // the host releases the plugin: held notes go, the pedal goes up, the wheel to the
+                          // centre (hosts often send no pedal-up when they stop); done by the audio thread
 }
 
 void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
@@ -95,8 +96,10 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // when the new kit starts. kitBusy and kitGeneration are read under the lock (kitBusy is raised
  // before anything is queued, and the generation bumped before it is lowered), or without it when
  // the lock is busy (a pad loading): enough to fade or to keep the values; the swaps then wait.
- if (dropHeld.exchange(false)) { held.clear(); engine.setSustain(false); engine.setPitchBend(0.f); }
- if (dropNotes.exchange(false)) held.clear();
+ if (const int level=drop.exchange(0); level>0) {
+  held.clear();
+  if (level==dropAll) { engine.setSustain(false); engine.setPitchBend(0.f); }
+ }
  const bool locked=swapLock.tryEnter();
  const bool kitBeingWritten=kitBusy.load()>0;
  const std::uint32_t generation=kitGeneration.load();
@@ -122,7 +125,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  bool fadeThisBlock=false, playHeld=false;
  if (kitStage==KitStage::Faded) {
   if (!swapped) { // the new kit is not ready (being written, or the lock was busy): stay silent
-   for (const auto metadata : midi) if (metadata.numBytes>=1 && metadata.numBytes<=3) hold(metadata.getMessage());
+   for (const auto metadata : midi) hold(metadata);
    midi.clear();
    audio.clear();
    outputPeak.store(outputPeak.load(std::memory_order_relaxed)*.9f,std::memory_order_relaxed);
@@ -137,14 +140,21 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   fadeThisBlock=true; // its messages are held for the new kit as they come (play), on time
  } else if (!kitBeingWritten) engine.setValues(v); // while a kit is written, the old one keeps its values
  if (auto* head=getPlayHead())
-  if (const auto position=head->getPosition())
-   engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
+  if (const auto position=head->getPosition()) {
+   const bool playing=position->getIsPlaying();
+   // the transport stopping puts the pedal up and the wheel to the centre: hosts often stop
+   // without sending a pedal-up, and a stuck pedal would hold every saw note after it
+   if (transportWasPlaying && !playing) { engine.setSustain(false); engine.setPitchBend(0.f); }
+   transportWasPlaying=playing;
+   engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),playing);
+  }
  if (const auto pads=fadeThisBlock?0u:auditions.exchange(0))
   for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) engine.noteOn(firstPadNote+pad,.8f);
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
- auto play=[&](const juce::MidiMessage& m){
-  if (fadeThisBlock) { hold(m); return; } // the old kit fades: pedal and wheel reach it, notes wait
+ auto play=[&](const juce::MidiMessageMetadata& metadata){
+  if (fadeThisBlock) { hold(metadata); return; } // the old kit fades: pedal and wheel reach it, notes wait
+  const auto m=metadata.getMessage();
   midiLearn.handle(m);
   if (playEngineState(m)) return;
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
@@ -166,7 +176,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  for (const auto metadata : midi) {
   const int at=std::clamp(metadata.samplePosition,0,samples);
   if (at>position) { engine.render(left+position,right+position,at-position); position=at; }
-  play(metadata.getMessage());
+  play(metadata);
  }
  if (position<samples) engine.render(left+position,right+position,samples-position);
  for (int c=2;c<audio.getNumChannels();++c) audio.clear(c,0,samples);
@@ -198,11 +208,13 @@ bool InversoAbismoDrumsProcessor::playEngineState(const juce::MidiMessage& m) {
 // order pressed, so the saw ends on the last one; a saw note let go with the pedal down keeps
 // sounding until the pedal is up. A saw note played and released (pedal up) during the change is
 // gone. All-notes-off lets go of the saw notes (hits ring out, as when playing); all-sound-off
-// drops the hits and notes held. Fixed storage, no allocation. Learned controllers are not
-// applied, so the new kit comes up as designed, but a knob armed for MIDI learn still learns.
-// Aftertouch, clock and SysEx are not used by this instrument.
-void InversoAbismoDrumsProcessor::hold(const juce::MidiMessage& m) {
- if (m.isController()) midiLearn.learnOnly(m);
+// drops the hits and notes held. Fixed storage, no allocation. Controllers learned by MIDI learn
+// apply as always (the player's latest gesture wins over the kit's value). Aftertouch, clock and
+// SysEx are not used by this instrument.
+void InversoAbismoDrumsProcessor::hold(const juce::MidiMessageMetadata& metadata) {
+ if (metadata.numBytes<1 || metadata.numBytes>3) return; // SysEx: not used here (and no allocation)
+ const auto m=metadata.getMessage(); // three bytes at most: stored inline
+ midiLearn.handle(m);
  if (playEngineState(m)) { if (m.isSustainPedalOff()) held.pedalUp(); return; }
  if (m.isNoteOn()) {
   const int note=m.getNoteNumber();

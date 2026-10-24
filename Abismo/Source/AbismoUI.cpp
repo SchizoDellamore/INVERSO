@@ -43,7 +43,6 @@ int MidiLearn::learn(const juce::MidiMessage& m){
  }
  return cc;
 }
-void MidiLearn::learnOnly(const juce::MidiMessage& m){ learn(m); }
 void MidiLearn::handle(const juce::MidiMessage& m){
  const int cc=learn(m);
  if(cc>=0 && map[static_cast<std::size_t>(cc)].load(std::memory_order_relaxed)>=0) pending[static_cast<std::size_t>(cc)].store(m.getControllerValue(),std::memory_order_relaxed);

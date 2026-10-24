@@ -249,6 +249,23 @@ int main(){
   float kept=0.f; for(int i=0;i<200;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>150) kept=std::max(kept,b.getMagnitude(0,256)); }
   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,0),0); p.processBlock(b,m); }
   verify(kept>controlHeld*.5f,"a re-prepare let go of a held pedal");
+  // the transport stopping with the pedal down and no pedal-up sent: the pedal goes up
+  {
+   struct Head final : juce::AudioPlayHead {
+    bool playing=true;
+    juce::Optional<PositionInfo> getPosition() const override { PositionInfo i; i.setIsPlaying(playing); i.setBpm(120.0); i.setPpqPosition(0.0); return i; }
+   } head;
+   p.setPlayHead(&head);
+   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0); p.processBlock(b,m); }
+   head.playing=false;
+   { b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),0); p.processBlock(b,m); }
+   for(int i=0;i<60;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+   { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,69),0); p.processBlock(b,m); }
+   float afterTransport=0.f; for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) afterTransport=std::max(afterTransport,b.getMagnitude(0,256)); }
+   p.setPlayHead(nullptr);
+   verify(afterTransport<controlAfter*2.f+1e-4f,"the pedal stayed down after the transport stopped");
+  }
   // several hits on one pad during a kit change: one hit, not a stacked burst
   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
   auto padPeak=[&](int hits){
@@ -262,9 +279,10 @@ int main(){
   // the pad alternates recordings (round robin), so compare with the loudest of several single hits
   float one=0.f,eight=0.f;
   for(int r=0;r<6;++r) one=std::max(one,padPeak(1));
-  for(int r=0;r<3;++r) eight=std::max(eight,padPeak(8));
+  for(int r=0;r<6;++r) eight=std::max(eight,padPeak(8));
   std::printf("pad hit at a kit change: loudest single hit %.3f, loudest of eight at once %.3f\n",one,eight);
-  verify(eight<one*1.3f && eight>.01f,"repeated hits on a pad at a kit change stacked into a burst");
+  verify(eight<one*1.3f,"repeated hits on a pad at a kit change stacked into a burst");
+  verify(eight>one*.6f,"hits on a pad at a kit change came out quieter than the loudest one played");
   // all-notes-off at a kit change (hosts send it at a loop's end) keeps the pad hits, as in play
   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
   p.selectKit(2);

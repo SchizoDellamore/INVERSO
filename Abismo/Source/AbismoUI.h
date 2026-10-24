@@ -26,8 +26,6 @@ public:
  ~MidiLearn() override;
  // Audio thread: every MIDI message goes through here (controllers are used, the rest ignored).
  void handle(const juce::MidiMessage&);
- // Audio thread: only completes an armed learn; mapped controllers are not applied.
- void learnOnly(const juce::MidiMessage&);
  // Message thread.
  void arm(int parameterIndex);
  void disarm() { armed.store(-1); }
