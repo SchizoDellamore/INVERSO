@@ -28,7 +28,7 @@ constexpr int maxGrains = 24;
 struct Controls {
  int mode = 0, loopMode = 0, filterMode = 0;
  bool reverse = false;
- float rootNote = 60.f, tune = 0.f, start = 0.f, loopStart = .2f, loopEnd = .9f, xfade = .2f;
+ float rootNote = 60.f, tune = 0.f, start = 0.f, end = 1.f, loopStart = .2f, loopEnd = .9f, xfade = .2f;
  float position = .3f, scan = 0.f, grainMs = 120.f, density = 30.f, spray = .1f, grainPitchSt = 0.f;
  float grainReverse = 0.f, grainSpread = .5f;
  float cutoff = 20000.f, k = 2.f, filterEnv = 0.f, keytrack = 0.f, drive = 0.f;
@@ -190,10 +190,11 @@ private:
    if (playhead >= loopEnd && playhead > loopStart) { playhead = loopEnd - (playhead - loopEnd); direction = -1.0; }
    else if (playhead <= loopStart && direction < 0.0) { playhead = loopStart + (loopStart - playhead); direction = 1.0; }
   } else {
-   // One-shot: short fade at the end of the sample, then free the voice.
-   const double remaining = (len - 1.0 - playhead) / std::max(1e-6, rate);
+   // One-shot: short fade at END (the region's end), then free the voice.
+   const double stop = std::clamp(static_cast<double>(std::max(c.end, c.start + .001f)) * len, 1.0, len - 1.0);
+   const double remaining = (stop - playhead) / std::max(1e-6, rate);
    if (remaining < static_cast<double>(fadeSamples)) endFade = std::max(0.f, static_cast<float>(remaining) / fadeSamples);
-   if (playhead >= len - 1.0) { ended = true; amp.reset(); fenv.reset(); }
+   if (playhead >= stop) { ended = true; amp.reset(); fenv.reset(); }
   }
   l *= endFade;
   r *= endFade;
@@ -380,6 +381,7 @@ private:
   c.rootNote = s[P::RootNote];
   c.tune = s[P::Tune];
   c.start = pct(P::Start);
+  c.end = pct(P::End);
   c.reverse = s[P::Reverse] >= .5f;
   c.loopMode = choice(P::LoopMode);
   c.loopStart = pct(P::LoopStart);

@@ -20,6 +20,7 @@ enum : int {
  StutterSync, StutterMs,
  // A knob (MIDI CC) that acts as aftertouch, for keyboards without it; 0 = off.
  PressureCC,
+ End,
  Count
 };
 }
@@ -86,6 +87,7 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"STUTTER_SYNC","Stutter timing",0,1,0,0,1,Kind::Choice,"BPM|Free",""},
   {"STUTTER_MS","Stutter time",10,2000,125,250,.1f,Kind::Float,nullptr,"ms"},
   {"PRESSURE_CC","Aftertouch from knob (CC)",0,127,0,0,1,Kind::Int,nullptr,"cc"},
+  {"END","End",0,100,100,0,.01f,Kind::Float,nullptr,"%"}, // where a one-shot stops (START..END is the region)
  }};
  return table;
 }

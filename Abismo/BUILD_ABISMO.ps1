@@ -12,9 +12,9 @@ if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not foun
 $generatorArgs=if($Generator){@('-G',$Generator)}else{@()}
 & cmake -S $root -B (Join-Path $root 'build') @generatorArgs -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF "-DINVERSO_LTO=$(if($NoLto){'OFF'}else{'ON'})"
 Assert-Status 'CMake configure'
-$targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3','InversoEnki_VST3','InversoFurnace_VST3','InversoClear_VST3','InversoTide_VST3',
+$targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3','InversoEnki_VST3','InversoClear_VST3','InversoTide_VST3',
  'abismo_engine','abismo_presets','abismo_stress','abismo_sampler','abismo_drums','relicario_engine','enki_engine','furnace_engine','clear_engine','tide_engine')
-if($HostSmoke){$targets+=@('InversoAbismoHostSmoke','InversoAbismoSamplerHostSmoke','InversoAbismoDrumsHostSmoke','InversoRelicarioHostSmoke','InversoEnkiHostSmoke','InversoFurnaceHostSmoke','InversoClearHostSmoke','InversoTideHostSmoke')}
+if($HostSmoke){$targets+=@('InversoAbismoHostSmoke','InversoAbismoSamplerHostSmoke','InversoAbismoDrumsHostSmoke','InversoRelicarioHostSmoke','InversoEnkiHostSmoke','InversoClearHostSmoke','InversoTideHostSmoke')}
 & cmake --build (Join-Path $root 'build') --config Release --target $targets --parallel 4
 Assert-Status 'Build VST3'
 if($HostSmoke){& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure} else {& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure -E host_smoke}
@@ -31,8 +31,6 @@ if(-not (Get-ChildItem -LiteralPath $relicarioBundle -Recurse -File -ErrorAction
 $enkiBundle=Join-Path $root 'build\InversoEnki_artefacts\Release\VST3\INVERSO ENKI.vst3'
 if(-not (Get-ChildItem -LiteralPath $enkiBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing ENKI VST3 executable'}
 if(-not (Test-Path -LiteralPath (Join-Path $enkiBundle 'Contents\Resources\drums.bin'))){throw 'ENKI recordings missing from the bundle'}
-$furnaceBundle=Join-Path $root 'build\InversoFurnace_artefacts\Release\VST3\INVERSO FURNACE.vst3'
-if(-not (Get-ChildItem -LiteralPath $furnaceBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing FURNACE VST3 executable'}
 $clearBundle=Join-Path $root 'build\InversoClear_artefacts\Release\VST3\INVERSO CLEAR.vst3'
 if(-not (Get-ChildItem -LiteralPath $clearBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing CLEAR VST3 executable'}
 $tideBundle=Join-Path $root 'build\InversoTide_artefacts\Release\VST3\INVERSO TIDE.vst3'

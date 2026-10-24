@@ -4,8 +4,8 @@
 #include "SamplerProcessor.h"
 
 // Waveform with start / loop / grain-position markers and the live playhead,
-// drawn over the SAMPLE module's screen. Clicking sets START (classic) or
-// POSITION (granular) at that point.
+// drawn over the SAMPLE module's screen. Dragging moves the nearest marker:
+// START / END of the region (and the loop points when looping), or POSITION (granular).
 class SampleView final : public juce::Component {
 public:
  explicit SampleView(InversoAbismoSamplerProcessor&);
@@ -15,9 +15,12 @@ public:
  void paint(juce::Graphics&) override;
  void mouseDown(const juce::MouseEvent&) override;
  void mouseDrag(const juce::MouseEvent&) override;
+ void mouseUp(const juce::MouseEvent&) override;
  void resized() override {refresh();}
 private:
  void setFromX(float x);
+ const char* markerNear(float x) const;
+ const char* dragging=nullptr;
  float param(const char* id) const;
  InversoAbismoSamplerProcessor& processor;
  std::vector<std::pair<float,float>> peaks;

@@ -19,7 +19,7 @@ const char* const* shortNames(){
   "RATE","PITCH","FILTER","VOLUME","POSITION",
   "TENSION","BITS","RATE","DIVISION","DEPTH","CHAOS",
   "MIX","SIZE","DECAY","DARKNESS","FREEZE","WIDTH","OUTPUT",
-  "TIMING","TIME","AT KNOB"};
+  "TIMING","TIME","AT KNOB","END"};
  return names;
 }
 
@@ -124,28 +124,64 @@ void SampleView::paint(juce::Graphics& g){
   g.setColour(c::cyan);
   g.fillRect(pos-1.f,wave.getY(),2.f,wave.getHeight());
  } else {
-  g.setColour(c::cyan);
-  g.fillRect(wave.getX()+param("START")*.01f*w-1.f,wave.getY(),2.f,wave.getHeight());
+  // the region: outside START..END is shaded; each marker has a flag to grab
+  const float xs=wave.getX()+param("START")*.01f*w,xe=wave.getX()+param("END")*.01f*w;
+  g.setColour(c::screenBottom.withAlpha(.7f));
+  g.fillRect(wave.getX(),wave.getY(),std::max(0.f,xs-wave.getX()),wave.getHeight());
+  g.fillRect(xe,wave.getY(),std::max(0.f,wave.getRight()-xe),wave.getHeight());
+  auto marker=[&](float x,juce::Colour col,const char* label,bool flagRight){
+   g.setColour(col);
+   g.fillRect(x-1.f,wave.getY(),2.f,wave.getHeight());
+   const juce::Rectangle<float> flag(flagRight?x:x-14.f,wave.getY(),14.f,12.f);
+   g.fillRect(flag);
+   g.setColour(c::screenBottom);
+   g.setFont(soft::uiFont(9.f,true));
+   g.drawText(label,flag,juce::Justification::centred);
+  };
+  if(loop>0){
+   marker(wave.getX()+param("LOOP_START")*.01f*w,c::amber,"L",true);
+   marker(wave.getX()+param("LOOP_END")*.01f*w,c::amber,"L",false);
+  }
+  marker(xs,c::cyan,"S",true);
+  marker(xe,c::pink,"E",false);
  }
  const float head=processor.playhead.load();
  if(head>=0.f){ g.setColour(juce::Colours::white); g.fillRect(wave.getX()+head*w,wave.getY(),1.5f,wave.getHeight()); }
 }
 
-void SampleView::setFromX(float x){
- const bool granular=param("MODE")>=.5f;
- auto* p=processor.apvts.getParameter(granular?"POSITION":"START");
+// Which marker a click grabs: the nearest one (START, END, and the loop points when looping);
+// in granular mode, the grain position.
+const char* SampleView::markerNear(float x) const {
+ if(param("MODE")>=.5f) return "POSITION";
  const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
- const float value=juce::jlimit(0.f,100.f,(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f);
+ const float at=(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f;
+ std::vector<const char*> ids{"START","END"};
+ if(juce::roundToInt(param("LOOP_MODE"))>0){ ids.push_back("LOOP_START"); ids.push_back("LOOP_END"); }
+ const char* best=ids[0];
+ for(auto* id:ids) if(std::abs(param(id)-at)<std::abs(param(best)-at)) best=id;
+ return best;
+}
+void SampleView::setFromX(float x){
+ if(dragging==nullptr) return;
+ auto* p=processor.apvts.getParameter(dragging);
+ const auto wave=getLocalBounds().toFloat().reduced(12.f,8.f);
+ float value=juce::jlimit(0.f,100.f,(x-wave.getX())/std::max(1.f,wave.getWidth())*100.f);
+ // START stays before END
+ if(juce::String(dragging)=="START") value=std::min(value,param("END")-.2f);
+ if(juce::String(dragging)=="END") value=std::max(value,param("START")+.2f);
  p->setValueNotifyingHost(p->convertTo0to1(value));
  repaint();
 }
 void SampleView::mouseDown(const juce::MouseEvent& e){
- const bool granular=param("MODE")>=.5f;
- processor.apvts.getParameter(granular?"POSITION":"START")->beginChangeGesture();
+ dragging=markerNear(e.position.x);
+ processor.apvts.getParameter(dragging)->beginChangeGesture();
  setFromX(e.position.x);
- processor.apvts.getParameter(granular?"POSITION":"START")->endChangeGesture();
 }
 void SampleView::mouseDrag(const juce::MouseEvent& e){ setFromX(e.position.x); }
+void SampleView::mouseUp(const juce::MouseEvent&){
+ if(dragging!=nullptr) processor.apvts.getParameter(dragging)->endChangeGesture();
+ dragging=nullptr;
+}
 
 // ---------------------------------------------------------------- editor
 
@@ -172,7 +208,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
   body.addAndMakeVisible(*modules.back());
   return *modules.back();
  };
- auto& sample=add("SAMPLE",c::amber,{{"Play",{P::Tune,P::RootNote,P::Start,P::Reverse}},
+ auto& sample=add("SAMPLE",c::amber,{{"Play",{P::Tune,P::RootNote,P::Start,P::End,P::Reverse}},
                                      {"Loop",{P::LoopStart,P::LoopEnd,P::Xfade}}},176,{P::Mode,P::LoopMode});
  add("GRANULAR",c::cyan,{{"Cloud",{P::Position,P::Scan,P::GrainSize,P::Density,P::Spray},{P::Position}},
                          {"Grains",{P::GrainPitch,P::GrainReverse,P::GrainSpread,P::LfoPosition}}},176,{});
@@ -345,7 +381,7 @@ static bool samplerControlActive(const juce::AudioProcessorValueTreeState& apvts
  const bool granular=juce::roundToInt(v(P::Mode))==1, loop=juce::roundToInt(v(P::LoopMode))>0;
  const bool stutter=juce::roundToInt(v(P::StutterDiv))>0, free=juce::roundToInt(v(P::StutterSync))==1;
  switch(p){
-  case P::Start: case P::LoopMode: return !granular;
+  case P::Start: case P::End: case P::LoopMode: return !granular;
   case P::LoopStart: case P::LoopEnd: case P::Xfade: return !granular && loop;
   case P::Position: case P::Scan: case P::GrainSize: case P::Density: case P::Spray: case P::GrainPitch:
   case P::GrainReverse: case P::GrainSpread: case P::LfoPosition: return granular;

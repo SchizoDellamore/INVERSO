@@ -42,6 +42,17 @@ static void classic() {
  e.noteOn(69, 1.f);
  play(e, sr * 3);
  verify(e.activeVoices() == 0, "one-shot voice must end with the sample");
+ // The region: START 25%, END 50% of a 2 s sample plays half a second, then stops.
+ {
+  auto rv = plain(); rv[S::P::Start] = 25; rv[S::P::End] = 50;
+  S::Engine er; er.setValues(rv); er.prepare(sr); er.setSample(&sine);
+  er.noteOn(69, 1.f);
+  auto out = play(er, sr);
+  const float inside = rms(out.l, static_cast<std::size_t>(sr / 10), static_cast<std::size_t>(sr * 4 / 10));
+  const float after = rms(out.l, static_cast<std::size_t>(sr * 6 / 10), static_cast<std::size_t>(sr));
+  std::printf("region 25-50%%: %.3f inside, %.6f after END\n", inside, after);
+  verify(inside > .1f && after < 1e-4f && er.activeVoices() == 0, "a one-shot does not stop at END");
+ }
  // Forward loop sustains well past the end of the sample.
  auto v = plain(); v[S::P::LoopMode] = 1;
  e.setValues(v); e.noteOn(69, 1.f);
