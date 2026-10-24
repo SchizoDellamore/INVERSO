@@ -397,7 +397,7 @@ static void feedback014() {
  }
  // Bit crush: quiet passages do not turn into hiss.
  {
-  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Crush] = 100; v[Release] = 3000;
+  R::Values v = only(FitaLevel); v[Loop1Wave] = 4; v[Crush] = 100; v[FitaRelease] = 3000;
   R::Engine e; e.setValues(v); e.prepare(sr);
   e.noteOn(57, .9f); render(e, sr / 2); e.noteOff(57);
   auto s = render(e, sr * 2);
@@ -441,6 +441,21 @@ static void feedback014() {
   auto s = render(e, sr * 3);
   const float early = rms(s.l, sr / 20, sr / 10), late = rms(s.l, sr * 5 / 2, sr * 3);
   verify(late > early * 5, "the tape's own attack does nothing");
+  // a machine's release is heard as set, past the old shared envelope
+  {
+   R::Values r = only(FitaLevel); r[FitaRelease] = 4000;
+   R::Engine er; er.setValues(r); er.prepare(sr);
+   er.noteOn(57, 1.f); render(er, sr / 2); er.noteOff(57);
+   auto tail = render(er, sr * 2);
+   const float held = rms(tail.l, sr, sr * 5 / 4);
+   r[Release] = 50; // the master ENVELOPE closes everything
+   R::Engine em; em.setValues(r); em.prepare(sr);
+   em.noteOn(57, 1.f); render(em, sr / 2); em.noteOff(57);
+   auto cut = render(em, sr * 2);
+   std::printf("tape release 4 s: %.4f after 1 s; with the master release at 50 ms: %.6f\n", held, rms(cut.l, sr, sr * 5 / 4));
+   verify(held > 1e-3f, "the tape's own release does nothing");
+   verify(rms(cut.l, sr, sr * 5 / 4) < held * .01f, "the master envelope does not close the machines");
+  }
   v[FitaAttack] = 1; v[FitaOn] = 0;
   R::Engine e2; e2.setValues(v); e2.prepare(sr);
   e2.noteOn(57, 1.f);

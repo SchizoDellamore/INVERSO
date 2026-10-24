@@ -5,6 +5,7 @@
 // Portable parameter table and factory presets (no JUCE).
 #include "AbismoParams.h"
 #include <array>
+#include <cmath>
 #include <cstddef>
 
 namespace inverso_abismo::relicario {
@@ -91,10 +92,13 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"TREM_RATE","Tremolo rate",1,10,6,0,.001f,Kind::Float,nullptr,"Hz"},
   {"SPEAKER_BREAK","Broken speaker",0,100,0,0,.01f,Kind::Float,nullptr,"%"},
   {"HUM","Mains hum",0,100,15,0,.01f,Kind::Float,nullptr,"%"},
-  {"ATTACK","Attack",1,10000,8,400,.1f,Kind::Float,nullptr,"ms"},
+  // The ENVELOPE module: a master over the whole instrument. It starts open
+  // (instant attack, full sustain, the longest release), so each machine's own
+  // envelope is what you hear until you close it.
+  {"ATTACK","Attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
   {"DECAY","Decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
   {"SUSTAIN","Sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  {"RELEASE","Release",5,15000,350,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"RELEASE","Release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
   {"VEL_SENS","Velocity sensitivity",0,100,40,0,.01f,Kind::Float,nullptr,"%"},
   {"OCTAVE","Octave",0,4,2,0,1,Kind::Choice,"-2|-1|0|+1|+2",""},
   {"FINE","Fine tune",-50,50,0,0,.01f,Kind::Float,nullptr,"ct"},
@@ -151,24 +155,23 @@ inline const std::array<ParamSpec, P::Count>& specs() {
   {"AGE","Analog age",0,100,60,0,.01f,Kind::Float,nullptr,"%"},
   {"LOOP1_LEVEL","Loop 1 level",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
   {"LOOP2_LEVEL","Loop 2 level",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  // A machine's own envelope starts open (fast attack, full sustain, long
-  // release), so the KEYS envelope alone decides until you shape it.
-  {"FITA_ATTACK","Tape attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  // Each machine's own envelope: the one you hear.
+  {"FITA_ATTACK","Tape attack",1,10000,8,400,.1f,Kind::Float,nullptr,"ms"},
   {"FITA_DECAY","Tape decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
   {"FITA_SUSTAIN","Tape sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  {"FITA_RELEASE","Tape release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
-  {"HARM_ATTACK","Reed organ attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"FITA_RELEASE","Tape release",5,15000,350,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"HARM_ATTACK","Reed organ attack",1,10000,8,400,.1f,Kind::Float,nullptr,"ms"},
   {"HARM_DECAY","Reed organ decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
   {"HARM_SUSTAIN","Reed organ sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  {"HARM_RELEASE","Reed organ release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
-  {"FORK_ATTACK","Tuning fork attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"HARM_RELEASE","Reed organ release",5,15000,350,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"FORK_ATTACK","Tuning fork attack",1,10000,8,400,.1f,Kind::Float,nullptr,"ms"},
   {"FORK_DECAY","Tuning fork decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
   {"FORK_SUSTAIN","Tuning fork sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  {"FORK_RELEASE","Tuning fork release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
-  {"ORGAN_ATTACK","Soviet organ attack",1,10000,1,400,.1f,Kind::Float,nullptr,"ms"},
+  {"FORK_RELEASE","Tuning fork release",5,15000,350,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"ORGAN_ATTACK","Soviet organ attack",1,10000,8,400,.1f,Kind::Float,nullptr,"ms"},
   {"ORGAN_DECAY","Soviet organ decay",1,10000,600,500,.1f,Kind::Float,nullptr,"ms"},
   {"ORGAN_SUSTAIN","Soviet organ sustain",0,100,100,0,.01f,Kind::Float,nullptr,"%"},
-  {"ORGAN_RELEASE","Soviet organ release",5,15000,15000,1000,.1f,Kind::Float,nullptr,"ms"},
+  {"ORGAN_RELEASE","Soviet organ release",5,15000,350,1000,.1f,Kind::Float,nullptr,"ms"},
   {"FITA_ON","Tape on",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"HARM_ON","Reed organ on",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"FORK_ON","Tuning fork on",0,1,1,0,1,Kind::Bool,nullptr,""},
@@ -285,6 +288,13 @@ inline Values presetValues(std::size_t index) {
   if (pv.param < 0) break;
   v[static_cast<std::size_t>(pv.param)] = pv.value;
  }
+ // The factory presets were written for one envelope: it becomes every
+ // machine's own, and the master ENVELOPE is left open.
+ auto unset = [&](int p) { return std::abs(v[static_cast<std::size_t>(p)] - specs()[static_cast<std::size_t>(p)].def) < 1e-6f; };
+ const float shape[4] = {unset(P::Attack) ? 8.f : v[P::Attack], v[P::Decay], v[P::Sustain], unset(P::Release) ? 350.f : v[P::Release]};
+ for (int m = 0; m < 4; ++m)
+  for (int k = 0; k < 4; ++k) v[static_cast<std::size_t>(P::FitaAttack + 4 * m + k)] = shape[k];
+ for (int k = 0; k < 4; ++k) v[static_cast<std::size_t>(P::Attack + k)] = specs()[static_cast<std::size_t>(P::Attack + k)].def;
  loopLevelsFromBalance(v);
  return v;
 }

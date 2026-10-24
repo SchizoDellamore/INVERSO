@@ -289,7 +289,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
   soft::glowStroke(g,curve(area.withTrimmedTop(14.f).reduced(2.f,4.f),80,[&](float t){ return 2.f*std::pow(1.f-sens+sens*t,1.3f)-1.f; }),c::violet);
  };
  modules[11]->screen.draw=[this](juce::Graphics& g,juce::Rectangle<float> r,int){
-  caption(g,r,"WHOLE INSTRUMENT");
+  caption(g,r,juce::String::fromUTF8("MASTER OVER ALL MACHINES  \xc2\xb7  OPEN = EACH MACHINE'S OWN ADSR"));
   soft::glowStroke(g,adsr(r.withTrimmedTop(14.f).reduced(2.f,4.f),value(P::Attack),value(P::Decay),value(P::Sustain)*.01f,value(P::Release)),c::violet);
  };
  // DESTROY: the drive curve, or the ring carrier.
