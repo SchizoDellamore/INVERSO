@@ -96,10 +96,12 @@ private:
   std::array<float,128> sawVelocity{};
   bool any=false;
   void clear(){ padHit.fill(0.f); sawCount=0; sawLetGo.fill(false); any=false; }
+  bool holds(int note) const { for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note) return true; return false; }
   void dropSaw(int note){ for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note){ for(int k=i+1;k<sawCount;++k) saw[static_cast<std::size_t>(k-1)]=saw[static_cast<std::size_t>(k)]; --sawCount; return; } }
  } held;
  std::atomic<bool> dropHeld{false}; // a stop or re-prepare: the audio thread clears `held`
- void holdNotes(juce::MidiBuffer& midi);
+ void holdNotes(juce::MidiBuffer& midi,bool live);
+ bool playEngineState(const juce::MidiMessage& m);
  void applyKit(int index);
  int currentProgram=0;
  std::atomic<bool> prepared{false};

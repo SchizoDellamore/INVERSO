@@ -223,6 +223,14 @@ int main(){
   std::printf("saw let go under the pedal at a kit change: %.4f while held, %.6f after the pedal (no change: %.4f, %.6f)\n",pedalHeld,afterPedal,controlHeld,controlAfter);
   verify(pedalHeld>controlHeld*.5f,"a saw note held by the pedal during a kit change was lost");
   verify(afterPedal<controlAfter*2.f+1e-4f,"a saw note held by the pedal did not stop when the pedal was released");
+  // the pedal pressed in the same block as the kit change, before the note is let go, holds it too
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(6);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),5); m.addEvent(juce::MidiMessage::noteOff(1,69),100); p.processBlock(b,m); }
+  float sameBlock=0.f;
+  for(int i=0;i<200;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>150) sameBlock=std::max(sameBlock,b.getMagnitude(0,256)); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::controllerEvent(1,64,0),0); p.processBlock(b,m); }
+  verify(sameBlock>controlHeld*.5f,"a pedal pressed in the kit-change block did not hold the saw note");
   // several hits on one pad during a kit change: one hit, not a stacked burst
   for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
   auto padPeak=[&](int hits){
