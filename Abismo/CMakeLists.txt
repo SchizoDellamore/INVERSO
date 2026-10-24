@@ -13,7 +13,8 @@ add_executable(relicario_engine Tests/test_relicario.cpp)
 add_executable(enki_engine Tests/test_enki.cpp)
 add_executable(furnace_engine Tests/test_furnace.cpp)
 add_executable(clear_engine Tests/test_clear.cpp)
-foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine)
+add_executable(tide_engine Tests/test_tide.cpp)
+foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine tide_engine)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -30,6 +31,7 @@ add_test(NAME relicario_engine COMMAND relicario_engine)
 add_test(NAME enki_engine COMMAND enki_engine)
 add_test(NAME furnace_engine COMMAND furnace_engine)
 add_test(NAME clear_engine COMMAND clear_engine)
+add_test(NAME tide_engine COMMAND tide_engine)
 target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(enki_engine PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
@@ -356,3 +358,43 @@ target_link_libraries(InversoClearHostSmoke PRIVATE
  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
  juce::juce_recommended_warning_flags)
 add_test(NAME clear_host_smoke COMMAND InversoClearHostSmoke)
+
+# TIDE: a dynamic EQ for instruments (an effect).
+set(TIDE_SOURCES
+ Source/TideProcessor.cpp Source/TideProcessor.h
+ Source/TideEditor.cpp Source/TideEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/TideParams.h Source/DSP/TideEngine.h)
+juce_add_plugin(InversoTide
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.tide"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvTd
+ PRODUCT_NAME "INVERSO TIDE"
+ FORMATS VST3
+ VST3_CATEGORIES Fx EQ
+ IS_SYNTH FALSE
+ NEEDS_MIDI_INPUT FALSE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE
+)
+juce_generate_juce_header(InversoTide)
+target_sources(InversoTide PRIVATE ${TIDE_SOURCES})
+target_compile_definitions(InversoTide PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoTide PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoTideHostSmoke PRODUCT_NAME "INVERSO Tide Host Smoke")
+juce_generate_juce_header(InversoTideHostSmoke)
+target_sources(InversoTideHostSmoke PRIVATE Tests/test_tide_host.cpp ${TIDE_SOURCES})
+target_compile_definitions(InversoTideHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoTideHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME tide_host_smoke COMMAND InversoTideHostSmoke)
