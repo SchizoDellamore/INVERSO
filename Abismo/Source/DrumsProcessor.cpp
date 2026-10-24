@@ -69,13 +69,14 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
+ dropHeld=true; // nor a re-prepare: they would play late
  prepared=true;
  outputPeak.store(0.f);
 }
 
 void InversoAbismoDrumsProcessor::releaseResources() {
  prepared=false;
- heldCount=0; heldBend=-1; // notes held at a kit change do not outlive a stop (a re-prepare keeps them)
+ dropHeld=true; // notes held at a kit change do not outlive a stop (cleared by the audio thread)
 }
 
 void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi) {
@@ -93,12 +94,12 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // when the new kit starts. kitBusy and kitGeneration are read under the lock (kitBusy is raised
  // before anything is queued, and the generation bumped before it is lowered), or without it when
  // the lock is busy (a pad loading): enough to fade or to keep the values; the swaps then wait.
- bool kitBeingWritten=false, swapped=false;
- std::uint32_t generation=0;
- if (!swapLock.tryEnter()) { kitBeingWritten=kitBusy.load()>0; generation=kitGeneration.load(); }
- else {
-  kitBeingWritten=kitBusy.load()>0;
-  generation=kitGeneration.load();
+ if (dropHeld.exchange(false)) held.clear();
+ const bool locked=swapLock.tryEnter();
+ const bool kitBeingWritten=kitBusy.load()>0;
+ const std::uint32_t generation=kitGeneration.load();
+ bool swapped=false;
+ if (locked) {
   if (!kitBeingWritten && (kitStage==KitStage::Faded || generation==playedGeneration)) {
    for (int pad=0;pad<numPads;++pad) {
     auto& slot=slots[static_cast<std::size_t>(pad)];
@@ -128,7 +129,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   playedGeneration=generation;
   engine.switchKit(v);
   kitStage=KitStage::Playing;
-  playHeld=heldCount>0 || heldBend>=0; // notes held back start this block, on the new kit
+  playHeld=held.any; // what was held back starts this block, on the new kit
  } else if (!kitBeingWritten && generation!=playedGeneration) {
   fadeThisBlock=true;
   holdNotes(midi);
@@ -144,18 +145,19 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   midiLearn.handle(m);
   if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
-  else if (m.isPitchWheel()) engine.setPitchBend((static_cast<float>(m.getPitchWheelValue())-8192.f)/8192.f);
+  else if (m.isPitchWheel()) engine.setPitchBend(bendOf(m.getPitchWheelValue()));
   else if (m.isSustainPedalOn()) engine.setSustain(true);
   else if (m.isSustainPedalOff()) engine.setSustain(false);
   else if (m.isAllNotesOff()) engine.allNotesOff();
   else if (m.isAllSoundOff()) engine.allSoundOff();
  };
- // held notes first, at the start of the block and in the order they came (their timing is
- // lost: a note played and released during a kit change is a very short one)
+ // what was held, first, at the start of the block
  if (playHeld) {
-  if (heldBend>=0) engine.setPitchBend((static_cast<float>(heldBend)-8192.f)/8192.f);
-  for (int i=0;i<heldCount;++i) play(juce::MidiMessage(held[static_cast<std::size_t>(i)].bytes,held[static_cast<std::size_t>(i)].size));
-  heldCount=0; heldBend=-1;
+  if (held.bend>=0) engine.setPitchBend(bendOf(held.bend));
+  if (held.sustain>=0) engine.setSustain(held.sustain==1);
+  for (int note=0;note<128;++note)
+   if (held.velocity[static_cast<std::size_t>(note)]>0.f) engine.noteOn(note,held.velocity[static_cast<std::size_t>(note)]);
+  held.clear();
  }
  int position=0;
  for (const auto metadata : midi) {
@@ -177,22 +179,27 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  padLights.fetch_or(engine.takeTriggeredPads(),std::memory_order_relaxed);
 }
 
-// What arrives during a kit change is kept for the new kit, only what it needs: notes, sustain
-// and all-notes/sound-off in order (a fixed array, no allocation, constant time per event), and
-// the last pitch bend. Learned controllers are not replayed, so the new kit comes up exactly as
-// designed; aftertouch, clock and SysEx are not used by the instrument. The array's last slots
-// are kept for what releases something (note-off, sustain off, all off): nothing is left hanging.
+// What arrives during a kit change is kept for the new kit as state, not as a list of events, so
+// nothing can overflow or be lost: which notes are down (a pad hit, or a saw note held), the
+// sustain pedal and the last pitch bend. A pad's note-off does nothing (hits ring out); a saw
+// note played and released during the change is gone. Learned controllers are not replayed, so
+// the new kit comes up as designed, but a knob armed for MIDI learn still learns. Aftertouch,
+// clock and SysEx are not used by this instrument.
 void InversoAbismoDrumsProcessor::holdNotes(juce::MidiBuffer& midi) {
  for (const auto metadata : midi) {
-  if (metadata.numBytes>3) continue; // SysEx: not used by this instrument
+  if (metadata.numBytes<1 || metadata.numBytes>3) continue;
   const auto m=metadata.getMessage(); // three bytes at most: stored inline, no allocation
-  if (m.isPitchWheel()) { heldBend=m.getPitchWheelValue(); continue; }
-  const bool releases=m.isNoteOff() || m.isSustainPedalOff() || m.isAllNotesOff() || m.isAllSoundOff();
-  if (!releases && !m.isNoteOn() && !m.isSustainPedalOn()) continue;
-  if (heldCount>=(releases?heldCapacity:heldCapacity-releaseReserve)) continue;
-  auto& e=held[static_cast<std::size_t>(heldCount++)];
-  e.size=static_cast<std::uint8_t>(metadata.numBytes);
-  for (int k=0;k<metadata.numBytes;++k) e.bytes[k]=metadata.data[k];
+  if (m.isNoteOn()) {
+   auto& v=held.velocity[static_cast<std::size_t>(m.getNoteNumber())];
+   v=std::max(v,m.getFloatVelocity());
+  }
+  else if (m.isNoteOff()) { if (m.getNoteNumber()>=firstSawNote) held.velocity[static_cast<std::size_t>(m.getNoteNumber())]=0.f; }
+  else if (m.isPitchWheel()) held.bend=m.getPitchWheelValue();
+  else if (m.isSustainPedalOn()) held.sustain=1;
+  else if (m.isSustainPedalOff()) held.sustain=0;
+  else if (m.isAllNotesOff() || m.isAllSoundOff()) { held.velocity.fill(0.f); held.sustain=0; }
+  else { if (m.isController() && midiLearn.armedParameter()>=0) midiLearn.handle(m); continue; }
+  held.any=true;
  }
  midi.clear();
 }

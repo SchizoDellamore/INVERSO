@@ -89,10 +89,14 @@ private:
  };
  enum class KitStage { Playing, Faded }; // see processBlock
  KitStage kitStage=KitStage::Playing; // audio thread only
- struct HeldEvent { std::uint8_t bytes[3]{}; std::uint8_t size=0; };
- static constexpr int heldCapacity=512, releaseReserve=64; // see holdNotes
- std::array<HeldEvent,heldCapacity> held{}; // audio thread
- int heldCount=0, heldBend=-1; // heldBend: the last pitch bend during a kit change, -1 none
+ struct Held { // what a kit change keeps for the new kit (see holdNotes); audio thread
+  std::array<float,128> velocity{}; // notes down: a pad hit, or a saw note held
+  int sustain=-1, bend=-1; // -1: unchanged
+  bool any=false;
+  void clear(){ velocity.fill(0.f); sustain=-1; bend=-1; any=false; }
+ } held;
+ std::atomic<bool> dropHeld{false}; // a stop or re-prepare: the audio thread clears `held`
+ static float bendOf(int wheel){ return (static_cast<float>(wheel)-8192.f)/8192.f; }
  void holdNotes(juce::MidiBuffer& midi);
  void applyKit(int index);
  int currentProgram=0;

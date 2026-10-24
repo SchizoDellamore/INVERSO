@@ -150,6 +150,39 @@ int main(){
   float hit=0.f;
   for(int i=0;i<30;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); hit=std::max(hit,b.getMagnitude(0,256)); }
   verify(hit>1e-2f,"a pad hit after a controller flood at a kit change was lost");
+  // hundreds of saw notes under a held sustain at a kit change, then sustain off: the saw played
+  // after the change must not keep ringing (the pedal's release is kept, whatever came before)
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  p.selectKit(3);
+  { b.clear(); juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::controllerEvent(1,64,127),0);
+    for(int k=0;k<600;++k){ m.addEvent(juce::MidiMessage::noteOn(1,60+k%30,1.f),k%250); m.addEvent(juce::MidiMessage::noteOff(1,60+k%30),k%250); }
+    m.addEvent(juce::MidiMessage::controllerEvent(1,64,0),255);
+    p.processBlock(b,m); }
+  for(int i=0;i<300;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,64,1.f),0); p.processBlock(b,m); }
+  for(int i=0;i<60;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,64),0); p.processBlock(b,m); }
+  float ring=0.f;
+  for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) ring=std::max(ring,b.getMagnitude(0,256)); }
+  // control: the same saw note on the same kit with no kit change
+  float control=0.f;
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOn(1,64,1.f),0); p.processBlock(b,m); }
+  for(int i=0;i<60;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,64),0); p.processBlock(b,m); }
+  for(int i=0;i<400;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); if(i>300) control=std::max(control,b.getMagnitude(0,256)); }
+  std::printf("sustain at a kit change: saw tail %.6f (same note, no change: %.6f)\n",ring,control);
+  verify(ring<1e-3f,"sustain off at a kit change was lost: the saw keeps ringing");
+  // the pitch bend moved during a kit change reaches the new kit (the saw starts bent)
+  p.selectKit(4);
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::pitchWheel(1,16383),0); m.addEvent(juce::MidiMessage::noteOn(1,69,1.f),1); p.processBlock(b,m); }
+  juce::AudioBuffer<float> bent(2,48000);
+  for(int i=0;i<187;++i){ b.clear(); juce::MidiBuffer none; p.processBlock(b,none); bent.copyFrom(0,i*256,b,0,0,256); }
+  { b.clear(); juce::MidiBuffer m; m.addEvent(juce::MidiMessage::noteOff(1,69),0); m.addEvent(juce::MidiMessage::pitchWheel(1,8192),0); p.processBlock(b,m); }
+  int crossings=0; for(int i=24000;i<47000;++i) if(bent.getSample(0,i-1)<0.f && bent.getSample(0,i)>=0.f) ++crossings;
+  const double hz=crossings/(23000.0/48000.0);
+  std::printf("bend held at a kit change: A4 saw at %.1f Hz (440 unbent)\n",hz);
+  verify(hz>455.0,"the pitch bend moved during a kit change did not reach the new kit");
   verify(held>1e-2f,"a note-on held during a kit change did not play on the new kit");
   verify(released<1e-3f,"a note-off held during a kit change was dropped: the saw hangs");
  }
