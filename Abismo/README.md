@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.14.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.15.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -6,6 +6,8 @@ Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO DRUMS**: sampler de percussão de ferro-velho (gravações reais em domínio público, ou as suas) e serrote melódico.
 - **INVERSO RELICÁRIO** (0.10): quatro máquinas esquecidas num instrumento só: loops de fita, harmônio de fole elétrico, diapasão eletromagnético e órgão transistorizado soviético.
 - **INVERSO CLEAR** (0.13): tira o embolamento e a aspereza de um som só quando eles aparecem (um efeito).
+- **INVERSO TIDE** (0.15): EQ dinâmico para instrumentos (um efeito).
+- **INVERSO CABS** (0.15 no instalador): 98 IRs de caixas, em Documentos\INVERSO\INVERSO CABS, pastas Guitar e Bass.
 - **INVERSO FURNACE** (0.12): amplificador de guitarra e baixo (um efeito, não um instrumento), com as caixas do INVERSO CABS dentro.
 - **INVERSO ENKI** (0.11): gerador de ideias sonoras. Inventa sons musicais ou não, a partir de síntese, das gravações do DRUMS e das suas próprias bibliotecas de samples.
 
@@ -142,6 +144,15 @@ Instrumento polifônico (12 vozes) no espírito dos instrumentos "esquecidos" da
 ### Presets do RELICÁRIO (29)
 Init, Eno Tape, Worn Loop, Basement Static, Drifting Tapes, Tape Bass, Bakelite, Plastic 1974, Empty Church Harmonium, Ghost Accordion, Laboratory Fork, Spark Gap, Two Forks Beating, Boing, Junost in the Hall, Broken Case, Soviet Fifth, Crooked Third, Club Bass, Organ and Tape, Fork over Harmonium, Whole Relic, Attic at 3 AM e, usando os efeitos: Chopped Tape, Phased Junost, Jet Harmonium, Dead Radio, Resonant Fork e Shattered Relic.
 
+## TIDE
+EQ dinâmico para instrumentos. Vai num insert. Sem latência. Mono ou estéreo (os dois lados recebem a mesma curva).
+
+- **Cinco bandas:** LOW (shelf de graves), BAND 2, 3 e 4 (sinos) e HIGH (shelf de agudos). Cada uma tem ON, FREQ, GAIN, WIDTH (ou SLOPE nos shelves), THRESHOLD e RANGE.
+- **Fixa ou dinâmica:** com RANGE em zero, a banda é um EQ comum (GAIN). Com RANGE diferente de zero, ela escuta a própria faixa (o sino escuta a si mesmo; o shelf de graves, o que está abaixo; o de agudos, o que está acima) e, quando ela passa do THRESHOLD, move o ganho até RANGE: negativo corta, positivo realça. Abaixo do limite, nada acontece.
+- **CUTS:** corte de graves e de agudos (12 dB/oitava). **RESPONSE:** ATTACK e RELEASE dos detectores.
+- **Gráfico:** espectro ao fundo, a curva como ajustada (branca) e a curva se mexendo (azul). Arraste um nó: esquerda/direita é a frequência, cima/baixo é o ganho. Com ALT ou botão direito, cima/baixo define o RANGE (a linha tracejada mostra até onde a banda pode ir, e o ponto mostra onde está agora). Roda do mouse: largura. Duplo clique: zera ganho e range.
+- Presets: Boomy Acoustic, Harsh Guitar Rider, Pick Attack, Bass Note Evener, Bass Growl, Vocal De-Ess, Vocal Presence, Synth Resonance Tamer, Bright When Loud. Os limites dos presets supõem um sinal com picos em torno de -6 dBFS; com sinais mais baixos, desça o THRESHOLD.
+
 ## CLEAR
 Limpeza dinâmica: age só quando o problema aparece e deixa o resto como está. Vai num insert de qualquer canal, grupo ou master. Mono ou estéreo (os dois lados recebem o mesmo corte, a imagem não se mexe).
 
@@ -178,7 +189,7 @@ Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (
 **Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.14.0** e baixe `INVERSO_ABISMO_Setup_0.14.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.14.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE (*Distortion*) e CLEAR (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3`.
+No GitHub, abra **Releases > INVERSO ABISMO 0.15.0** e baixe `INVERSO_ABISMO_Setup_0.15.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.15.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os oito aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, FURNACE (*Distortion*), CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as oito pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass), e o LOAD IR do FURNACE abre nessa pasta. Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
 
 O instalador não é assinado digitalmente.
 

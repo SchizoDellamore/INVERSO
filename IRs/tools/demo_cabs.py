@@ -3,7 +3,7 @@
 The instruments are Karplus-Strong strings with a pickup; the amps are simple
 gain stages with a tone stack. They exist to hear the IRs, nothing more.
 
-  python3 demo_cabs.py <IR folder (48 kHz)> <output folder>
+  python3 demo_cabs.py <INVERSO CABS folder> <output folder>
 """
 import os
 import sys
@@ -170,15 +170,15 @@ def main(ir_root, out):
     cl, cr = amp_clean(clean_part(1)), amp_clean(clean_part(2))
     bass = amp_bass(bass_line(3))
     takes = []
-    for name in sorted(os.listdir(os.path.join(ir_root, 'Guitar'))):
-        takes.append(('riff', f'Guitar/{name}/{name} - Dyn57 Cap.wav'))
+    for name in sorted(os.listdir(os.path.join(ir_root, 'Guitar', '48 kHz'))):
+        takes.append(('riff', f'Guitar/48 kHz/{name}/{name} - Dyn57 Cap.wav'))
     for mp in ['Dyn57 CapEdge', 'Dyn57 Cone', 'Dyn57 OffAxis', 'Dyn57 Room', 'Rib121 CapEdge', 'Cond87 Cone', 'Dyn421 CapEdge']:
-        takes.append(('riff', f'Guitar/Brit 4x12 V/Brit 4x12 V - {mp}.wav'))
+        takes.append(('riff', f'Guitar/48 kHz/Brit 4x12 V/Brit 4x12 V - {mp}.wav'))
     for name in ['Amer 2x12 Open', 'Brit 1x12 Open']:
         for mp in ['Dyn57 Cap', 'Dyn57 Back', 'Dyn57 Room']:
-            takes.append(('clean', f'Guitar/{name}/{name} - {mp}.wav'))
-    for name in sorted(os.listdir(os.path.join(ir_root, 'Bass'))):
-        takes.append(('bass', f'Bass/{name}/{name} - Dyn421 Cap.wav'))
+            takes.append(('clean', f'Guitar/48 kHz/{name}/{name} - {mp}.wav'))
+    for name in sorted(os.listdir(os.path.join(ir_root, 'Bass', '48 kHz'))):
+        takes.append(('bass', f'Bass/48 kHz/{name}/{name} - Dyn421 Cap.wav'))
     takes.append(('bass', 'Bass/Bass 8x10/Bass 8x10 - Cond87 Room.wav'))
     for i, (kind, rel) in enumerate(takes):
         path = os.path.join(ir_root, rel)

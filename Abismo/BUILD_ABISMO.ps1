@@ -12,9 +12,9 @@ if(-not (Test-Path (Join-Path $JucePath 'CMakeLists.txt'))){throw "JUCE not foun
 $generatorArgs=if($Generator){@('-G',$Generator)}else{@()}
 & cmake -S $root -B (Join-Path $root 'build') @generatorArgs -A x64 "-DJUCE_ROOT=$JucePath" -DINVERSO_DSP_TESTS_ONLY=OFF "-DINVERSO_LTO=$(if($NoLto){'OFF'}else{'ON'})"
 Assert-Status 'CMake configure'
-$targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3','InversoEnki_VST3','InversoFurnace_VST3','InversoClear_VST3',
- 'abismo_engine','abismo_presets','abismo_stress','abismo_sampler','abismo_drums','relicario_engine','enki_engine','furnace_engine','clear_engine')
-if($HostSmoke){$targets+=@('InversoAbismoHostSmoke','InversoAbismoSamplerHostSmoke','InversoAbismoDrumsHostSmoke','InversoRelicarioHostSmoke','InversoEnkiHostSmoke','InversoFurnaceHostSmoke','InversoClearHostSmoke')}
+$targets=@('InversoAbismo_VST3','InversoAbismoSampler_VST3','InversoAbismoDrums_VST3','InversoRelicario_VST3','InversoEnki_VST3','InversoFurnace_VST3','InversoClear_VST3','InversoTide_VST3',
+ 'abismo_engine','abismo_presets','abismo_stress','abismo_sampler','abismo_drums','relicario_engine','enki_engine','furnace_engine','clear_engine','tide_engine')
+if($HostSmoke){$targets+=@('InversoAbismoHostSmoke','InversoAbismoSamplerHostSmoke','InversoAbismoDrumsHostSmoke','InversoRelicarioHostSmoke','InversoEnkiHostSmoke','InversoFurnaceHostSmoke','InversoClearHostSmoke','InversoTideHostSmoke')}
 & cmake --build (Join-Path $root 'build') --config Release --target $targets --parallel 4
 Assert-Status 'Build VST3'
 if($HostSmoke){& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure} else {& ctest --test-dir (Join-Path $root 'build') -C Release --output-on-failure -E host_smoke}
@@ -35,11 +35,14 @@ $furnaceBundle=Join-Path $root 'build\InversoFurnace_artefacts\Release\VST3\INVE
 if(-not (Get-ChildItem -LiteralPath $furnaceBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing FURNACE VST3 executable'}
 $clearBundle=Join-Path $root 'build\InversoClear_artefacts\Release\VST3\INVERSO CLEAR.vst3'
 if(-not (Get-ChildItem -LiteralPath $clearBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing CLEAR VST3 executable'}
+$tideBundle=Join-Path $root 'build\InversoTide_artefacts\Release\VST3\INVERSO TIDE.vst3'
+if(-not (Get-ChildItem -LiteralPath $tideBundle -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Extension -eq '.vst3'})){throw 'Missing TIDE VST3 executable'}
+if(-not (Test-Path -LiteralPath (Join-Path (Split-Path $root -Parent) 'IRs\INVERSO CABS\Guitar\48 kHz'))){throw 'INVERSO CABS missing'}
 if($SkipInstaller){exit 0}
 $iscc=Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)) 'Inno Setup 6\ISCC.exe'
 if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source}
 if(-not $iscc){throw 'Inno Setup 6 ISCC.exe not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_ABISMO.iss')
 Assert-Status 'Inno Setup'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_ABISMO_Setup_0.14.0_x64.exe'))){throw 'Installer missing'}
+if(-not (Test-Path (Join-Path $root 'dist\INVERSO_ABISMO_Setup_0.15.0_x64.exe'))){throw 'Installer missing'}
 Write-Host 'SUCCESS: INVERSO ABISMO installer compiled.'

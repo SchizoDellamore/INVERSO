@@ -4,8 +4,9 @@ INVERSO CABS 1.0  |  98 impulse responses de caixas de guitarra e baixo
 COMO USAR
 Carregue um arquivo .wav num carregador de IR (IR loader) depois de um amp
 ou pedal de distorção SEM simulação de caixa (desligue o "cab" do amp).
-Use a pasta "48 kHz" se o projeto estiver em 48 kHz, "44.1 kHz" se estiver
-em 44,1 kHz. São mono, 24 bits. Todas têm o mesmo volume percebido, então
+As caixas de guitarra estão na pasta "Guitar" e as de baixo na pasta
+"Bass". Dentro de cada uma, use "48 kHz" se o projeto estiver em 48 kHz,
+"44.1 kHz" se estiver em 44,1 kHz. São mono, 24 bits. Todas têm o mesmo volume percebido, então
 dá para comparar trocando de arquivo sem o nível pular.
 
 NOMES:  <caixa> - <microfone> <posição>.wav

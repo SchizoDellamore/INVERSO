@@ -262,7 +262,7 @@ def main(root):
             made.append((group, spk, mic, pos, h / loudness(h, fs)))
         top = max(np.max(np.abs(h)) for *_, h in made)
         for group, spk, mic, pos, h in made:
-            folder = os.path.join(root, f'{fs // 1000 if fs == 48000 else 44.1} kHz'.replace('.0', ''), group, spk)
+            folder = os.path.join(root, group, f'{fs // 1000 if fs == 48000 else 44.1} kHz'.replace('.0', ''), spk)
             os.makedirs(folder, exist_ok=True)
             name = f'{spk} - {mic} {pos}.wav'
             sf.write(os.path.join(folder, name), (h / top * .89).astype(np.float32), fs, subtype='PCM_24')

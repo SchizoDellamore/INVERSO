@@ -206,7 +206,9 @@ InversoFurnaceEditor::InversoFurnaceEditor(InversoFurnaceProcessor& p) : AudioPr
 InversoFurnaceEditor::~InversoFurnaceEditor() { setLookAndFeel(nullptr); }
 
 void InversoFurnaceEditor::chooseIR() {
- chooser = std::make_unique<juce::FileChooser>("An impulse response for the cabinet", juce::File(), "*.wav;*.aif;*.aiff;*.flac");
+ // start in INVERSO CABS when the installer put it there
+ auto cabs = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("INVERSO").getChildFile("INVERSO CABS");
+ chooser = std::make_unique<juce::FileChooser>("An impulse response for the cabinet", cabs.isDirectory() ? cabs : juce::File(), "*.wav;*.aif;*.aiff;*.flac");
  chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {
   if (fc.getResult().existsAsFile()) processor.loadUserIR(fc.getResult());
  });
