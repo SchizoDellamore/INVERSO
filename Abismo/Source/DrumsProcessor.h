@@ -80,6 +80,12 @@ private:
  // Kit change: fade the current block out, then switch cleanly on the next one.
  std::atomic<bool> kitChanged{false};
  std::atomic<int> kitBusy{0}; // a kit change is being written (parameters, pad recordings): the old kit plays on untouched
+ struct KitBusy { // raises kitBusy for a scope, always lowered again
+  explicit KitBusy(std::atomic<int>& c):count(c){++count;}
+  ~KitBusy(){--count;}
+  KitBusy(const KitBusy&)=delete; KitBusy& operator=(const KitBusy&)=delete;
+  std::atomic<int>& count;
+ };
  bool kitFadePending=false;
  juce::MidiBuffer deferredMidi; // notes that arrive while the old kit fades: played on the new one
  void applyKit(int index);

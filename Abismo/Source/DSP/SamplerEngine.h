@@ -207,8 +207,16 @@ private:
   // The cloud centre travels at SCAN x real time, independent of pitch, inside the region
   // (START..END). LOOP decides how: Off runs round the whole region; Forward goes round the loop
   // (LOOP START..LOOP END) once it reaches it; Ping-pong goes back and forth inside the loop.
-  const double lo = std::clamp(static_cast<double>(std::min(c.start, c.end)) * len, 0.0, len - 2.0);
-  const double hi = std::clamp(static_cast<double>(std::max(c.start, c.end)) * len, lo + 1.0, len - 1.0);
+  double lo = std::clamp(static_cast<double>(std::min(c.start, c.end)) * len, 0.0, len - 2.0);
+  double hi = std::clamp(static_cast<double>(std::max(c.start, c.end)) * len, lo + 1.0, len - 1.0);
+  // a granular region is at least 20 ms (around its middle): grains turning back inside a few
+  // samples would be a high buzz, not a sound
+  const double least = std::min(len - 1.0, .02 * sampleRate);
+  if (hi - lo < least) {
+   const double middle = .5 * (lo + hi);
+   lo = std::clamp(middle - .5 * least, 0.0, len - 1.0 - least);
+   hi = lo + least;
+  }
   const double loopLo = std::clamp(static_cast<double>(std::min(c.loopStart, c.loopEnd)) * len, lo, hi - 1.0);
   const double loopHi = std::clamp(static_cast<double>(std::max(c.loopStart, c.loopEnd)) * len, loopLo + 1.0, hi);
   const bool loopUsable = c.loopMode != 0 && loopHi - loopLo >= 16.0;

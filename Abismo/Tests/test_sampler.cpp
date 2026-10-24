@@ -191,7 +191,7 @@ static void granularEdges() {
 }
 
 // What is heard, not only where the cloud is drawn: a cloud parked at END plays from END (also
-// with spray); a region much shorter than a grain keeps sounding, finite and bounded.
+// with spray); a region of a few samples is widened to 20 ms, so it sounds, with no high buzz.
 static void granularHeard() {
  const int sr = 48000;
  S::SampleData d; d.sampleRate = sr; d.name = "two tones";
@@ -220,7 +220,7 @@ static void granularHeard() {
   float hf = 0.f, prev = 0.f;
   for (std::size_t i = static_cast<std::size_t>(sr) / 2; i < out.l.size(); ++i) { hf = std::max(hf, std::abs(out.l[i] - prev)); prev = out.l[i]; }
   std::printf("granular, region of a few samples: largest step %.4f, rms %.4f\n", hf, rms(out.l, sr / 2, sr * 2));
-  verify(finite(out) && peak(out) < 1.f && rms(out.l, sr / 2, sr * 2) > 1e-4f, "a tiny region must keep sounding, finite and bounded");
+  verify(finite(out) && peak(out) < 1.f && rms(out.l, sr / 2, sr * 2) > 1e-3f && hf < .08f, "a tiny region must sound, with no high buzz");
  }
 }
 
