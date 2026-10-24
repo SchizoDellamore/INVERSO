@@ -69,7 +69,7 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
  for (std::size_t i=0;i<raw.size();++i) v[i]=raw[i]->load(std::memory_order_relaxed);
  engine.setValues(v);
  engine.prepare(sampleRate);
- raiseDrop(dropNotes); // a re-prepare: notes held at a kit change would play late; the pedal and
+ drop.fetch_or(dropNotes); // a re-prepare: notes held at a kit change would play late; the pedal and
                             // wheel stay as played (a held pedal sends nothing new)
  prepared=true;
  outputPeak.store(0.f);
@@ -77,7 +77,7 @@ void InversoAbismoDrumsProcessor::prepareToPlay(double sampleRate,int) {
 
 void InversoAbismoDrumsProcessor::releaseResources() {
  prepared=false;
- raiseDrop(dropAll); // the host releases the plugin: held notes go, the pedal goes up, the wheel to the
+ drop.fetch_or(dropAll); // the host releases the plugin: held notes go, the pedal goes up, the wheel to the
                           // centre (hosts often send no pedal-up when they stop); done by the audio thread
 }
 
@@ -96,9 +96,9 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  // when the new kit starts. kitBusy and kitGeneration are read under the lock (kitBusy is raised
  // before anything is queued, and the generation bumped before it is lowered), or without it when
  // the lock is busy (a pad loading): enough to fade or to keep the values; the swaps then wait.
- if (const int level=drop.exchange(0); level>0) {
+ if (const int level=drop.exchange(0); level!=0) {
   held.clear();
-  if (level==dropAll) { engine.setSustain(false); engine.setPitchBend(0.f); }
+  if ((level & dropAll)==dropAll) { engine.setSustain(false); engine.setPitchBend(0.f); }
  }
  const bool locked=swapLock.tryEnter();
  const bool kitBeingWritten=kitBusy.load()>0;
@@ -140,14 +140,8 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   fadeThisBlock=true; // its messages are held for the new kit as they come (play), on time
  } else if (!kitBeingWritten) engine.setValues(v); // while a kit is written, the old one keeps its values
  if (auto* head=getPlayHead())
-  if (const auto position=head->getPosition()) {
-   const bool playing=position->getIsPlaying();
-   // the transport stopping puts the pedal up and the wheel to the centre: hosts often stop
-   // without sending a pedal-up, and a stuck pedal would hold every saw note after it
-   if (transportWasPlaying && !playing) { engine.setSustain(false); engine.setPitchBend(0.f); }
-   transportWasPlaying=playing;
-   engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),playing);
-  }
+  if (const auto position=head->getPosition())
+   engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
  if (const auto pads=fadeThisBlock?0u:auditions.exchange(0))
   for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) engine.noteOn(firstPadNote+pad,.8f);
  auto* left=audio.getWritePointer(0);

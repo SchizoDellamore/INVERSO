@@ -100,10 +100,8 @@ private:
   bool holds(int note) const { for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note) return true; return false; }
   void dropSaw(int note){ for(int i=0;i<sawCount;++i) if(saw[static_cast<std::size_t>(i)]==note){ for(int k=i+1;k<sawCount;++k) saw[static_cast<std::size_t>(k-1)]=saw[static_cast<std::size_t>(k)]; --sawCount; return; } }
  } held;
- static constexpr int dropNotes=1, dropAll=2; // what the audio thread drops: held notes / also pedal and wheel
+ static constexpr int dropNotes=1, dropAll=3; // bits the audio thread acts on: held notes / also pedal and wheel
  std::atomic<int> drop{0};
- void raiseDrop(int level){ int now=drop.load(); while(now<level && !drop.compare_exchange_weak(now,level)){} }
- bool transportWasPlaying=false; // audio thread
  void hold(const juce::MidiMessageMetadata& metadata); // one message during a kit change
  bool playEngineState(const juce::MidiMessage& m);
  void applyKit(int index);
