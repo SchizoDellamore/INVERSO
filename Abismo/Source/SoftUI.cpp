@@ -488,18 +488,19 @@ Module::Module(juce::AudioProcessorValueTreeState& apvts, const ParamSpec* table
  }
  for (int pg = 0; pg < static_cast<int>(pages.size()); ++pg) {
   // An envelope page (attack, decay, sustain, release) is laid out as a row of faders.
-  int stages = 0;
-  for (int param : pages[static_cast<std::size_t>(pg)].params) {
+  auto isStage = [&](int param) {
    const juce::String id(specs[param].id);
-   if (id.endsWith("ATTACK") || id.endsWith("DECAY") || id.endsWith("SUSTAIN") || id.endsWith("RELEASE")) ++stages;
-  }
-  const bool faders = stages >= 3;
+   return id.endsWith("ATTACK") || id.endsWith("DECAY") || id.endsWith("SUSTAIN") || id.endsWith("RELEASE");
+  };
+  int stages = 0;
+  for (int param : pages[static_cast<std::size_t>(pg)].params) if (isStage(param)) ++stages;
+  const bool faders = stages >= 3; // only the A, D, S, R themselves become faders
   for (int param : pages[static_cast<std::size_t>(pg)].params) {
    const auto& spec = specs[param];
    Cell c;
    c.param = param;
    c.page = pg;
-   c.fader = faders;
+   c.fader = faders && isStage(param);
    const auto& bigs = pages[static_cast<std::size_t>(pg)].big;
    c.big = std::find(bigs.begin(), bigs.end(), param) != bigs.end();
    c.name = std::make_unique<juce::Label>();
@@ -640,7 +641,7 @@ void Module::resized() {
  std::vector<Cell*> visible;
  for (auto& c : cells) if (c.page == current) visible.push_back(&c);
  if (visible.empty()) return;
- if (visible.front()->fader) {
+ if (std::any_of(visible.begin(), visible.end(), [](const Cell* c) { return c->fader; })) {
   // a row of faders, as tall as the module allows
   const float unit = static_cast<float>(inner.getWidth()) / static_cast<float>(visible.size());
   auto line = inner;
@@ -650,7 +651,8 @@ void Module::resized() {
    c->name->setBounds(cell.removeFromTop(14));
    if (c->knob) {
     c->value->setBounds(cell.removeFromBottom(15));
-    c->knob->setBounds(cell.withSizeKeepingCentre(std::min(cell.getWidth() - 6, 34), cell.getHeight()));
+    if (c->fader) c->knob->setBounds(cell.withSizeKeepingCentre(std::min(cell.getWidth() - 6, 34), cell.getHeight()));
+    else { const int size = std::min({cell.getWidth() - 6, cell.getHeight(), 66}); c->knob->setBounds(cell.withSizeKeepingCentre(size, size)); }
    } else if (c->combo) {
     c->combo->setBounds(cell.withSizeKeepingCentre(std::min(cell.getWidth() - 8, 150), 28));
    } else if (c->toggle) {
