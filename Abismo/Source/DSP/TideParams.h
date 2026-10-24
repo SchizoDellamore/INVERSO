@@ -96,7 +96,7 @@ inline const std::array<Preset, 10>& presets() {
   // guitars
   {"Boomy Acoustic", {{B1Freq, 160}, {B1Thresh, -30}, {B1Range, -6}, {B2Freq, 220}, {B2Q, 1.4f}, {B2Thresh, -28}, {B2Range, -5},
                       {B4Freq, 3500}, {B4Gain, 1.5f}, {B4Q, .8f}, {LowCutOn, 1}, {LowCut, 70}, {-1, 0}}},
-  {"Harsh Guitar Rider", {{B3Freq, 2600}, {B3Q, 2.5f}, {B3Thresh, -30}, {B3Range, -6}, {B4Freq, 4500}, {B4Q, 3}, {B4Thresh, -32}, {B4Range, -5},
+  {"Harsh Guitar Rider", {{B3Freq, 2600}, {B3Q, 2.5f}, {B3Thresh, -22}, {B3Range, -6}, {B4Freq, 4500}, {B4Q, 3}, {B4Thresh, -24}, {B4Range, -5},
                           {LowCutOn, 1}, {LowCut, 90}, {HighCutOn, 1}, {HighCut, 12000}, {-1, 0}}},
   {"Pick Attack", {{B4Freq, 3200}, {B4Q, 1.2f}, {B4Thresh, -24}, {B4Range, 5}, {B2Freq, 250}, {B2Q, 1.2f}, {B2Thresh, -26}, {B2Range, -3}, {Attack, 2}, {Release, 60}, {-1, 0}}},
   // bass

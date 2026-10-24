@@ -24,7 +24,7 @@ juce::Colour bandColour(int k) {
  return colours[k];
 }
 const char* bandTitle(int k) {
- static const char* titles[numBands] = {"LOW SHELF", "BAND 2", "BAND 3", "BAND 4", "HIGH SHELF"};
+ static const char* titles[numBands] = {"LOW", "BAND 2", "BAND 3", "BAND 4", "HIGH"};
  return titles[k];
 }
 }
@@ -193,7 +193,7 @@ void TideGraph::paint(juce::Graphics& g) {
  }
  for (double db : {-18.0, -12.0, -6.0, 0.0, 6.0, 12.0, 18.0}) {
   const float y = yOf(db);
-  g.setColour(c::screenMuted.withAlpha(db == 0 ? .35f : .12f));
+  g.setColour(c::screenMuted.withAlpha(std::abs(db) < .5 ? .35f : .12f));
   g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
   g.setColour(c::screenMuted.withAlpha(.55f));
   g.drawText((db > 0 ? "+" : "") + juce::String(juce::roundToInt(db)), juce::roundToInt(plot.getX()) + 2, juce::roundToInt(y) - 11, 30, 10, juce::Justification::left);
@@ -243,7 +243,8 @@ void TideGraph::paint(juce::Graphics& g) {
   for (int i = 0; i <= steps; ++i) {
    const float x = plot.getX() + plot.getWidth() * static_cast<float>(i) / steps;
    const float y = yOf(Engine::responseDb(only, dynamic, fOf(x)));
-   if (i == 0) p.startNewSubPath(x, yOf(0)); p.lineTo(x, juce::jlimit(plot.getY(), plot.getBottom(), y));
+   if (i == 0) p.startNewSubPath(x, yOf(0));
+   p.lineTo(x, juce::jlimit(plot.getY(), plot.getBottom(), y));
   }
   p.lineTo(plot.getRight(), yOf(0));
   p.closeSubPath();
@@ -316,8 +317,7 @@ InversoTideEditor::InversoTideEditor(InversoTideProcessor& p) : AudioProcessorEd
   body.addAndMakeVisible(*modules.back());
  };
  for (int k = 0; k < numBands; ++k)
-  add(bandTitle(k), bandColour(k), {{"EQ", {P::band(k, P::Freq), P::band(k, P::Gain), P::band(k, P::Q)}, {P::band(k, P::Gain)}},
-                                    {"Dynamic", {P::band(k, P::Thresh), P::band(k, P::Range)}, {P::band(k, P::Range)}}});
+  add(bandTitle(k), bandColour(k), {{"Band", {P::band(k, P::Freq), P::band(k, P::Gain), P::band(k, P::Q), P::band(k, P::Thresh), P::band(k, P::Range)}}});
  add("CUTS", c::blue, {{"Cuts", {P::LowCutOn, P::LowCut, P::HighCutOn, P::HighCut}}});
  add("RESPONSE", c::ink.brighter(.6f), {{"Response", {P::Attack, P::Release}}});
  master = std::make_unique<soft::Master>(processor.apvts, specs()[P::Output], nullptr, juce::String(), c::ink);
@@ -326,10 +326,8 @@ InversoTideEditor::InversoTideEditor(InversoTideProcessor& p) : AudioProcessorEd
   auto& b = onButtons[static_cast<std::size_t>(k)];
   b.setClickingTogglesState(true);
   b.setTooltip("Switch this band on or off (its settings stay)");
-  b.setColour(juce::TextButton::textColourOnId, c::screenInk);
+  b.setColour(juce::TextButton::textColourOnId, bandColour(k).darker(.5f));
   b.setColour(juce::TextButton::textColourOffId, c::muted);
-  b.setColour(juce::TextButton::buttonOnColourId, bandColour(k).darker(.4f));
-  b.setColour(juce::TextButton::buttonColourId, c::track);
   b.onStateChange = [&b] { const auto text = b.getToggleState() ? "ON" : "OFF"; if (b.getButtonText() != text) b.setButtonText(text); };
   onAttach[static_cast<std::size_t>(k)] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts, specs()[static_cast<std::size_t>(P::band(k, P::On))].id, b);
   b.onStateChange();
@@ -367,8 +365,8 @@ void InversoTideEditor::resized() {
  const int x0 = 10, y0 = 88, mainW = 1230, top = 420, bottom = designH - y0 - top - 12;
  graph.setBounds(x0, y0, mainW, top);
  int x = x0;
- for (int k = 0; k < numBands; ++k) { modules[static_cast<std::size_t>(k)]->setBounds(x, y0 + top, 182, bottom); x += 182; }
- modules[numBands]->setBounds(x, y0 + top, 200, bottom); x += 200;
+ for (int k = 0; k < numBands; ++k) { modules[static_cast<std::size_t>(k)]->setBounds(x, y0 + top, 186, bottom); x += 186; }
+ modules[numBands]->setBounds(x, y0 + top, 150, bottom); x += 150;
  modules[numBands + 1]->setBounds(x, y0 + top, x0 + mainW - x, bottom);
  master->setBounds(x0 + mainW, y0, designW - (x0 + mainW) - 10, top + bottom);
 }

@@ -199,7 +199,7 @@ private:
    const float f = std::min(s[static_cast<std::size_t>(P::band(k, P::Freq))], nyq);
    if (std::abs(f - b.lastFreq) > 1e-3f) { b.g0 = static_cast<float>(std::tan(eq::pi * f / sr)); b.lastFreq = f; b.dirty = true; }
    const float q = s[static_cast<std::size_t>(P::band(k, P::Q))];
-   if (q != b.q) b.dirty = true;
+   if (std::abs(q - b.q) > 1e-6f) b.dirty = true;
    b.q = q;
    b.onGain += onStep * ((on ? 1.f : 0.f) - b.onGain); // ~15 ms, a band fades in and out
    b.gain = s[static_cast<std::size_t>(P::band(k, P::Gain))] * b.onGain;
