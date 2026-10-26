@@ -1056,22 +1056,6 @@ void PresetBar::mouseUp(const juce::MouseEvent& e) {
 }
 
 void Body::paint(juce::Graphics& g) {
- paintBody(g);
- // SIZE: a small button in the top-right corner
- {
-  const auto b = sizeButton();
-  const float now = static_cast<float>(getParentWidth()) / static_cast<float>(std::max(1, getWidth()));
-  const bool dark = vintage;
-  g.setColour((dark ? juce::Colour(0xff1a0f08) : colour::bodyBottom).withAlpha(sizeHover ? .95f : .7f));
-  g.fillRoundedRectangle(b, 5.f);
-  g.setColour((dark ? juce::Colour(0xffe2c26e) : colour::muted).withAlpha(sizeHover ? 1.f : .85f));
-  g.drawRoundedRectangle(b, 5.f, 1.f);
-  g.setFont(monoFont(10.f));
-  g.drawText("SIZE " + juce::String(juce::roundToInt(now * 100.f)) + "%", b, juce::Justification::centred);
- }
-}
-
-void Body::paintBody(juce::Graphics& g) {
  const auto r = getLocalBounds().toFloat();
  if (vintage) {
   // Walnut veneer, drawn once.
@@ -1130,7 +1114,9 @@ void Body::paintBody(juce::Graphics& g) {
 
 namespace {
 juce::PropertiesFile& windowSettings(const juce::String& plugin) {
- static std::map<juce::String, std::unique_ptr<juce::PropertiesFile>> files; // one file per plugin: no two plugins write the same one
+ // One file per plugin (no two plugins write the same one), message thread only. Never destroyed:
+ // the host may unload the library after JUCE's own timers are gone.
+ static auto& files = *new std::map<juce::String, std::unique_ptr<juce::PropertiesFile>>();
  auto& f = files[plugin];
  if (f == nullptr) {
   juce::PropertiesFile::Options o;
@@ -1144,13 +1130,13 @@ juce::PropertiesFile& windowSettings(const juce::String& plugin) {
  return *f;
 }
 juce::Rectangle<int> screenArea() {
- if (const auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()) return d->userArea;
+ if (const auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()) return d->userBounds.toNearestInt();
  return {0, 0, 1920, 1080};
 }
 float largestScale(int designW, int designH) {
  const auto a = screenArea();
  return std::clamp(std::min(.96f * static_cast<float>(a.getWidth()) / static_cast<float>(designW),
-                            .92f * static_cast<float>(a.getHeight()) / static_cast<float>(designH)), 1.5f, 4.f);
+                            .92f * static_cast<float>(a.getHeight()) / static_cast<float>(designH)), 1.f, 4.f);
 }
 } // namespace
 
@@ -1168,24 +1154,46 @@ void sizeWindow(juce::AudioProcessorEditor& ed, const juce::String& plugin, int 
 
 void rememberWindow(juce::AudioProcessorEditor& ed, const juce::String& plugin, int designW) {
  if (!ed.isShowing() || ed.getWidth() <= 0) return; // only what the player did, not the size it opened at
- windowSettings(plugin).setValue("scale", static_cast<double>(ed.getWidth()) / designW);
+ auto& file = windowSettings(plugin);
+ file.setValue("scale", static_cast<double>(ed.getWidth()) / designW);
+ // while the corner is being dragged the file waits for the timer; otherwise (the SIZE button) it is written now
+ if (!juce::Desktop::getInstance().getMainMouseSource().isDragging()) file.saveIfNeeded();
 }
 
 // The SIZE button in the corner of the body.
-void Body::mouseMove(const juce::MouseEvent& e) {
- const bool over = sizeButton().contains(e.position);
- if (over != sizeHover) { sizeHover = over; repaint(sizeButton().toNearestInt()); }
- setMouseCursor(over ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+Body::Body() {
+ addAndMakeVisible(sizeButton);
+ sizeButton.setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
-void Body::mouseUp(const juce::MouseEvent& e) {
- if (!sizeButton().contains(e.position) || e.mouseWasDraggedSinceMouseDown()) return;
- auto* ed = findParentComponentOfClass<juce::AudioProcessorEditor>();
- if (ed == nullptr || getWidth() <= 0) return;
- const float now = static_cast<float>(ed->getWidth()) / static_cast<float>(getWidth());
- const float maxScale = static_cast<float>(ed->getConstrainer()->getMaximumWidth()) / static_cast<float>(getWidth());
- float next = 1.f;
+void Body::resized() { sizeButton.setBounds(getWidth() - 118, 6, 92, 18); }
+void Body::childrenChanged() {
+ if (getNumChildComponents() > 0 && getChildComponent(getNumChildComponents() - 1) != &sizeButton) sizeButton.toFront(false);
+}
+void Body::SizeButton::paint(juce::Graphics& g) {
+ const auto* body = dynamic_cast<Body*>(getParentComponent());
+ const float now = body != nullptr && body->getWidth() > 0 ? static_cast<float>(body->getParentWidth()) / static_cast<float>(body->getWidth()) : 1.f;
+ const auto b = getLocalBounds().toFloat().reduced(.5f);
+ g.setColour((vintage ? juce::Colour(0xff1a0f08) : colour::bodyBottom).withAlpha(hover ? .95f : .75f));
+ g.fillRoundedRectangle(b, 5.f);
+ g.setColour((vintage ? juce::Colour(0xffe2c26e) : colour::muted).withAlpha(hover ? 1.f : .85f));
+ g.drawRoundedRectangle(b, 5.f, 1.f);
+ g.setFont(monoFont(10.f));
+ g.drawText("SIZE " + juce::String(juce::roundToInt(now * 100.f)) + "%", b, juce::Justification::centred);
+}
+void Body::SizeButton::mouseUp(const juce::MouseEvent& e) {
+ if (!contains(e.position.toInt()) || e.mouseWasDraggedSinceMouseDown()) return;
+ auto* body = getParentComponent();
+ auto* ed = body != nullptr ? body->findParentComponentOfClass<juce::AudioProcessorEditor>() : nullptr;
+ if (ed == nullptr || body->getWidth() <= 0) return;
+ const float now = static_cast<float>(ed->getWidth()) / static_cast<float>(body->getWidth());
+ const float maxScale = static_cast<float>(ed->getConstrainer()->getMaximumWidth()) / static_cast<float>(body->getWidth());
+ const float minScale = static_cast<float>(ed->getConstrainer()->getMinimumWidth()) / static_cast<float>(body->getWidth());
+ float next = -1.f; // the next step up that fits; from the last one, back to the first that fits
  for (const float step : {1.f, 1.5f, 2.f, 3.f}) if (step > now + .04f && step <= maxScale + .01f) { next = step; break; }
- ed->setSize(juce::roundToInt(static_cast<float>(getWidth()) * next), juce::roundToInt(static_cast<float>(getHeight()) * next));
+ if (next < 0.f) for (const float step : {1.f, 1.5f, 2.f, 3.f}) if (step >= minScale - .01f && step <= maxScale + .01f) { next = step; break; }
+ if (next < 0.f) return;
+ const int w = juce::roundToInt(static_cast<float>(body->getWidth()) * next);
+ ed->setSize(w, juce::roundToInt(static_cast<float>(w) * static_cast<float>(body->getHeight()) / static_cast<float>(body->getWidth())));
 }
 
 } // namespace soft

@@ -235,16 +235,23 @@ private:
 // fixed design size and scaled when the window is resized.
 class Body final : public juce::Component {
 public:
+ Body();
  juce::String title, subtitle;
  void paint(juce::Graphics&) override;
- void mouseUp(const juce::MouseEvent&) override;
- void mouseMove(const juce::MouseEvent&) override;
- void mouseExit(const juce::MouseEvent&) override { sizeHover = false; repaint(sizeButton().toNearestInt()); }
+ void resized() override;
+ void childrenChanged() override;
 private:
- void paintBody(juce::Graphics&);
- juce::Rectangle<float> sizeButton() const { return {static_cast<float>(getWidth()) - 118.f, 6.f, 92.f, 18.f}; }
+ // SIZE: a small button in the top-right corner, always in front of the editor's own controls.
+ class SizeButton final : public juce::Component {
+ public:
+  void paint(juce::Graphics&) override;
+  void mouseUp(const juce::MouseEvent&) override;
+  void mouseEnter(const juce::MouseEvent&) override { hover = true; repaint(); }
+  void mouseExit(const juce::MouseEvent&) override { hover = false; repaint(); }
+ private:
+  bool hover = false;
+ } sizeButton;
  juce::Image woodCache;
- bool sizeHover = false;
 };
 
 // The window of an editor, for any screen: it can grow as far as the screen allows (4K), opens at

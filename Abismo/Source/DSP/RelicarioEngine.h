@@ -742,7 +742,7 @@ private:
   // Activity per machine: hum, hiss and dust follow playing and fade after it.
   const float mlev[4] = {controls.fita, controls.harm, controls.fork, controls.organ};
   const bool sounding = activeVoices() > 0;
-  if (!sounding && held == 0) aftertouch = 0.f; // pressure belongs to a key being pressed: with none down it is zero
+  if (held == 0) aftertouch = 0.f; // pressure belongs to a key being pressed: with none down it is zero
   for (int m = 0; m < 4; ++m) {
    const float goal = sounding && mlev[m] > 0.f ? 1.f : 0.f;
    activity[static_cast<std::size_t>(m)] += (goal > activity[static_cast<std::size_t>(m)] ? .05f : .0012f) * (goal - activity[static_cast<std::size_t>(m)]);

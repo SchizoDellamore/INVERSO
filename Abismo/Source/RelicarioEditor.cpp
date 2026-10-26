@@ -494,8 +494,9 @@ void InversoRelicarioEditor::timerCallback(){
  }
  // The keyboard's wheel and pressure change the sound without moving a knob: shown while they are up.
  juce::String readout=juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 12";
- if(processor.modWheelNow.load()>.02f) readout+=juce::String("  MOD ")+juce::String(juce::roundToInt(processor.modWheelNow.load()*100.f))+"%";
- if(processor.pressureNow.load()>.02f) readout+=juce::String("  PRESSURE ")+juce::String(juce::roundToInt(processor.pressureNow.load()*100.f))+"%";
+ // a short form while the keyboard sends something, so it fits the plate
+ if(processor.modWheelNow.load()>.02f) readout=juce::String("MOD ")+juce::String(juce::roundToInt(processor.modWheelNow.load()*100.f))+"%";
+ if(processor.pressureNow.load()>.02f) readout+=juce::String(readout.startsWith("MOD")?"  PRESS ":"PRESS ")+juce::String(juce::roundToInt(processor.pressureNow.load()*100.f))+"%";
  master->setReadout(processor.outputPeak.load(),readout);
 }
 
