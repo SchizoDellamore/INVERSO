@@ -44,5 +44,8 @@ if(-not (Test-Path $iscc)){$iscc=(Get-Command ISCC.exe -ErrorAction SilentlyCont
 if(-not $iscc){throw 'Inno Setup 6 ISCC.exe not found'}
 & $iscc (Join-Path $root 'Installer\INVERSO_ABISMO.iss')
 Assert-Status 'Inno Setup'
-if(-not (Test-Path (Join-Path $root 'dist\INVERSO_ABISMO_Setup_0.17.0_x64.exe'))){throw 'Installer missing'}
+# the version is the installer script's own, so the two cannot drift apart again
+$version=([regex]::Match((Get-Content -LiteralPath (Join-Path $root 'Installer\INVERSO_ABISMO.iss') -Raw),'#define Ver "([^"]+)"')).Groups[1].Value
+if(-not $version){throw 'Version not found in the installer script'}
+if(-not (Test-Path (Join-Path $root "dist\INVERSO_ABISMO_Setup_${version}_x64.exe"))){throw 'Installer missing'}
 Write-Host 'SUCCESS: INVERSO ABISMO installer compiled.'
