@@ -36,16 +36,16 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
  static const std::array<ParamSpec, P::Count> table{{
   {"IN","Input",-18,18,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"EQ_ON","EQ",0,1,1,0,1,Kind::Bool,nullptr,""},
-  {"HPF","High-pass (10 = off)",10,400,10,60,.1f,Kind::Float,nullptr,"Hz"},
-  {"LPF","Low-pass (22k = off)",2000,22000,22000,9000,1,Kind::Float,nullptr,"Hz"},
+  {"HPF","High-pass",10,400,10,60,.1f,Kind::Float,nullptr,"hpf"},
+  {"LPF","Low-pass",2000,22000,22000,9000,1,Kind::Float,nullptr,"lpf"},
   {"LS_F","Low shelf frequency",30,400,100,100,.1f,Kind::Float,nullptr,"Hz"},
   {"LS_G","Low shelf gain",-12,12,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"B1_F","Bell 1 frequency",40,2000,300,300,.1f,Kind::Float,nullptr,"Hz"},
   {"B1_G","Bell 1 gain",-12,12,0,0,.01f,Kind::Float,nullptr,"dB"},
-  {"B1_Q","Bell 1 width (Q)",.3f,8,1,0,.01f,Kind::Float,nullptr,""},
+  {"B1_Q","Bell 1 width (Q)",.3f,8,1,0,.01f,Kind::Float,nullptr,"q"},
   {"B2_F","Bell 2 frequency",500,16000,3000,3000,.1f,Kind::Float,nullptr,"Hz"},
   {"B2_G","Bell 2 gain",-12,12,0,0,.01f,Kind::Float,nullptr,"dB"},
-  {"B2_Q","Bell 2 width (Q)",.3f,8,1,0,.01f,Kind::Float,nullptr,""},
+  {"B2_Q","Bell 2 width (Q)",.3f,8,1,0,.01f,Kind::Float,nullptr,"q"},
   {"HS_F","High shelf frequency",2000,20000,10000,8000,1,Kind::Float,nullptr,"Hz"},
   {"HS_G","High shelf gain",-12,12,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"EQ_MS","EQ works on",0,2,0,0,1,Kind::Choice,"Stereo|Mid|Side",""},
@@ -54,7 +54,7 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
   {"GATE_RANGE","Gate range",6,80,30,0,.1f,Kind::Float,nullptr,"dB"},
   {"GATE_HOLD","Gate hold",0,500,40,0,.1f,Kind::Float,nullptr,"ms"},
   {"GATE_RELEASE","Gate release",5,1000,120,150,.1f,Kind::Float,nullptr,"ms"},
-  {"GATE_FOCUS","Gate listens above (20 = all)",20,2000,20,200,.1f,Kind::Float,nullptr,"Hz"},
+  {"GATE_FOCUS","Gate listens above",20,2000,20,200,.1f,Kind::Float,nullptr,"off20"},
   {"TR_ON","Transients",0,1,0,0,1,Kind::Bool,nullptr,""},
   {"TR_ATTACK","Attack",-100,100,0,0,.1f,Kind::Float,nullptr,"%"},
   {"TR_SUSTAIN","Sustain",-100,100,0,0,.1f,Kind::Float,nullptr,"%"},
@@ -62,7 +62,7 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
   {"TAME_FREQ","Tame frequency",2000,16000,6500,6500,1,Kind::Float,nullptr,"Hz"},
   {"TAME_THRESH","Tame threshold",-60,0,-24,0,.1f,Kind::Float,nullptr,"thr"},
   {"TAME_RANGE","Tame range",0,18,6,0,.1f,Kind::Float,nullptr,"dB"},
-  {"TAME_Q","Tame width (Q)",.5f,6,2,0,.01f,Kind::Float,nullptr,""},
+  {"TAME_Q","Tame width (Q)",.5f,6,2,0,.01f,Kind::Float,nullptr,"q"},
   {"C1_ON","Compressor",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"C1_TYPE","Compressor type",0,3,0,0,1,Kind::Choice,"Var-mu|VCA|FET|Opto",""},
   {"C1_THRESH","Threshold",-50,0,-18,0,.1f,Kind::Float,nullptr,"thr"},
@@ -70,7 +70,7 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
   {"C1_ATTACK","Attack",.1f,100,10,10,.01f,Kind::Float,nullptr,"ms"},
   {"C1_RELEASE","Release",10,2000,100,150,.1f,Kind::Float,nullptr,"ms"},
   {"C1_KNEE","Knee",0,18,4,0,.1f,Kind::Float,nullptr,"dB"},
-  {"C1_TIME","Var-mu time constant",1,6,3,0,1,Kind::Int,nullptr,""},
+  {"C1_TIME","Var-mu time constant",1,6,3,0,1,Kind::Int,nullptr,"n"},
   {"C1_MIX","Mix (parallel)",0,100,100,0,.1f,Kind::Float,nullptr,"%"},
   {"C1_MAKEUP","Make-up trim",-12,12,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"C1_SC","Detector high-pass",20,500,60,100,.1f,Kind::Float,nullptr,"Hz"},
@@ -88,7 +88,7 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
   {"SAT_TONE","Tone",-100,100,0,0,.1f,Kind::Float,nullptr,"%"},
   {"SAT_MIX","Saturation mix",0,100,100,0,.1f,Kind::Float,nullptr,"%"},
   {"WIDTH","Stereo width",0,200,100,0,.1f,Kind::Float,nullptr,"%"},
-  {"BASS_MONO","Bass mono below (20 = off)",20,300,20,100,.1f,Kind::Float,nullptr,"Hz"},
+  {"BASS_MONO","Bass mono below",20,300,20,100,.1f,Kind::Float,nullptr,"off20"},
   {"LIM_ON","Limiter",0,1,1,0,1,Kind::Bool,nullptr,""},
   {"LIM_GAIN","Push into the limiter",0,18,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"LIM_CEIL","Ceiling (true peak)",-6,0,-1,0,.1f,Kind::Float,nullptr,"dB"},
@@ -268,6 +268,7 @@ inline const Layout& layout(Strip s) {
    l.local.fill(-1);
    for (int g : paramsOf(static_cast<Strip>(k))) {
     ParamSpec sp = allSpecs()[static_cast<std::size_t>(g)];
+    if (k == 0 && g == P::OutGain) sp.max = 0;   // the master's trim only lowers: the limiter's ceiling is the last word
     sp.def = l.defaults[static_cast<std::size_t>(g)];
     l.local[static_cast<std::size_t>(g)] = static_cast<int>(l.specs.size());
     l.specs.push_back(sp);

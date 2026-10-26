@@ -255,7 +255,7 @@ class Limiter {
 public:
  static constexpr int taps = 12;        // per side, per interpolation phase
  static constexpr int lookahead = 96;   // samples of smoothing (about 2 ms)
- int latency() const { return taps + lookahead - 1; }
+ int latency() const { return taps + look - 1; }   // follows the sample rate: valid after prepare()
  void prepare(double sampleRate) {
   sr = sampleRate;
   const double ratio = sampleRate / 48000.0;
@@ -291,7 +291,7 @@ public:
   const long j = static_cast<long>(pos) - taps;
   double peak = 0.0;
   if (j >= 0) {
-   for (int ch = 0; ch < 2; ++ch) {
+   for (std::size_t ch = 0; ch < 2; ++ch) {
     const auto& b = x[ch];
     peak = std::max(peak, std::abs(b[static_cast<std::size_t>(j) & mask]));
     for (int p = 1; p < 4; ++p) {
@@ -428,7 +428,7 @@ class Dither {
 public:
  void setBits(int bits) { lsb = bits <= 0 ? 0.0 : 1.0 / std::ldexp(1.0, bits - 1); }
  double process(double x) {
-  if (lsb == 0.0) return x;
+  if (lsb <= 0.0) return x;
   seed = seed * 1664525u + 1013904223u; const double a = static_cast<double>(seed >> 8) / 16777216.0;
   seed = seed * 1664525u + 1013904223u; const double b = static_cast<double>(seed >> 8) / 16777216.0;
   return std::round((x + (a - b) * lsb) / lsb) * lsb;   // triangular noise, then the word length

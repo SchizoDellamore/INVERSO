@@ -46,7 +46,7 @@ public:
 
   GateControls g;
   g.on = has(P::GateOn) && b(P::GateOn); g.thresh = f(P::GateThresh); g.range = f(P::GateRange);
-  g.holdMs = f(P::GateHold); g.releaseMs = f(P::GateRelease); g.focus = f(P::GateFocus); g.focusOn = f(P::GateFocus) > 25.f;
+  g.holdMs = f(P::GateHold); g.releaseMs = f(P::GateRelease); g.focus = f(P::GateFocus); g.focusOn = f(P::GateFocus) > 20.5f;   // as the knob reads it: 20 Hz is OFF
   gate.setControls(g);
 
   TransControls t;
@@ -125,7 +125,10 @@ public:
   gateNow.store(gateOpen, std::memory_order_relaxed);
  }
 
- void resetMeters() { resetRequest.store(true, std::memory_order_relaxed); } // the editor asks; the audio thread does it
+ void resetMeters() {
+  resetRequest.store(true, std::memory_order_relaxed);
+  momentary.store(-70.f); shortTerm.store(-70.f); integrated.store(-70.f); peakDb.store(-120.f);   // at once, even with the host stopped
+ } // the editor asks; the audio thread does it
 
  Strip strip;
  // read by the editor

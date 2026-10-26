@@ -144,12 +144,23 @@ juce::String formatValue(const ParamSpec& s,double v){
  if(unit=="q") return "Q "+juce::String(v,v<10.?2:1);
  if(unit=="oct") return (v>0?"+":"")+juce::String(juce::roundToInt(v))+" oct";
  if(unit=="n") return juce::String(juce::roundToInt(v));
+ if(unit==":1") return juce::String(v,v<10.?1:0)+":1";
+ if(unit=="hpf") return v<=10.5?juce::String("OFF"):formatValue(ParamSpec{"","",0,0,0,0,0,Kind::Float,nullptr,"Hz"},v);
+ if(unit=="lpf") return v>=21900.?juce::String("OFF"):formatValue(ParamSpec{"","",0,0,0,0,0,Kind::Float,nullptr,"Hz"},v);
+ if(unit=="off20") return v<=20.5?juce::String("OFF"):formatValue(ParamSpec{"","",0,0,0,0,0,Kind::Float,nullptr,"Hz"},v);
  if(unit=="thr") return juce::String(v,0)+" dB";
  if(unit=="gate") return v<=-89.9?juce::String("OFF"):juce::String(v,0)+" dB";
  if(unit=="ct") return (v>0?"+":"")+juce::String(v,0)+" ct";
  if(unit=="/s") return juce::String(v,v<10.?1:0)+" /s";
  if(*s.unit==0 && s.kind==Kind::Int) return juce::MidiMessage::getMidiNoteName(juce::roundToInt(v),true,true,3);
  return juce::String(v,0)+"%";
+}
+
+// What a DAW shows next to a value: the display-formatting keys of this file are not for it.
+static juce::String hostLabel(const juce::String& unit){
+ if(unit=="hpf"||unit=="lpf"||unit=="off20") return "Hz";
+ if(unit=="q"||unit=="n") return {};
+ return unit;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const ParamSpec* specs,int count){
@@ -173,7 +184,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const ParamSpec* 
     NormalisableRange<float> range(s.min,s.max,s.interval);
     if(s.centre>0.f) range.setSkewForCentre(s.centre);
     p.push_back(std::make_unique<AudioParameterFloat>(ParameterID{s.id,1},s.name,range,s.def,
-     AudioParameterFloatAttributes().withLabel(s.unit)));
+     AudioParameterFloatAttributes().withLabel(hostLabel(s.unit))));
     break;
    }
   }

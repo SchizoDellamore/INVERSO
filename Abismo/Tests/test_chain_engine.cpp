@@ -98,6 +98,7 @@ static void presetsRun() {
 }
 
 static void latencyAndBypass() {
+ verify(layout(Strip::Master).specs[static_cast<std::size_t>(layout(Strip::Master).local[P::OutGain])].max <= 0.f, "the master's output trim must not raise the signal over the limiter's ceiling");
  verify(Engine(Strip::Master).latency() == 107, "master latency");
  verify(Engine(Strip::Kick).latency() == 0, "a strip without a limiter has no latency");
  // a strip with everything off passes the signal through untouched

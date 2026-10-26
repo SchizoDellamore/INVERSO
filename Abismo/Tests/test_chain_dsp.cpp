@@ -275,7 +275,7 @@ static double truePeakDb(const std::vector<double>& x) {
   peak = std::max(peak, std::abs(x[n]));
   for (int p = 1; p < R; ++p) {
    double a = 0;
-   for (int k = -K + 1; k <= K; ++k) { const double t = k - static_cast<double>(p) / R; const double w = .5 + .5 * std::cos(pi * t / (K + .5)); a += x[n + static_cast<std::size_t>(k + K)] * 0 + x[static_cast<std::size_t>(static_cast<long>(n) + k)] * (std::sin(pi * t) / (pi * t)) * w; }
+   for (int k = -K + 1; k <= K; ++k) { const double t = k - static_cast<double>(p) / R; const double w = .5 + .5 * std::cos(pi * t / (K + .5)); a += x[static_cast<std::size_t>(static_cast<long>(n) + k)] * (std::sin(pi * t) / (pi * t)) * w; }
    peak = std::max(peak, std::abs(a));
   }
  }
@@ -308,6 +308,20 @@ static void limiter() {
   for (std::size_t i = d + 10; i < in.l.size(); ++i) worst = std::max(worst, std::abs(out[i] - in.l[i - d]));
   std::printf("limiter below the ceiling: largest difference to the delayed input %.2e (latency %d samples)\n", worst, lim.latency());
   verify(worst < 1e-12, "limiter: transparent below the ceiling, delayed by exactly its latency");
+ }
+ // 2b. the reported latency is the real delay at every sample rate (the host compensates by it)
+ for (double rate : {44100.0, 48000.0, 88200.0, 96000.0, 192000.0}) {
+  Limiter lim; lim.prepare(rate); lim.setControls(c);
+  const int n = static_cast<int>(rate * .2);
+  int firstOut = -1; double peak = 0;
+  for (int i = 0; i < n; ++i) {
+   double l = i == 1000 ? .2 : 0.0, r = l;
+   lim.process(l, r);
+   if (std::abs(l) > peak * .999 && std::abs(l) > .01 && firstOut < 0) firstOut = i;
+   peak = std::max(peak, std::abs(l));
+  }
+  std::printf("limiter at %.0f Hz: impulse delayed by %d samples, latency() says %d\n", rate, firstOut - 1000, lim.latency());
+  verify(firstOut - 1000 == lim.latency(), "limiter: the reported latency must be the real delay at every sample rate");
  }
  // 3. steady loud tone: the reduction is steady (no pumping) and no more than needed
  {

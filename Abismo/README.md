@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.17.1: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.18.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -182,8 +182,18 @@ Duas fontes, cada uma de um tipo: Wave, FM, Noise, Sample (gravação), Grains (
 
 **Freesound.** Aba FREESOUND: busca sons livres (licença CC0, sem obrigação de crédito) em freesound.org. Precisa de uma chave gratuita, uma vez só: **GET A FREE KEY** abre freesound.org/apiv2/apply; crie a conta, gere a chave, cole no campo e clique **SAVE KEY**. GET > A / GET > B baixam o som para *Sounds/Freesound* e já tocam na fonte; DOWNLOAD só baixa. Um arquivo *credits.txt* registra de onde veio cada som.
 
+## MASTER e as pistas de bateria (0.18)
+
+Efeitos de mixagem e masterização no mesmo motor, cada um num plugin, para usar sempre como padrão.
+
+**MASTER**, no master da sessão: EQ (passa-altas e passa-baixas de 24 dB, shelves e dois sinos; estéreo, só centro ou só laterais) > compressor com quatro caráteres (Var-mu, estilo Fairchild; VCA; FET; Opto) > compressor de cola > saturação (Tape, Tube, Transformer, com o volume compensado) > largura estéreo com graves em mono > limitador de true peak com lookahead (4x, latência de 107 amostras a 48 kHz, proporcional em outras taxas e informada ao DAW) > dither de 16, 20 ou 24 bits. O painel mostra loudness momentâneo, de curto prazo e integrado (LUFS, ITU-R BS.1770) e o pico; um clique zera. 14 presets: Clean Master, Gentle Glue, Abbey Road, Tape Warmth, Pop Loud, Rock Punch, Electronic Wide, Acoustic, Jazz and Orchestral, Dark Tape, Cinematic, Synthwave, Limiter Only e Metering Only.
+
+**KICK, SNARE, TOMS, HATS, CYMBALS e OVERHEADS**: um por peça, cada um com os módulos que ela pede. Gate com foco de frequência (bumbo, caixa, tons e chimbau), transientes (ataque e sustain), EQ, tame (reduz o brilho áspero só quando passa do limiar), compressor, saturação, e largura nos pratos e overheads. Sem latência. 6 a 8 presets cada, por estilo (Rock, Metal, Pop, Jazz, Electronic, Lo-fi); o primeiro de cada um é o ponto de partida.
+
+Os presets são pontos de partida: foram escolhidos por números (nível, redução, pico) e não por escuta; ajuste o limiar ao nível da sua gravação. Os testes medem o EQ contra a fórmula, a compensação de volume da saturação, o aliasing, as curvas e os tempos dos compressores, o true peak do limitador contra uma reconstrução independente 8x e o loudness contra a referência EBU (-23 LUFS).
+
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.17.1** e baixe `INVERSO_ABISMO_Setup_0.17.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.17.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
+No GitHub, abra **Releases > INVERSO ABISMO 0.18.0** e baixe `INVERSO_ABISMO_Setup_0.18.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.18.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
 
 O instalador não é assinado digitalmente.
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.17.1 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.18.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -488,6 +488,61 @@ target_link_libraries(InversoHaloHostSmoke PRIVATE
  juce::juce_recommended_warning_flags)
 add_test(NAME halo_host_smoke COMMAND InversoHaloHostSmoke)
 
+# INVERSO MASTER and the drum channel strips: one source set, one plugin per strip (INVERSO_CHAIN_STRIP picks it).
+set(CHAIN_SOURCES
+ Source/ChainProcessor.cpp Source/ChainProcessor.h
+ Source/ChainEditor.cpp Source/ChainEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/ChainDsp.h Source/DSP/ChainDyn.h Source/DSP/ChainParams.h Source/DSP/ChainEngine.h)
+function(inverso_chain_plugin target product code bundle strip)
+ juce_add_plugin(${target}
+  COMPANY_NAME "Inverso Studios"
+  BUNDLE_ID "net.inversostudios.${bundle}"
+  PLUGIN_MANUFACTURER_CODE InvS
+  PLUGIN_CODE ${code}
+  PRODUCT_NAME "${product}"
+  FORMATS VST3
+  VST3_CATEGORIES Fx Dynamics
+  IS_SYNTH FALSE
+  NEEDS_MIDI_INPUT FALSE
+  NEEDS_MIDI_OUTPUT FALSE
+  IS_MIDI_EFFECT FALSE
+  EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+  COPY_PLUGIN_AFTER_BUILD FALSE)
+ juce_generate_juce_header(${target})
+ target_sources(${target} PRIVATE ${CHAIN_SOURCES})
+ target_compile_definitions(${target} PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 INVERSO_CHAIN_STRIP=${strip})
+ target_link_libraries(${target} PRIVATE
+  AbismoFonts
+  juce::juce_audio_utils juce::juce_dsp
+  juce::juce_recommended_config_flags
+  juce::juce_recommended_warning_flags
+  $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+endfunction()
+inverso_chain_plugin(InversoMaster "INVERSO MASTER" IvMs master 0)
+inverso_chain_plugin(InversoKick "INVERSO KICK" IvKk kick 1)
+inverso_chain_plugin(InversoSnare "INVERSO SNARE" IvSn snare 2)
+inverso_chain_plugin(InversoToms "INVERSO TOMS" IvTm toms 3)
+inverso_chain_plugin(InversoHats "INVERSO HATS" IvHt hats 4)
+inverso_chain_plugin(InversoCymbals "INVERSO CYMBALS" IvCy cymbals 5)
+inverso_chain_plugin(InversoOverheads "INVERSO OVERHEADS" IvOh overheads 6)
+# Host smokes for the strip with a limiter (MASTER) and the one with most modules (SNARE); the conformance test covers all seven.
+foreach(pair IN ITEMS "InversoMasterHostSmoke|0|master_host_smoke" "InversoSnareHostSmoke|2|snare_host_smoke")
+ string(REPLACE "|" ";" parts "${pair}")
+ list(GET parts 0 smoke)
+ list(GET parts 1 strip)
+ list(GET parts 2 testname)
+ juce_add_console_app(${smoke} PRODUCT_NAME "${smoke}")
+ juce_generate_juce_header(${smoke})
+ target_sources(${smoke} PRIVATE Tests/test_chain_host.cpp ${CHAIN_SOURCES})
+ target_compile_definitions(${smoke} PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 INVERSO_CHAIN_STRIP=${strip})
+ target_link_libraries(${smoke} PRIVATE
+  AbismoFonts
+  juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+  juce::juce_recommended_warning_flags)
+ add_test(NAME ${testname} COMMAND ${smoke})
+endforeach()
+
 # The built VST3 bundles, hosted as a DAW hosts them, through every check in
 # Tests/test_vst3_conformance.cpp (state, programs, rates, block sizes, fuzz, threads, editor).
 juce_add_console_app(InversoVst3Conformance PRODUCT_NAME "INVERSO VST3 Conformance")
@@ -497,7 +552,9 @@ target_link_libraries(InversoVst3Conformance PRIVATE juce::juce_audio_utils juce
  juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 foreach(plugin IN ITEMS "InversoAbismo|INVERSO ABISMO" "InversoAbismoSampler|INVERSO ABISMO SAMPLER" "InversoAbismoDrums|INVERSO ABISMO DRUMS"
                        "InversoRelicario|INVERSO RELICARIO" "InversoEnki|INVERSO ENKI" "InversoClear|INVERSO CLEAR" "InversoTide|INVERSO TIDE"
-                       "InversoNeon|INVERSO NEON" "InversoHalo|INVERSO HALO")
+                       "InversoNeon|INVERSO NEON" "InversoHalo|INVERSO HALO"
+                       "InversoMaster|INVERSO MASTER" "InversoKick|INVERSO KICK" "InversoSnare|INVERSO SNARE" "InversoToms|INVERSO TOMS"
+                       "InversoHats|INVERSO HATS" "InversoCymbals|INVERSO CYMBALS" "InversoOverheads|INVERSO OVERHEADS")
  string(REPLACE "|" ";" parts "${plugin}")
  list(GET parts 0 target)
  list(GET parts 1 name)

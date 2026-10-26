@@ -16,6 +16,8 @@ inline double dbToGain(double db) { return std::pow(10.0, db / 20.0); }
 inline double gainToDb(double g) { return 20.0 * std::log10(std::max(g, 1e-12)); }
 inline double clampd(double x, double lo, double hi) { return x < lo ? lo : (x > hi ? hi : x); }
 // One-pole smoothing coefficient for a time constant in seconds at `sr`.
+// Exact comparison without -Wfloat-equal: settings are compared to see whether they changed at all.
+inline bool same(double a, double b) { return !(a < b) && !(b < a); }
 inline double timeCoef(double seconds, double sr) { return seconds <= 1e-9 ? 1.0 : 1.0 - std::exp(-1.0 / (seconds * sr)); }
 
 // ---------------------------------------------------------------- biquads (RBJ cookbook)
@@ -149,8 +151,8 @@ public:
  }
 private:
  bool sameAs(const EqControls& n) const {
-  return n.on == c.on && n.hpf == c.hpf && n.lpf == c.lpf && n.lsF == c.lsF && n.lsG == c.lsG && n.b1F == c.b1F && n.b1G == c.b1G && n.b1Q == c.b1Q &&
-         n.b2F == c.b2F && n.b2G == c.b2G && n.b2Q == c.b2Q && n.hsF == c.hsF && n.hsG == c.hsG && n.ms == c.ms;
+  return same(n.on, c.on) && same(n.hpf, c.hpf) && same(n.lpf, c.lpf) && same(n.lsF, c.lsF) && same(n.lsG, c.lsG) && same(n.b1F, c.b1F) && same(n.b1G, c.b1G) && same(n.b1Q, c.b1Q) &&
+         same(n.b2F, c.b2F) && same(n.b2G, c.b2G) && same(n.b2Q, c.b2Q) && same(n.hsF, c.hsF) && same(n.hsG, c.hsG) && same(n.ms, c.ms);
  }
  double run(int ch, double x) {
   auto& s = state[static_cast<std::size_t>(ch)];
@@ -207,7 +209,7 @@ public:
   setControls(c, true);
  }
  void setControls(const SatControls& n, bool force = false) {
-  if (!force && n.on == c.on && n.type == c.type && n.drive == c.drive && n.tone == c.tone && n.mix == c.mix) return;
+  if (!force && same(n.on, c.on) && n.type == c.type && same(n.drive, c.drive) && same(n.tone, c.tone) && same(n.mix, c.mix)) return;
   c = n;
   const double d = clampd(c.drive, 0, 100) / 100.0;
   g = dbToGain(24.0 * d);
@@ -245,12 +247,13 @@ private:
     s.dc += 0.0004 * (y - s.dc);                                             // the bias makes DC: take it out
     return y - s.dc;
    }
-   default: {
+   case SatType::Transformer: {
     s.low += lowSplit * (x - s.low);
     const double high = x - s.low, gl = g * 1.5, gh = std::sqrt(g);
     return s.a.process(gl * s.low) / gl + s.b.process(gh * high) / gh;      // the lows saturate first
    }
   }
+  return x;
  }
  // The level each type and drive adds on a reference program, measured once: compensation is exact for it.
  void buildCompensation() {
@@ -307,7 +310,7 @@ class Width {
 public:
  void prepare(double sampleRate) { sr = sampleRate; hp.reset(); setControls(c, true); }
  void setControls(const WidthControls& n, bool force = false) {
-  if (!force && n.width == c.width && n.bassMono == c.bassMono) return;
+  if (!force && same(n.width, c.width) && same(n.bassMono, c.bassMono)) return;
   c = n;
   w = clampd(c.width, 0, 200) / 100.0;
   mono = c.bassMono > 20.5f;
