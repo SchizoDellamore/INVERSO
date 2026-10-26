@@ -405,9 +405,7 @@ InversoAbismoSamplerEditor::InversoAbismoSamplerEditor(InversoAbismoSamplerProce
  };
 
  setResizable(true,true);
- setResizeLimits(designW*6/10,designH*6/10,designW*3/2,designH*3/2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW)/designH);
- setSize(designW*9/10,designH*9/10);
+ soft::sizeWindow(*this,"SAMPLER",designW,designH,0.6f);
  refreshFromProcessor();
  startTimerHz(30);
 }
@@ -483,6 +481,7 @@ void InversoAbismoSamplerEditor::paintOverChildren(juce::Graphics& g){
 void InversoAbismoSamplerEditor::resized(){
  body.setBounds(0,0,designW,designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth())/designW));
+ soft::rememberWindow(*this,"SAMPLER",designW);
  presets.setBounds(designW/2-210,14,420,72);
  const int x0=10,y0=88,mainW=1150,r1=350,r2=280,r3=280;
  auto place=[](juce::Component& comp,int x,int y,int w,int h){comp.setBounds(x,y,w,h);};

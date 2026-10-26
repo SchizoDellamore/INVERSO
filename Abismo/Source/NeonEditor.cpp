@@ -269,9 +269,7 @@ InversoNeonEditor::InversoNeonEditor(InversoNeonProcessor& p) : AudioProcessorEd
                    neonViolet.withAlpha(value(P::RevMix) > 0.f ? 1.f : .35f));
  };
  setResizable(true, true);
- setResizeLimits(designW * 5 / 10, designH * 5 / 10, designW * 3 / 2, designH * 3 / 2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
- setSize(designW * 8 / 10, designH * 8 / 10);
+ soft::sizeWindow(*this,"NEON",designW,designH,0.5f);
  startTimerHz(30);
 }
 
@@ -286,6 +284,7 @@ void InversoNeonEditor::timerCallback() {
 void InversoNeonEditor::resized() {
  body.setBounds(0, 0, designW, designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
+ soft::rememberWindow(*this,"NEON",designW);
  presets.setBounds(designW / 2 - 230, 14, 460, 72);
  const int x0 = 10, y0 = 88, mainW = 1150, row = (designH - y0 - 12) / 3;
  auto& m = modules;

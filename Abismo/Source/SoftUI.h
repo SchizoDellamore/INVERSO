@@ -237,8 +237,22 @@ class Body final : public juce::Component {
 public:
  juce::String title, subtitle;
  void paint(juce::Graphics&) override;
+ void mouseUp(const juce::MouseEvent&) override;
+ void mouseMove(const juce::MouseEvent&) override;
+ void mouseExit(const juce::MouseEvent&) override { sizeHover = false; repaint(sizeButton().toNearestInt()); }
 private:
+ void paintBody(juce::Graphics&);
+ juce::Rectangle<float> sizeButton() const { return {static_cast<float>(getWidth()) - 118.f, 6.f, 92.f, 18.f}; }
  juce::Image woodCache;
+ bool sizeHover = false;
 };
+
+// The window of an editor, for any screen: it can grow as far as the screen allows (4K), opens at
+// a size that suits the screen, and remembers the size you chose (per plugin, in the user's
+// application data). Call from the editor's constructor in place of setResizeLimits / setSize,
+// and from resized() so the size is remembered. The SIZE button in the corner cycles 100 / 150 /
+// 200 / 300 % of the design size.
+void sizeWindow(juce::AudioProcessorEditor&, const juce::String& plugin, int designW, int designH, float minScale);
+void rememberWindow(juce::AudioProcessorEditor&, const juce::String& plugin, int designW);
 
 } // namespace soft

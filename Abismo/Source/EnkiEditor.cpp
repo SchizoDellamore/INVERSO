@@ -688,9 +688,7 @@ InversoEnkiEditor::InversoEnkiEditor(InversoEnkiProcessor& p) : AudioProcessorEd
  };
 
  setResizable(true, true);
- setResizeLimits(designW * 6 / 10, designH * 6 / 10, designW * 3 / 2, designH * 3 / 2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
- setSize(designW * 9 / 10, designH * 9 / 10);
+ soft::sizeWindow(*this,"ENKI",designW,designH,0.6f);
  timerCallback();
  startTimerHz(30);
 }
@@ -771,6 +769,7 @@ void InversoEnkiEditor::timerCallback() {
 void InversoEnkiEditor::resized() {
  body.setBounds(0, 0, designW, designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
+ soft::rememberWindow(*this,"ENKI",designW);
  bar.setBounds(290, 4, designW - 300, 84);
  const int x0 = 10, y0 = 88;
  const int r1 = 330, r2 = 290, r3 = designH - y0 - r1 - r2 - 12;

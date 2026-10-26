@@ -34,6 +34,7 @@ public:
  abismo_ui::MidiLearn midiLearn{*this}; // right-click any knob: MIDI learn
  std::atomic<float> outputPeak{0.f};
  std::atomic<int> voicesSounding{0};
+ std::atomic<float> modWheelNow{0.f},pressureNow{0.f}; // what the keyboard is sending, shown in the readout
  // For the editor's screens: tape loop positions and bellows pressure.
  std::atomic<float> loop1{0.f},loop2{0.f},bellows{1.f};
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();

@@ -335,9 +335,7 @@ InversoTideEditor::InversoTideEditor(InversoTideProcessor& p) : AudioProcessorEd
  }
  graph.onSelect = [this](int) {};
  setResizable(true, true);
- setResizeLimits(designW * 5 / 10, designH * 5 / 10, designW * 3 / 2, designH * 3 / 2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
- setSize(designW * 8 / 10, designH * 8 / 10);
+ soft::sizeWindow(*this,"TIDE",designW,designH,0.5f);
  startTimerHz(30);
 }
 
@@ -361,6 +359,7 @@ void InversoTideEditor::timerCallback() {
 void InversoTideEditor::resized() {
  body.setBounds(0, 0, designW, designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
+ soft::rememberWindow(*this,"TIDE",designW);
  presets.setBounds(designW / 2 - 210, 14, 420, 72);
  const int x0 = 10, y0 = 88, mainW = 1230, top = 420, bottom = designH - y0 - top - 12;
  graph.setBounds(x0, y0, mainW, top);

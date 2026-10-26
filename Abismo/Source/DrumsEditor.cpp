@@ -235,10 +235,8 @@ InversoAbismoDrumsEditor::InversoAbismoDrumsEditor(InversoAbismoDrumsProcessor& 
  };
 
  setResizable(true,true);
- setResizeLimits(designW*6/10,designH*6/10,designW*3/2,designH*3/2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW)/designH);
  selectPad(0);
- setSize(designW*9/10,designH*9/10);
+ soft::sizeWindow(*this,"DRUMS",designW,designH,0.6f);
  timerCallback();
  startTimerHz(30);
 }
@@ -382,6 +380,7 @@ void InversoAbismoDrumsEditor::timerCallback(){
 void InversoAbismoDrumsEditor::resized(){
  body.setBounds(0,0,designW,designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth())/designW));
+ soft::rememberWindow(*this,"DRUMS",designW);
  kits.setBounds(designW/2-210,14,420,72);
  const int x0=10,y0=88,mainW=1150,r1=520,r2=380;
  grid.setBounds(x0,y0,540,r1);

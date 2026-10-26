@@ -88,6 +88,7 @@ struct TapeLoop {
 struct Controls {
  float fita = .7f, harm = 0.f, fork = 0.f, organ = 0.f;
  int wave1 = 0, wave2 = 2;
+ float hiss = .35f;
  float loopMix = .5f, loop1Level = 1.f, loop2Level = 1.f, loop2Ratio = 1.f, wear = .35f, wow = .3f, sat = .3f, fitaCutoff = 6000.f;
  float era = 0.f, breath = .3f, motor = .25f, sag = .5f, speakMs = 60.f;
  float spark = .3f, clang = .5f, maintain = .7f, beatHz = .4f;
@@ -471,6 +472,9 @@ public:
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f); }
  void setModWheel(float v) { modWheel = std::clamp(v, 0.f, 1.f); }
  void setPressure(float v) { aftertouch = std::clamp(v, 0.f, 1.f); }
+ // What the keyboard is sending that the knobs do not show, for the editor.
+ float modWheelNow() const { return modWheel; }
+ float pressureNow() const { return aftertouch; }
  int activeVoices() const { int n = 0; for (const auto& v : voices) n += v.active() ? 1 : 0; return n; }
  // For the editor: where each tape loop is, and the bellows pressure.
  float loopPhase(int i) const { return i == 0 ? loop1.phase : loop2.phase; }
@@ -496,7 +500,7 @@ public:
     // FITA bus: saturation and hiss.
     {
      const float drive = 1.f + controls.sat * 4.f;
-     const float hiss = rng.next() * controls.wear * .006f * activity[0];
+     const float hiss = rng.next() * controls.hiss * .006f * activity[0];
      // Head bump: the playback head lifts the low end around 90 Hz.
      const float bl = busFitaL[k] + bumpGain * bumpL.process(busFitaL[k], bumpA1, bumpA2, bumpA3, bumpK, 1);
      const float br = busFitaR[k] + bumpGain * bumpR.process(busFitaR[k], bumpA1, bumpA2, bumpA3, bumpK, 1);
@@ -738,6 +742,7 @@ private:
   // Activity per machine: hum, hiss and dust follow playing and fade after it.
   const float mlev[4] = {controls.fita, controls.harm, controls.fork, controls.organ};
   const bool sounding = activeVoices() > 0;
+  if (!sounding && held == 0) aftertouch = 0.f; // pressure belongs to a key being pressed: with none down it is zero
   for (int m = 0; m < 4; ++m) {
    const float goal = sounding && mlev[m] > 0.f ? 1.f : 0.f;
    activity[static_cast<std::size_t>(m)] += (goal > activity[static_cast<std::size_t>(m)] ? .05f : .0012f) * (goal - activity[static_cast<std::size_t>(m)]);
@@ -756,6 +761,7 @@ private:
   c.loop1Level = pct(P::Loop1Level); c.loop2Level = pct(P::Loop2Level);
   c.loop2Ratio = std::exp2(static_cast<float>(choice(P::Loop2Octave) - 1)) * detail::semitoneRatio(s[P::Loop2Detune] * .01f);
   c.wear = std::min(1.f, pct(P::Wear) + modWheel * .4f);
+  c.hiss = pct(P::Wear); // the tape's hiss follows the WEAR knob only, never a wheel left up
   c.wow = std::min(1.f, pct(P::Wow) + modWheel * .5f);
   c.sat = pct(P::TapeSat);
   c.fitaCutoff = 500.f * std::pow(32.f, pct(P::FitaTone));

@@ -1056,6 +1056,22 @@ void PresetBar::mouseUp(const juce::MouseEvent& e) {
 }
 
 void Body::paint(juce::Graphics& g) {
+ paintBody(g);
+ // SIZE: a small button in the top-right corner
+ {
+  const auto b = sizeButton();
+  const float now = static_cast<float>(getParentWidth()) / static_cast<float>(std::max(1, getWidth()));
+  const bool dark = vintage;
+  g.setColour((dark ? juce::Colour(0xff1a0f08) : colour::bodyBottom).withAlpha(sizeHover ? .95f : .7f));
+  g.fillRoundedRectangle(b, 5.f);
+  g.setColour((dark ? juce::Colour(0xffe2c26e) : colour::muted).withAlpha(sizeHover ? 1.f : .85f));
+  g.drawRoundedRectangle(b, 5.f, 1.f);
+  g.setFont(monoFont(10.f));
+  g.drawText("SIZE " + juce::String(juce::roundToInt(now * 100.f)) + "%", b, juce::Justification::centred);
+ }
+}
+
+void Body::paintBody(juce::Graphics& g) {
  const auto r = getLocalBounds().toFloat();
  if (vintage) {
   // Walnut veneer, drawn once.
@@ -1108,6 +1124,68 @@ void Body::paint(juce::Graphics& g) {
  g.setColour(colour::muted);
  g.setFont(uiFont(10.5f));
  g.drawText(subtitle, 34, 62, 700, 16, juce::Justification::centredLeft);
+}
+
+// ---------------------------------------------------------------- window size
+
+namespace {
+juce::PropertiesFile& windowSettings(const juce::String& plugin) {
+ static std::map<juce::String, std::unique_ptr<juce::PropertiesFile>> files; // one file per plugin: no two plugins write the same one
+ auto& f = files[plugin];
+ if (f == nullptr) {
+  juce::PropertiesFile::Options o;
+  o.applicationName = "INVERSO " + plugin;
+  o.filenameSuffix = ".settings";
+  o.folderName = "INVERSO";
+  o.osxLibrarySubFolder = "Application Support";
+  o.millisecondsBeforeSaving = 1500;
+  f = std::make_unique<juce::PropertiesFile>(o);
+ }
+ return *f;
+}
+juce::Rectangle<int> screenArea() {
+ if (const auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()) return d->userArea;
+ return {0, 0, 1920, 1080};
+}
+float largestScale(int designW, int designH) {
+ const auto a = screenArea();
+ return std::clamp(std::min(.96f * static_cast<float>(a.getWidth()) / static_cast<float>(designW),
+                            .92f * static_cast<float>(a.getHeight()) / static_cast<float>(designH)), 1.5f, 4.f);
+}
+} // namespace
+
+void sizeWindow(juce::AudioProcessorEditor& ed, const juce::String& plugin, int designW, int designH, float minScale) {
+ const float maxScale = largestScale(designW, designH);
+ ed.setResizeLimits(juce::roundToInt(static_cast<float>(designW) * minScale), juce::roundToInt(static_cast<float>(designH) * minScale),
+                    juce::roundToInt(static_cast<float>(designW) * maxScale), juce::roundToInt(static_cast<float>(designH) * maxScale));
+ ed.getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
+ float scale = static_cast<float>(windowSettings(plugin).getDoubleValue("scale", 0.0));
+ if (scale <= 0.f) // first time: about 70% of the screen's height (1080p: the size it always had; 4K: half as big again)
+  scale = std::clamp(.7f * static_cast<float>(screenArea().getHeight()) / static_cast<float>(designH), .9f, std::min(maxScale, 2.5f));
+ scale = std::clamp(scale, minScale, maxScale);
+ ed.setSize(juce::roundToInt(static_cast<float>(designW) * scale), juce::roundToInt(static_cast<float>(designH) * scale));
+}
+
+void rememberWindow(juce::AudioProcessorEditor& ed, const juce::String& plugin, int designW) {
+ if (!ed.isShowing() || ed.getWidth() <= 0) return; // only what the player did, not the size it opened at
+ windowSettings(plugin).setValue("scale", static_cast<double>(ed.getWidth()) / designW);
+}
+
+// The SIZE button in the corner of the body.
+void Body::mouseMove(const juce::MouseEvent& e) {
+ const bool over = sizeButton().contains(e.position);
+ if (over != sizeHover) { sizeHover = over; repaint(sizeButton().toNearestInt()); }
+ setMouseCursor(over ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+}
+void Body::mouseUp(const juce::MouseEvent& e) {
+ if (!sizeButton().contains(e.position) || e.mouseWasDraggedSinceMouseDown()) return;
+ auto* ed = findParentComponentOfClass<juce::AudioProcessorEditor>();
+ if (ed == nullptr || getWidth() <= 0) return;
+ const float now = static_cast<float>(ed->getWidth()) / static_cast<float>(getWidth());
+ const float maxScale = static_cast<float>(ed->getConstrainer()->getMaximumWidth()) / static_cast<float>(getWidth());
+ float next = 1.f;
+ for (const float step : {1.f, 1.5f, 2.f, 3.f}) if (step > now + .04f && step <= maxScale + .01f) { next = step; break; }
+ ed->setSize(juce::roundToInt(static_cast<float>(getWidth()) * next), juce::roundToInt(static_cast<float>(getHeight()) * next));
 }
 
 } // namespace soft

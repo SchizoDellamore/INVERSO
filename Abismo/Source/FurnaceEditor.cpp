@@ -196,9 +196,7 @@ InversoFurnaceEditor::InversoFurnaceEditor(InversoFurnaceProcessor& p) : AudioPr
  };
 
  setResizable(true, true);
- setResizeLimits(designW * 6 / 10, designH * 6 / 10, designW * 3 / 2, designH * 3 / 2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
- setSize(designW * 9 / 10, designH * 9 / 10);
+ soft::sizeWindow(*this,"FURNACE",designW,designH,0.6f);
  timerCallback();
  startTimerHz(30);
 }
@@ -233,6 +231,7 @@ void InversoFurnaceEditor::timerCallback() {
 void InversoFurnaceEditor::resized() {
  body.setBounds(0, 0, designW, designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
+ soft::rememberWindow(*this,"FURNACE",designW);
  presets.setBounds(designW / 2 - 210, 14, 420, 72);
  const int x0 = 10, y0 = 88, mainW = 1110, r1 = 330, r2 = designH - y0 - r1 - 12;
  modules[0]->setBounds(x0, y0, 270, r1);

@@ -65,6 +65,8 @@ void InversoRelicarioProcessor::processBlock(juce::AudioBuffer<float>& audio,juc
  for (int i=0;i<samples;++i) peak=std::max({peak,std::abs(left[i]),std::abs(right[i])});
  outputPeak.store(std::max(peak,outputPeak.load(std::memory_order_relaxed)*.9f),std::memory_order_relaxed);
  voicesSounding.store(engine.activeVoices(),std::memory_order_relaxed);
+ modWheelNow.store(engine.modWheelNow(),std::memory_order_relaxed);
+ pressureNow.store(engine.pressureNow(),std::memory_order_relaxed);
  loop1.store(engine.loopPhase(0),std::memory_order_relaxed);
  loop2.store(engine.loopPhase(1),std::memory_order_relaxed);
  bellows.store(engine.bellows(),std::memory_order_relaxed);

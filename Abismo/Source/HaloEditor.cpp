@@ -103,9 +103,7 @@ InversoHaloEditor::InversoHaloEditor(InversoHaloProcessor& p) : AudioProcessorEd
   soft::glowStroke(g, path, neonCyan);
  };
  setResizable(true, true);
- setResizeLimits(designW * 6 / 10, designH * 6 / 10, designW * 3 / 2, designH * 3 / 2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW) / designH);
- setSize(designW, designH);
+ soft::sizeWindow(*this,"HALO",designW,designH,0.6f);
  startTimerHz(30);
 }
 
@@ -122,6 +120,7 @@ void InversoHaloEditor::timerCallback() {
 void InversoHaloEditor::resized() {
  body.setBounds(0, 0, designW, designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
+ soft::rememberWindow(*this,"HALO",designW);
  presets.setBounds(designW / 2 - 200, 14, 400, 72);
  const int x0 = 10, y0 = 88, h = designH - y0 - 12, mainW = 820;
  modules[0]->setBounds(x0, y0, 420, h);

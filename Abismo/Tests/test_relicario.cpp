@@ -242,6 +242,36 @@ static void effects() {
  std::puts("effects rack: pass");
 }
 
+// The keyboard's wheel and pressure: the tape hiss follows the WEAR knob only (a wheel left up
+// must not add hiss), and pressure is zero once no key is down.
+static double highBandEnergy(const std::vector<float>& x, std::size_t from, std::size_t to, int sr) {
+ const double k = std::exp(-2.0 * 3.14159265358979 * 7000.0 / sr);
+ double h1 = 0, p1 = 0, h2 = 0, p2 = 0, sum = 0;
+ for (std::size_t i = 0; i < to; ++i) {
+  const double v = static_cast<double>(x[i]);
+  const double y1 = k * (h1 + v - p1); p1 = v; h1 = y1;
+  const double y2 = k * (h2 + y1 - p2); p2 = y1; h2 = y2;
+  if (i >= from) sum += y2 * y2;
+ }
+ return sum / static_cast<double>(to - from);
+}
+static void wheelAndPressure() {
+ const int sr = 48000;
+ double band[2];
+ for (int up = 0; up < 2; ++up) {
+  R::Values v = R::presetValues(0); v[R::P::Wear] = 80.f; v[R::P::Wow] = 0.f; v[R::P::Age] = 0.f;
+  R::Engine e; e.setValues(v); e.prepare(sr); e.setModWheel(up ? 1.f : 0.f);
+  e.noteOn(57, .8f);
+  const auto s = render(e, 256 * 400);
+  band[up] = highBandEnergy(s.l, static_cast<std::size_t>(sr), s.l.size(), sr);
+ }
+ std::printf("tape hiss with the wheel down / up: %.1f / %.1f dB\n", 10 * std::log10(band[0] + 1e-20), 10 * std::log10(band[1] + 1e-20));
+ verify(band[1] < band[0] * 1.6, "a mod wheel left up must not add tape hiss");
+ R::Engine e; e.setValues(R::presetValues(0)); e.prepare(sr);
+ e.setPressure(1.f); e.noteOn(60, .8f); render(e, 256 * 20); e.noteOff(60); render(e, 256 * 400);
+ verify(e.pressureNow() < .001f, "pressure must fall to zero when no key is down");
+}
+
 static void stress() {
  for (int sr : {44100, 96000}) {
   R::Engine e; e.setValues(R::defaults()); e.prepare(sr);
@@ -477,6 +507,7 @@ int main(int argc, char** argv) {
  effects();
  feedback014();
  presetDemos(argc > 1 ? argv[1] : "");
+ wheelAndPressure();
  stress();
  std::puts("Relicario tests passed");
 }

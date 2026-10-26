@@ -429,9 +429,7 @@ InversoRelicarioEditor::InversoRelicarioEditor(InversoRelicarioProcessor& p):Aud
  };
 
  setResizable(true,true);
- setResizeLimits(designW*6/10,designH*6/10,designW*3/2,designH*3/2);
- getConstrainer()->setFixedAspectRatio(static_cast<double>(designW)/designH);
- setSize(designW*9/10,designH*9/10);
+ soft::sizeWindow(*this,"RELICARIO",designW,designH,0.6f);
  timerCallback();
  startTimerHz(30);
 }
@@ -494,12 +492,17 @@ void InversoRelicarioEditor::timerCallback(){
   m->dimInactive([this](int p){return relicarioControlActive(processor.apvts,p);});
   m->screen.repaint();
  }
- master->setReadout(processor.outputPeak.load(),juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 12");
+ // The keyboard's wheel and pressure change the sound without moving a knob: shown while they are up.
+ juce::String readout=juce::String("VOICES ")+juce::String(processor.voicesSounding.load())+" / 12";
+ if(processor.modWheelNow.load()>.02f) readout+=juce::String("  MOD ")+juce::String(juce::roundToInt(processor.modWheelNow.load()*100.f))+"%";
+ if(processor.pressureNow.load()>.02f) readout+=juce::String("  PRESSURE ")+juce::String(juce::roundToInt(processor.pressureNow.load()*100.f))+"%";
+ master->setReadout(processor.outputPeak.load(),readout);
 }
 
 void InversoRelicarioEditor::resized(){
  body.setBounds(0,0,designW,designH);
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth())/designW));
+ soft::rememberWindow(*this,"RELICARIO",designW);
  presets.setBounds(designW/2-210,14,420,72);
  // Plates carry a 10 px shadow margin, so neighbours overlap by it.
  const int x0=10,y0=88,mainW=1150;
