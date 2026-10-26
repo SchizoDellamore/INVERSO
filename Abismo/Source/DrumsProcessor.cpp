@@ -143,7 +143,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   if (const auto position=head->getPosition())
    engine.setTransport(position->getBpm().orFallback(120.0),position->getPpqPosition().orFallback(0.0),position->getIsPlaying());
  if (const auto pads=fadeThisBlock?0u:auditions.exchange(0))
-  for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) engine.noteOn(firstPadNote+pad,.8f);
+  for (int pad=0;pad<numPads;++pad) if (pads & (1u<<pad)) { sawNote(firstPadNote+pad,2); engine.noteOn(firstPadNote+pad,.8f); }
  auto* left=audio.getWritePointer(0);
  auto* right=audio.getWritePointer(1);
  auto play=[&](const juce::MidiMessageMetadata& metadata){
@@ -151,7 +151,7 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
   const auto m=metadata.getMessage();
   midiLearn.handle(m);
   if (playEngineState(m)) return;
-  if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(),m.getFloatVelocity());
+  if (m.isNoteOn()) { if (m.getFloatVelocity()>0.f) sawNote(m.getNoteNumber(),0); engine.noteOn(m.getNoteNumber(),m.getFloatVelocity()); }
   else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
   else if (m.isAllNotesOff()) engine.allNotesOff();
   else if (m.isAllSoundOff()) engine.allSoundOff();
@@ -160,10 +160,11 @@ void InversoAbismoDrumsProcessor::processBlock(juce::AudioBuffer<float>& audio,j
  if (playHeld) {
   for (int i=0;i<held.sawCount;++i) { // in the order pressed: the saw ends on the last one
    const int note=held.saw[static_cast<std::size_t>(i)];
+   sawNote(note,1);
    engine.noteOn(note,held.sawVelocity[static_cast<std::size_t>(note)]);
    if (held.sawLetGo[static_cast<std::size_t>(note)]) engine.noteOff(note); // the pedal holds it
   }
-  for (int pad=0;pad<numPads;++pad) if (held.padHit[static_cast<std::size_t>(pad)]>0.f) engine.noteOn(firstPadNote+pad,held.padHit[static_cast<std::size_t>(pad)]);
+  for (int pad=0;pad<numPads;++pad) if (held.padHit[static_cast<std::size_t>(pad)]>0.f) { sawNote(firstPadNote+pad,1); engine.noteOn(firstPadNote+pad,held.padHit[static_cast<std::size_t>(pad)]); }
   held.clear();
  }
  int position=0;

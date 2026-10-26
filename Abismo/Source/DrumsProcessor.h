@@ -59,6 +59,12 @@ public:
  abismo_ui::MidiLearn midiLearn{*this}; // right-click any knob: MIDI learn
  std::atomic<float> outputPeak{0.f};
  std::atomic<int> hitsSounding{0};
+ // The last notes that reached the engine and where each came from (0 the host, 1 held back during a kit
+ // change and played after it, 2 a click on a pad): the editor shows them, to tell a second note sent by the
+ // host from one made here. note | kind << 8
+ std::array<std::atomic<int>,4> recentNotes{};
+ std::atomic<unsigned> recentCount{0};
+ void sawNote(int note,int kind){ recentNotes[recentCount.load(std::memory_order_relaxed)%4].store(note|(kind<<8),std::memory_order_relaxed); recentCount.fetch_add(1,std::memory_order_relaxed); }
  static juce::AudioProcessorValueTreeState::ParameterLayout makeParameters();
 private:
  void timerCallback() override {collectGarbage();}

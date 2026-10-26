@@ -374,7 +374,17 @@ void InversoAbismoDrumsEditor::timerCallback(){
  clearButton.setEnabled(processor.getPadSampleName(selected).isNotEmpty() || processor.getPadMissing(selected).isNotEmpty());
  if(InversoAbismoDrumsProcessor::library().objects.empty())
   body.subtitle=juce::String::fromUTF8("RECORDING LIBRARY NOT FOUND: REINSTALL  \xc2\xb7  PLAYING THE SYNTHESISED OBJECTS");
- master->setReadout(processor.outputPeak.load(),"SOUNDING "+juce::String(processor.hitsSounding.load()));
+ // the last notes the plugin received: H from the host, K held back during a kit change, P a click on a pad
+ juce::String received;
+ {
+  const unsigned count=processor.recentCount.load(std::memory_order_relaxed);
+  for (unsigned i=count>4?count-4:0;i<count;++i) {
+   const int v=processor.recentNotes[i%4].load(std::memory_order_relaxed);
+   received+=juce::MidiMessage::getMidiNoteName(v&0xff,true,true,3)+(((v>>8)==0)?"":((v>>8)==1?"(K) ":"(P) "));
+   if ((v>>8)==0) received+=" ";
+  }
+ }
+ master->setReadout(processor.outputPeak.load(),"SOUNDING "+juce::String(processor.hitsSounding.load())+(received.isNotEmpty()?"   IN "+received.trim():juce::String()));
 }
 
 void InversoAbismoDrumsEditor::resized(){
