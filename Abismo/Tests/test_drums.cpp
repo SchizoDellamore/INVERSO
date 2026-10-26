@@ -3,6 +3,7 @@
 // delays hits, the musical saw is in tune and glides, kits stay below 0 dBFS,
 // randomised stress. With a directory argument it writes demo WAVs there.
 #include "../Source/DSP/DrumsEngine.h"
+#include "../Source/DSP/ChainDyn.h"
 #include "TestUtil.h"
 using namespace test;
 namespace D = inverso_abismo::drums;
@@ -220,8 +221,32 @@ static void groove(D::Engine& e, Stereo& all, int sr, int bars, int seed) {
  e.noteOn(36, .9f); e.noteOn(49, .7f); e.noteOn(50, .6f);
 }
 
+// Within a kit every pad hits at about the same loudness (K-weighted momentary maximum of one hit):
+// a player must not have to ride the pads' levels.
+static void padLoudness() {
+ const double sr = 48000.0;
+ const int n = static_cast<int>(sr * 2.5);
+ for (std::size_t k = 0; k < D::kits().size(); ++k) {
+  const auto v = D::kitValues(k);
+  double lo = 1e9, hi = -1e9;
+  for (int pad = 0; pad < D::numPads; ++pad) {
+   D::Engine e; e.setValues(v); e.prepare(sr); e.setLibrary(&library);
+   std::vector<float> l(static_cast<std::size_t>(n), 0.f), r(static_cast<std::size_t>(n), 0.f);
+   e.noteOn(D::firstPadNote + pad, .8f);
+   for (int i = 0; i < n; i += 256) e.render(l.data() + i, r.data() + i, std::min(256, n - i));
+   inverso_abismo::chain::Loudness m; m.prepare(sr);
+   double top = -120;
+   for (int i = 0; i < n; ++i) { m.process(l[static_cast<std::size_t>(i)], r[static_cast<std::size_t>(i)]); top = std::max(top, m.momentaryLufs()); }
+   lo = std::min(lo, top); hi = std::max(hi, top);
+  }
+  std::printf("kit %-22s pads within %.1f dB of each other\n", D::kits()[k].name, hi - lo);
+  verify(hi - lo < 8.5, "a kit's pads are not at an even loudness");
+ }
+}
+
 int main(int argc, char** argv) {
  loadLibrary();
+ padLoudness();
  objects();
  recordings();
  variationAndStumble();

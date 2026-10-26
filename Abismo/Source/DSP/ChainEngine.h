@@ -38,10 +38,16 @@ public:
   inGain = dbToGain(f(P::InGain));
   outGain = dbToGain(f(P::OutGain));
 
+  // The master's macros sit on top of the preset and the detailed modules: the same parameters, pushed further.
+  const float mGlue = has(P::MGlue) ? f(P::MGlue) * .01f : 0.f, mWarm = has(P::MWarmth) ? f(P::MWarmth) * .01f : 0.f,
+              mTone = has(P::MTone) ? f(P::MTone) * .01f : 0.f, mLoud = has(P::MLoud) ? f(P::MLoud) * .01f : 0.f;
+
   EqControls e;
   e.on = b(P::EqOn); e.hpf = f(P::Hpf); e.lpf = f(P::Lpf); e.lsF = f(P::LsF); e.lsG = f(P::LsG);
   e.b1F = f(P::B1F); e.b1G = f(P::B1G); e.b1Q = f(P::B1Q); e.b2F = f(P::B2F); e.b2G = f(P::B2G); e.b2Q = f(P::B2Q);
   e.hsF = f(P::HsF); e.hsG = f(P::HsG); e.ms = i(P::EqMs);
+  e.hsG += 3.5f * mTone; e.lsG += 1.5f * mWarm - 1.2f * mTone;   // TONE: bright to dark; WARMTH adds weight
+  if (mTone > 1e-4f || mTone < -1e-4f || mWarm > 0.f) e.on = true;
   eq.setControls(e);
 
   GateControls g;
@@ -67,10 +73,14 @@ public:
   k.on = has(P::C2On) && b(P::C2On); k.type = static_cast<CompType>(juce_clamp(i(P::C2Type), 0, 3)); k.thresh = f(P::C2Thresh); k.ratio = f(P::C2Ratio);
   k.attackMs = f(P::C2Attack); k.releaseMs = f(P::C2Release); k.knee = 6.f; k.timeIdx = 2; k.mix = f(P::C2Mix); k.makeup = f(P::C2Makeup);
   k.scHpf = 90.f; k.autoMakeup = true;
+  if (mGlue > 0.f) {   // GLUE: the glue compressor, further and further in
+   if (!k.on) { k.on = true; k.type = CompType::Vca; k.thresh = -6.f; k.ratio = 1.5f; k.attackMs = 30.f; k.releaseMs = 250.f; }
+   k.thresh -= 14.f * mGlue; k.ratio = std::max(k.ratio, 1.5f + 2.5f * mGlue);
+  }
   comp2.setControls(k);
 
   SatControls s;
-  s.on = b(P::SatOn); s.type = static_cast<SatType>(juce_clamp(i(P::SatKind), 0, 2)); s.drive = f(P::SatDrive); s.tone = f(P::SatTone); s.mix = f(P::SatMix);
+  s.on = b(P::SatOn) || mWarm > 0.f; s.type = static_cast<SatType>(juce_clamp(i(P::SatKind), 0, 2)); s.drive = std::min(100.f, f(P::SatDrive) + 60.f * mWarm); s.tone = std::max(-100.f, f(P::SatTone) - 20.f * mWarm); s.mix = f(P::SatMix);
   sat.setControls(s);
 
   WidthControls w;
@@ -78,7 +88,7 @@ public:
   width.setControls(w);
 
   LimiterControls q;
-  q.on = has(P::LimOn) && b(P::LimOn); q.gainDb = f(P::LimGain); q.ceilingDb = f(P::LimCeil); q.releaseMs = f(P::LimRelease); q.autoRelease = b(P::LimAuto);
+  q.on = has(P::LimOn) && (b(P::LimOn) || mLoud > 0.f); q.gainDb = f(P::LimGain) + 12.f * mLoud; q.ceilingDb = f(P::LimCeil); q.releaseMs = f(P::LimRelease); q.autoRelease = b(P::LimAuto);
   limiter.setControls(q);
  
   const int bits = i(P::DitherBits);

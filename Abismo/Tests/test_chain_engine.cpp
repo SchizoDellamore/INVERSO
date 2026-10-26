@@ -119,8 +119,35 @@ static void latencyAndBypass() {
  for (float x : a) verify(std::isfinite(x), "mono");
 }
 
+// The master's macros: each one does what it says, on top of the preset, and the ceiling still holds.
+static void macros() {
+ const double sr = 48000.0; const int n = 48000 * 4;
+ std::vector<float> sl, sr_; signalFor(sl, sr_, n, sr);
+ auto run = [&](int macro, float amount) {
+  auto v = presetValues(Strip::Master, 0);
+  if (macro >= 0) v[static_cast<std::size_t>(macro)] = amount;
+  Engine e(Strip::Master); e.setValues(v); e.prepare(sr);
+  auto l = sl, r = sr_;
+  double maxGr = 0;
+  for (int i = 0; i < n; i += 256) { e.process(l.data() + i, r.data() + i, std::min(256, n - i)); maxGr = std::max(maxGr, static_cast<double>(e.gr1.load() + e.gr2.load())); }
+  struct R { double lufs, peak, gr, hi, lo; } out{e.shortTerm.load(), e.peakDb.load(), maxGr, 0, 0};
+  Biquad hp, lp; hp.set(highpass(6000, .707, sr)); lp.set(lowpass(150, .707, sr));
+  double a = 0, b = 0; for (int i = 24000; i < n; ++i) { const double x = hp.process(l[static_cast<std::size_t>(i)]), y = lp.process(l[static_cast<std::size_t>(i)]); a += x * x; b += y * y; }
+  out.hi = 10 * std::log10(a / (n - 24000) + 1e-20); out.lo = 10 * std::log10(b / (n - 24000) + 1e-20);
+  return out;
+ };
+ const auto base = run(-1, 0);
+ const auto loud = run(P::MLoud, 100), glue = run(P::MGlue, 100), warm = run(P::MWarmth, 100), bright = run(P::MTone, 100), dark = run(P::MTone, -100);
+ std::printf("macros: loudness +%.1f LUFS (peak %.1f), glue +%.1f dB reduction, tone high %+.1f / %+.1f dB, warmth low %+.1f dB\n",
+             loud.lufs - base.lufs, loud.peak, glue.gr - base.gr, bright.hi - base.hi, dark.hi - base.hi, warm.lo - base.lo);
+ verify(loud.lufs - base.lufs > 4.0 && loud.peak < -0.8, "LOUDNESS must raise the loudness and keep the ceiling");
+ verify(glue.gr - base.gr > 2.0, "GLUE must compress more");
+ verify(bright.hi - base.hi > 1.5 && dark.hi - base.hi < -1.5, "TONE must tilt the highs both ways");
+ verify(warm.lo - base.lo > .3, "WARMTH must add weight");
+}
+
 int main() {
- table(); presetsRun(); latencyAndBypass();
+ table(); presetsRun(); latencyAndBypass(); macros();
  std::puts("chain engine: all good");
  return 0;
 }

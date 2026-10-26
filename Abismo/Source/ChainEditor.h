@@ -19,7 +19,7 @@ private:
  soft::Look look;
  soft::Body body;
  soft::PresetBar presets;
- enum class Part { Gate, Trans, Eq, Tame, Comp, Glue, Sat, Width, Limiter };
+ enum class Part { Macro, Gate, Trans, Eq, Tame, Comp, Glue, Sat, Width, Limiter };
  struct Entry { std::unique_ptr<soft::Module> module; Part part = Part::Eq; bool hasChoice = false; int weight = 1; int row = 0; };
  std::vector<Entry> modules;
  std::unique_ptr<soft::Master> master;

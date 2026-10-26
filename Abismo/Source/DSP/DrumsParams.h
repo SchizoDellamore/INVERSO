@@ -3,6 +3,7 @@
 // 16 pads (MIDI 36-51) x 9 parameters, then the global and saw parameters.
 // IDs are saved in sessions: never rename; only append.
 #include "AbismoParams.h"
+#include "DrumsTrim.h"
 #include <algorithm>
 #include <cstdio>
 #include <string>
@@ -231,6 +232,8 @@ inline const std::array<Kit, 11>& kits() {
  return table;
 }
 
+static_assert(numObjects == 64 && numPads == 16, "DrumsTrim.h is sized for 64 objects and 16 pads");
+
 inline Values kitValues(std::size_t index) {
  Values v = defaults();
  if (index >= kits().size()) return v;
@@ -238,6 +241,11 @@ inline Values kitValues(std::size_t index) {
   if (kv.param < 0) break;
   const int i = kv.pad < 0 ? kv.param : P::padBase(kv.pad) + kv.param;
   v[static_cast<std::size_t>(i)] = kv.value;
+ }
+ // each pad of the kit at the same loudness (measured; see DrumsTrim.h)
+ for (int pad = 0; pad < numPads; ++pad) {
+  const auto i = static_cast<std::size_t>(P::padBase(pad) + P::Level);
+  v[i] = std::clamp(v[i] + kitPadTrimDb()[index][static_cast<std::size_t>(pad)], -36.f, 6.f);
  }
  return v;
 }

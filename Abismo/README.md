@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.18.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.18.1: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -193,7 +193,7 @@ Efeitos de mixagem e masterização no mesmo motor, cada um num plugin, para usa
 Os presets são pontos de partida: foram escolhidos por números (nível, redução, pico) e não por escuta; ajuste o limiar ao nível da sua gravação. Os testes medem o EQ contra a fórmula, a compensação de volume da saturação, o aliasing, as curvas e os tempos dos compressores, o true peak do limitador contra uma reconstrução independente 8x e o loudness contra a referência EBU (-23 LUFS).
 
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.18.0** e baixe `INVERSO_ABISMO_Setup_0.18.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.18.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
+No GitHub, abra **Releases > INVERSO ABISMO 0.18.1** e baixe `INVERSO_ABISMO_Setup_0.18.1_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.18.1.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
 
 O instalador não é assinado digitalmente.
 

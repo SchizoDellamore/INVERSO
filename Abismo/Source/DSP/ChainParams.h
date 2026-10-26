@@ -25,6 +25,7 @@ enum : int {
  StereoWidth, BassMono,
  LimOn, LimGain, LimCeil, LimAuto, LimRelease,
  OutGain, DitherBits,
+ MGlue, MWarmth, MTone, MLoud,
  Count
 };
 }
@@ -96,6 +97,10 @@ inline const std::array<ParamSpec, P::Count>& allSpecs() {
   {"LIM_RELEASE","Limiter release",20,1000,200,200,.1f,Kind::Float,nullptr,"ms"},
   {"OUT","Output",-18,18,0,0,.01f,Kind::Float,nullptr,"dB"},
   {"DITHER","Dither",0,3,0,0,1,Kind::Choice,"Off|16 bit|20 bit|24 bit",""},
+  {"M_GLUE","Glue (macro)",0,100,0,0,.1f,Kind::Float,nullptr,"%"},
+  {"M_WARMTH","Warmth (macro)",0,100,0,0,.1f,Kind::Float,nullptr,"%"},
+  {"M_TONE","Tone (macro)",-100,100,0,0,.1f,Kind::Float,nullptr,"%"},
+  {"M_LOUD","Loudness (macro)",0,100,0,0,.1f,Kind::Float,nullptr,"%"},
  }};
  return table;
 }
@@ -132,6 +137,7 @@ inline const std::vector<int>& paramsOf(Strip s) {
    if (master) range(v, LimOn, LimRelease);
    v.push_back(OutGain);
    if (master) v.push_back(DitherBits);
+   if (master) range(v, MGlue, MLoud);
   }
   return t;
  }();
@@ -258,6 +264,22 @@ inline void applyPreset(Values& v, const Preset& p) {
  for (const auto& pv : p.values) v[static_cast<std::size_t>(pv.param)] = pv.value;
 }
 
+// The drum strips are for shaping: what a preset says is pushed harder than the table writes it (tone
+// gains, drive, transients, compression, tame), so the change is heard at once and not only on the loudest
+// presets. The master keeps its values as written: it is for polishing.
+inline void bolden(Strip s, Values& v) {
+ if (s == Strip::Master) return;
+ auto at = [&](int p) -> float& { return v[static_cast<std::size_t>(p)]; };
+ auto clampTo = [&](int p) { at(p) = std::min(std::max(at(p), allSpecs()[static_cast<std::size_t>(p)].min), allSpecs()[static_cast<std::size_t>(p)].max); };
+ for (int p : {P::LsG, P::B1G, P::B2G, P::HsG}) { at(p) *= 1.6f; clampTo(p); }
+ at(P::SatDrive) *= 2.f; clampTo(P::SatDrive);
+ for (int p : {P::TrAttack, P::TrSustain}) { at(p) *= 1.5f; clampTo(p); }
+ at(P::C1Thresh) -= 5.f; clampTo(P::C1Thresh);
+ if (at(P::C1Ratio) > 1.2f) { at(P::C1Ratio) *= 1.25f; clampTo(P::C1Ratio); }
+ at(P::TameThresh) -= 3.f; clampTo(P::TameThresh);
+ at(P::TameRange) *= 1.3f; clampTo(P::TameRange);
+}
+
 inline const Layout& layout(Strip s) {
  static const std::array<Layout, numStrips> all = [] {
   std::array<Layout, numStrips> t;
@@ -265,6 +287,7 @@ inline const Layout& layout(Strip s) {
    auto& l = t[static_cast<std::size_t>(k)];
    for (std::size_t i = 0; i < allSpecs().size(); ++i) l.defaults[i] = allSpecs()[i].def;
    applyPreset(l.defaults, presets(static_cast<Strip>(k)).front());
+   bolden(static_cast<Strip>(k), l.defaults);
    l.local.fill(-1);
    for (int g : paramsOf(static_cast<Strip>(k))) {
     ParamSpec sp = allSpecs()[static_cast<std::size_t>(g)];
@@ -288,6 +311,7 @@ inline Values presetValues(Strip s, std::size_t index) {
  const auto& list = presets(s);
  applyPreset(v, list.front());
  if (index < list.size() && index > 0) applyPreset(v, list[index]);
+ bolden(s, v);
  const auto& l = layout(s);
  for (std::size_t i = 0; i < v.size(); ++i) if (l.local[i] < 0) v[i] = allSpecs()[i].def;
  return v;

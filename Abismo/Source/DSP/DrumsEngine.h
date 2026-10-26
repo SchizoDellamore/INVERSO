@@ -13,6 +13,7 @@
 #include "AbismoMutilator.h"
 #include "AbismoReverb.h"
 #include "DrumsParams.h"
+#include "DrumsTrim.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -717,7 +718,7 @@ private:
    p.rattle = s[static_cast<std::size_t>(b + P::Rattle)] * .01f;
    p.rust = s[static_cast<std::size_t>(b + P::Rust)] * .01f;
    p.variation = s[static_cast<std::size_t>(b + P::Variation)] * .01f;
-   p.gain = std::pow(10.f, s[static_cast<std::size_t>(b + P::Level)] / 20.f);
+   p.gain = std::pow(10.f, (s[static_cast<std::size_t>(b + P::Level)] + objectTrimDb(p.object)) / 20.f);
    p.pan = s[static_cast<std::size_t>(b + P::Pan)] * .01f;
   }
   velSens = s[P::VelSens] * .01f;

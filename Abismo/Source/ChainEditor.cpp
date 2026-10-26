@@ -19,7 +19,7 @@ const char* const* shortNames() {
   "SAT", "TYPE", "DRIVE", "TONE", "MIX",
   "WIDTH", "BASS MONO",
   "LIMITER", "PUSH", "CEILING", "AUTO REL", "RELEASE",
-  "OUTPUT", "DITHER"};
+  "OUTPUT", "DITHER", "GLUE", "WARMTH", "TONE", "LOUDNESS"};
  static_assert(sizeof(names) / sizeof(names[0]) == P::Count, "one short name per parameter");
  return names;
 }
@@ -101,6 +101,8 @@ InversoChainEditor::InversoChainEditor(InversoChainProcessor& p) : AudioProcesso
   body.addAndMakeVisible(*e.module);
   modules.push_back(std::move(e));
  };
+ // the master's direct controls first: they work on top of the preset
+ if (has(P::MGlue)) add(Part::Macro, "MASTER MACROS", c::ink, {{"Macros", {P::MGlue, P::MWarmth, P::MTone, P::MLoud}}}, {}, 5);
  // the order of the signal path
  if (has(P::GateOn)) add(Part::Gate, "GATE", gateCol, {{"Gate", {P::GateOn, P::GateThresh, P::GateRange, P::GateHold, P::GateRelease, P::GateFocus}}}, {}, 5);
  if (has(P::TrOn)) add(Part::Trans, "TRANSIENTS", transCol, {{"Transients", {P::TrOn, P::TrAttack, P::TrSustain}}}, {}, 3);
@@ -142,6 +144,20 @@ void InversoChainEditor::setupScreens() {
    for (int i = 1; i < lines; ++i) g.drawHorizontalLine(juce::roundToInt(p.getY() + p.getHeight() * static_cast<float>(i) / static_cast<float>(lines)), p.getX(), p.getRight());
   };
   switch (e.part) {
+   case Part::Macro:
+    e.module->screen.draw = [this, plot](juce::Graphics& g, juce::Rectangle<float> r, int) {
+     auto a = plot(r);
+     caption(g, a, "ON TOP OF THE PRESET", "0 = AS THE PRESET");
+     auto p = a.withTrimmedTop(16.f);
+     const float st = processor.engine.shortTerm.load(), gr = processor.engine.gr1.load() + processor.engine.gr2.load() + processor.engine.grLim.load();
+     g.setColour(c::screenInk);
+     g.setFont(soft::monoFont(26.f));
+     g.drawText(st <= -69.9f ? juce::String("-inf") : juce::String(st, 1), p.removeFromTop(p.getHeight() * .6f), juce::Justification::centred);
+     g.setFont(soft::monoFont(10.f));
+     g.setColour(c::screenMuted);
+     g.drawText("LUFS SHORT-TERM    TOTAL REDUCTION " + juce::String(gr, 1) + " dB", p, juce::Justification::centred);
+    };
+    break;
    case Part::Eq:
     e.module->screen.draw = [this, plot, grid](juce::Graphics& g, juce::Rectangle<float> r, int) {
      auto a = plot(r);

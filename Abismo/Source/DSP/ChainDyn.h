@@ -32,6 +32,7 @@ public:
  void prepare(double sampleRate) {
   sr = sampleRate;
   for (auto& ch : s) ch = Channel{};
+  autoGr = 0.0;
   setControls(c);
  }
  void setControls(const CompControls& n) {
@@ -67,10 +68,10 @@ public:
   rmsCoef = timeCoef(c.type == CompType::Fet ? .0005 : .005, sr);
   peakShare = c.type == CompType::Fet ? 1.0 : (c.type == CompType::Vca ? .5 : .2);
   peakDecay = std::exp(-1.0 / (.005 * sr));
-  // make-up: the loudness lost by the average gain reduction on typical program
-  const double ratioEff = c.type == CompType::VarMu ? 3.0 : std::max(1.2f, c.ratio);
-  makeupDb = (c.autoMakeup ? -.5 * c.thresh * (1.0 - 1.0 / ratioEff) : 0.0) + c.makeup;
-  if (c.type == CompType::VarMu && c.autoMakeup) makeupDb = std::max(0.0, makeupDb) * .8 + c.makeup;
+  // make-up: follows the gain reduction actually applied (rises in 50 ms, falls in about 4 s: it tracks the hits' reduction, not the silence between them), so a compressor that
+  // is not compressing adds no level and one that is gives back most of what it takes away
+  makeupDb = c.makeup;
+  autoUp = timeCoef(.05, sr); autoDown = timeCoef(4.0, sr);
  }
  // Static gain reduction (dB, positive) for an input level.
  double staticGr(double levelDb) const {
@@ -108,16 +109,17 @@ public:
    if (weight2 > 0) ch.b += (target > ch.b ? attCoef : rel2Coef) * (target - ch.b); else ch.b = ch.a;
    const double gr = ch.a + weight2 * (ch.b - ch.a);
    worst = std::max(worst, gr);
-   const double wet = in[i] * dbToGain(makeupDb - gr);
+   const double wet = in[i] * dbToGain(makeupDb + (c.autoMakeup ? .65 * autoGr : 0.0) - gr);
    out[i] = in[i] + (wet - in[i]) * mixAmt;
   }
   meter = worst;
+  autoGr += (worst > autoGr ? autoUp : autoDown) * (worst - autoGr);
   if (c.ms) { l = out[0] + out[1]; r = out[0] - out[1]; } else { l = out[0]; r = out[1]; }
  }
  double grDb() const { return meter; }
 private:
  struct Channel { Biquad sc; double peak = 0, ms = 0, a = 0, b = 0; };
- double sr = 48000.0, linkAmt = 1.0, mixAmt = 1.0, attCoef = 1.0, rel1Coef = .001, rel2Coef = .0001, weight2 = 0.0, rmsCoef = .01, peakShare = .5, peakDecay = .9, makeupDb = 0.0, meter = 0.0;
+ double sr = 48000.0, linkAmt = 1.0, mixAmt = 1.0, attCoef = 1.0, rel1Coef = .001, rel2Coef = .0001, weight2 = 0.0, rmsCoef = .01, peakShare = .5, peakDecay = .9, makeupDb = 0.0, meter = 0.0, autoGr = 0.0, autoUp = .001, autoDown = .00001;
  CompControls c;
  Coeffs scCoeffs;
  std::array<Channel, 2> s;
