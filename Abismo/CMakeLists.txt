@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.18.2 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.19.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)
@@ -18,7 +18,10 @@ add_executable(neon_engine Tests/test_neon.cpp)
 add_executable(halo_engine Tests/test_halo.cpp)
 add_executable(chain_dsp Tests/test_chain_dsp.cpp)
 add_executable(chain_engine Tests/test_chain_engine.cpp)
-foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine tide_engine neon_engine halo_engine chain_dsp chain_engine)
+add_executable(capture_dsp Tests/test_capture.cpp)
+find_package(Threads REQUIRED)
+target_link_libraries(capture_dsp PRIVATE Threads::Threads)
+foreach(t IN ITEMS abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine clear_engine tide_engine neon_engine halo_engine chain_dsp chain_engine capture_dsp)
  target_compile_features(${t} PRIVATE cxx_std_17)
  if(MSVC)
   target_compile_options(${t} PRIVATE /W4)
@@ -40,6 +43,7 @@ add_test(NAME neon_engine COMMAND neon_engine)
 add_test(NAME halo_engine COMMAND halo_engine)
 add_test(NAME chain_dsp COMMAND chain_dsp)
 add_test(NAME chain_engine COMMAND chain_engine)
+add_test(NAME capture_dsp COMMAND capture_dsp)
 target_compile_definitions(abismo_drums PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 target_compile_definitions(enki_engine PRIVATE ABISMO_DRUMS_LIBRARY="${CMAKE_CURRENT_SOURCE_DIR}/Library/drums.bin")
 if(INVERSO_DSP_TESTS_ONLY)
@@ -543,6 +547,45 @@ foreach(pair IN ITEMS "InversoMasterHostSmoke|0|master_host_smoke" "InversoSnare
  add_test(NAME ${testname} COMMAND ${smoke})
 endforeach()
 
+# INVERSO CAPTURE: take a piece of the track it sits on, edit it in place, drag it to another track.
+set(CAPTURE_SOURCES
+ Source/CaptureProcessor.cpp Source/CaptureProcessor.h
+ Source/CaptureEditor.cpp Source/CaptureEditor.h
+ Source/AbismoUI.cpp Source/AbismoUI.h Source/SoftUI.cpp Source/SoftUI.h
+ Source/DSP/CaptureDsp.h Source/DSP/CaptureParams.h)
+juce_add_plugin(InversoCapture
+ COMPANY_NAME "Inverso Studios"
+ BUNDLE_ID "net.inversostudios.capture"
+ PLUGIN_MANUFACTURER_CODE InvS
+ PLUGIN_CODE IvCp
+ PRODUCT_NAME "INVERSO CAPTURE"
+ FORMATS VST3
+ VST3_CATEGORIES Fx Tools
+ IS_SYNTH FALSE
+ NEEDS_MIDI_INPUT FALSE
+ NEEDS_MIDI_OUTPUT FALSE
+ IS_MIDI_EFFECT FALSE
+ EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+ COPY_PLUGIN_AFTER_BUILD FALSE)
+juce_generate_juce_header(InversoCapture)
+target_sources(InversoCapture PRIVATE ${CAPTURE_SOURCES})
+target_compile_definitions(InversoCapture PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoCapture PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp
+ juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags
+ $<$<BOOL:${INVERSO_LTO}>:juce::juce_recommended_lto_flags>)
+juce_add_console_app(InversoCaptureHostSmoke PRODUCT_NAME "INVERSO Capture Host Smoke")
+juce_generate_juce_header(InversoCaptureHostSmoke)
+target_sources(InversoCaptureHostSmoke PRIVATE Tests/test_capture_host.cpp ${CAPTURE_SOURCES})
+target_compile_definitions(InversoCaptureHostSmoke PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(InversoCaptureHostSmoke PRIVATE
+ AbismoFonts
+ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags
+ juce::juce_recommended_warning_flags)
+add_test(NAME capture_host_smoke COMMAND InversoCaptureHostSmoke)
+
 # The built VST3 bundles, hosted as a DAW hosts them, through every check in
 # Tests/test_vst3_conformance.cpp (state, programs, rates, block sizes, fuzz, threads, editor).
 juce_add_console_app(InversoVst3Conformance PRODUCT_NAME "INVERSO VST3 Conformance")
@@ -554,7 +597,8 @@ foreach(plugin IN ITEMS "InversoAbismo|INVERSO ABISMO" "InversoAbismoSampler|INV
                        "InversoRelicario|INVERSO RELICARIO" "InversoEnki|INVERSO ENKI" "InversoClear|INVERSO CLEAR" "InversoTide|INVERSO TIDE"
                        "InversoNeon|INVERSO NEON" "InversoHalo|INVERSO HALO"
                        "InversoMaster|INVERSO MASTER" "InversoKick|INVERSO KICK" "InversoSnare|INVERSO SNARE" "InversoToms|INVERSO TOMS"
-                       "InversoHats|INVERSO HATS" "InversoCymbals|INVERSO CYMBALS" "InversoOverheads|INVERSO OVERHEADS")
+                       "InversoHats|INVERSO HATS" "InversoCymbals|INVERSO CYMBALS" "InversoOverheads|INVERSO OVERHEADS"
+                       "InversoCapture|INVERSO CAPTURE")
  string(REPLACE "|" ";" parts "${plugin}")
  list(GET parts 0 target)
  list(GET parts 1 name)

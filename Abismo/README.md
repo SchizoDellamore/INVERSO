@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.18.2: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.19.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).
@@ -192,8 +192,19 @@ Efeitos de mixagem e masterização no mesmo motor, cada um num plugin, para usa
 
 Os presets são pontos de partida: foram escolhidos por números (nível, redução, pico) e não por escuta; ajuste o limiar ao nível da sua gravação. Os testes medem o EQ contra a fórmula, a compensação de volume da saturação, o aliasing, as curvas e os tempos dos compressores, o true peak do limitador contra uma reconstrução independente 8x e o loudness contra a referência EBU (-23 LUFS).
 
+## CAPTURE (0.19)
+
+Pega um pedaço de uma faixa da DAW, edita no próprio plugin e manda para outra faixa. É um efeito de insert, na faixa de onde vem o áudio.
+
+1. **Captura.** O plugin guarda o que passa enquanto a DAW toca. **CAPTURE** fixa os últimos 5, 10, 20, 30 ou 60 s (escolha em *Capture the last*). **REC** grava exatamente o que passar entre o primeiro e o segundo clique. Um plugin não enxerga a timeline nem as outras faixas: o trecho tem de passar pelo plugin, tocando.
+2. **Edição.** Arraste as duas pontas na onda para a região; *gain*, *pitch* (a velocidade acompanha, como um sampler), *reverse*, *fade in/out* e *loop*. **PLAY** toca o trecho por cima da faixa (*track through* e *clip level* misturam os dois). O que se ouve é o que vai para o arquivo.
+3. **BAKE / UNDO / NORMALIZE.** BAKE fixa o que você ouve e continua editando a partir dali; UNDO volta um passo; NORMALIZE leva o pico a -1 dB.
+4. **Para outra faixa.** Arraste a área **DRAG TO A TRACK** para uma faixa da timeline (o plugin gera um WAV de 24 bits com a edição), ou **SAVE WAV** para guardar em qualquer pasta. No Cubase isso é arraste de arquivo; se a sua versão não aceitar, use SAVE WAV.
+
+O trecho capturado fica salvo na sessão (FLAC 24 bits dentro do estado do plugin, até 60 s).
+
 ## Instalação
-No GitHub, abra **Releases > INVERSO ABISMO 0.18.2** e baixe `INVERSO_ABISMO_Setup_0.18.2_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.18.2.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
+No GitHub, abra **Releases > INVERSO ABISMO 0.19.0** e baixe `INVERSO_ABISMO_Setup_0.19.0_x64.exe` (instalador) ou `INVERSO_ABISMO_PORTABLE_VST3_0.19.0.zip` (copie a pasta `INVERSO ABISMO.vst3` para `C:\Program Files\Common Files\VST3`). Feche a DAW antes de instalar e, se os plugins não aparecerem, faça um novo scan de plugins. Os sete aparecem como plugins da Inverso Studios: ABISMO, RELICÁRIO e ENKI em *Synth*, CLEAR e TIDE (*EQ*) nos efeitos, ABISMO SAMPLER em *Sampler* e ABISMO DRUMS em *Drum*. A versão portátil traz as sete pastas `.vst3` e a pasta INVERSO CABS. O instalador põe as IRs em Documentos\INVERSO\INVERSO CABS (Guitar e Bass). Só as IRs: `INVERSO_CABS_IRs.zip` no mesmo release.
 
 O instalador não é assinado digitalmente.
 

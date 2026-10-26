@@ -1,4 +1,4 @@
-#define Ver "0.18.2"
+#define Ver "0.19.0"
 #define Plugin "INVERSO ABISMO.vst3"
 #define SourcePlugin "..\build\InversoAbismo_artefacts\Release\VST3\" + Plugin
 #define SamplerPlugin "INVERSO ABISMO SAMPLER.vst3"
@@ -32,6 +32,8 @@
 #define SourceCymbals "..\build\InversoCymbals_artefacts\Release\VST3\" + CymbalsPlugin
 #define OverheadsPlugin "INVERSO OVERHEADS.vst3"
 #define SourceOverheads "..\build\InversoOverheads_artefacts\Release\VST3\" + OverheadsPlugin
+#define CapturePlugin "INVERSO CAPTURE.vst3"
+#define SourceCapture "..\build\InversoCapture_artefacts\Release\VST3\" + CapturePlugin
 #define Cabs "..\..\IRs\INVERSO CABS"
 [Setup]
 AppId={{E14A7E1F-FB29-4908-9CAA-051298D6B3D9}
@@ -41,7 +43,7 @@ AppPublisher=Inverso Studios
 DefaultDirName={commoncf64}\VST3
 DisableDirPage=yes
 DisableProgramGroupPage=yes
-UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE, HALO, MASTER e as pistas de bateria (VST3)
+UninstallDisplayName=INVERSO ABISMO, SAMPLER, DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE, HALO, MASTER, as pistas de bateria e CAPTURE (VST3)
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
@@ -71,6 +73,7 @@ Source: "{#SourceToms}\*"; DestDir: "{commoncf64}\VST3\{#TomsPlugin}"; Flags: ig
 Source: "{#SourceHats}\*"; DestDir: "{commoncf64}\VST3\{#HatsPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceCymbals}\*"; DestDir: "{commoncf64}\VST3\{#CymbalsPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceOverheads}\*"; DestDir: "{commoncf64}\VST3\{#OverheadsPlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceCapture}\*"; DestDir: "{commoncf64}\VST3\{#CapturePlugin}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; INVERSO CABS: the impulse responses, in their own folder (Guitar and Bass), in Documents
 Source: "{#Cabs}\*"; DestDir: "{userdocs}\INVERSO\INVERSO CABS"; Flags: ignoreversion recursesubdirs createallsubdirs
 [InstallDelete]
@@ -94,3 +97,4 @@ Type: filesandordirs; Name: "{commoncf64}\VST3\{#TomsPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#HatsPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#CymbalsPlugin}"
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#OverheadsPlugin}"
+Type: filesandordirs; Name: "{commoncf64}\VST3\{#CapturePlugin}"

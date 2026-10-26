@@ -45,7 +45,7 @@ jobs:
             'InversoAbismo\INVERSO ABISMO', 'InversoAbismoSampler\INVERSO ABISMO SAMPLER', 'InversoAbismoDrums\INVERSO ABISMO DRUMS',
             'InversoRelicario\INVERSO RELICARIO', 'InversoEnki\INVERSO ENKI', 'InversoClear\INVERSO CLEAR', 'InversoTide\INVERSO TIDE',
             'InversoNeon\INVERSO NEON', 'InversoHalo\INVERSO HALO',
-            'InversoMaster\INVERSO MASTER', 'InversoKick\INVERSO KICK', 'InversoSnare\INVERSO SNARE', 'InversoToms\INVERSO TOMS', 'InversoHats\INVERSO HATS', 'InversoCymbals\INVERSO CYMBALS', 'InversoOverheads\INVERSO OVERHEADS')
+            'InversoMaster\INVERSO MASTER', 'InversoKick\INVERSO KICK', 'InversoSnare\INVERSO SNARE', 'InversoToms\INVERSO TOMS', 'InversoHats\INVERSO HATS', 'InversoCymbals\INVERSO CYMBALS', 'InversoOverheads\INVERSO OVERHEADS', 'InversoCapture\INVERSO CAPTURE')
           $failed = @()
           foreach ($p in $plugins) {
             $target, $name = $p -split '\\', 2
@@ -79,7 +79,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:GITHUB_WORKSPACE 'Abismo'
           $bundle = Join-Path $root 'build\InversoAbismo_artefacts\Release\VST3\INVERSO ABISMO.vst3'
-          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.18.2'
+          $portable = Join-Path $root 'dist\INVERSO_ABISMO_PORTABLE_VST3_0.19.0'
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item -LiteralPath $bundle -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoAbismoSampler_artefacts\Release\VST3\INVERSO ABISMO SAMPLER.vst3') -Destination $portable -Recurse -Force
@@ -97,13 +97,14 @@ jobs:
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoHats_artefacts\Release\VST3\INVERSO HATS.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoCymbals_artefacts\Release\VST3\INVERSO CYMBALS.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $root 'build\InversoOverheads_artefacts\Release\VST3\INVERSO OVERHEADS.vst3') -Destination $portable -Recurse -Force
+          Copy-Item -LiteralPath (Join-Path $root 'build\InversoCapture_artefacts\Release\VST3\INVERSO CAPTURE.vst3') -Destination $portable -Recurse -Force
           Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'IRs\INVERSO CABS') -Destination $portable -Recurse -Force
           $instructions = @'
-          INVERSO ABISMO v0.18.2  |  Windows x64  |  VST3 instruments and effects (Cubase, Studio One, Ableton Live, Reaper)
+          INVERSO ABISMO v0.19.0  |  Windows x64  |  VST3 instruments and effects (Cubase, Studio One, Ableton Live, Reaper)
           PORTABLE INSTALL (no EXE required)
           1. Close your DAW.
           2. Extract this GitHub artifact ZIP.
-          3. Copy all sixteen .vst3 folders (INVERSO ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE, HALO, MASTER, KICK, SNARE, TOMS, HATS, CYMBALS, OVERHEADS) into:
+          3. Copy all seventeen .vst3 folders (INVERSO ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICARIO, ENKI, NEON, CLEAR, TIDE, HALO, MASTER, KICK, SNARE, TOMS, HATS, CYMBALS, OVERHEADS, CAPTURE) into:
              C:\Program Files\Common Files\VST3
           4. Reopen the DAW and rescan VST3 plugins if it does not appear (Instruments / Synth).
           Do not rename the .vst3 folder, or move only its internal binary.
@@ -123,14 +124,14 @@ jobs:
       - name: Publish installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_Setup_0.18.2_x64
-          path: Abismo/dist/INVERSO_ABISMO_Setup_0.18.2_x64.exe
+          name: INVERSO_ABISMO_Setup_0.19.0_x64
+          path: Abismo/dist/INVERSO_ABISMO_Setup_0.19.0_x64.exe
           if-no-files-found: error
       - name: Publish portable VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: INVERSO_ABISMO_PORTABLE_VST3_0.18.2_NO_EXE
-          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.18.2/
+          name: INVERSO_ABISMO_PORTABLE_VST3_0.19.0_NO_EXE
+          path: Abismo/dist/INVERSO_ABISMO_PORTABLE_VST3_0.19.0/
           if-no-files-found: error
       - name: Publish raw VST3 bundle
         uses: actions/upload-artifact@v4
@@ -180,17 +181,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'abismo-v0.18.2'
+          $tag = 'abismo-v0.19.0'
           $dist = Join-Path $env:GITHUB_WORKSPACE 'Abismo\dist'
-          $portableZip = Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.18.2.zip'
-          Compress-Archive -Path (Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.18.2\*') -DestinationPath $portableZip -Force
+          $portableZip = Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.19.0.zip'
+          Compress-Archive -Path (Join-Path $dist 'INVERSO_ABISMO_PORTABLE_VST3_0.19.0\*') -DestinationPath $portableZip -Force
           $cabsZip = Join-Path $dist 'INVERSO_CABS_IRs.zip'
           Compress-Archive -Path (Join-Path $env:GITHUB_WORKSPACE 'IRs\INVERSO CABS') -DestinationPath $cabsZip -Force
           $notes = Join-Path $env:RUNNER_TEMP 'notes.md'
           @'
-          INVERSO ABISMO 0.18.2: ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICÁRIO, ENKI e NEON (instrumentos) e CLEAR, TIDE, HALO, MASTER, KICK, SNARE, TOMS, HATS, CYMBALS e OVERHEADS (efeitos), VST3 para Windows x64, e as IRs do INVERSO CABS.
+          INVERSO ABISMO 0.19.0: ABISMO, ABISMO SAMPLER, ABISMO DRUMS, RELICÁRIO, ENKI e NEON (instrumentos) e CLEAR, TIDE, HALO, MASTER, KICK, SNARE, TOMS, HATS, CYMBALS, OVERHEADS e CAPTURE (efeitos), VST3 para Windows x64, e as IRs do INVERSO CABS.
 
-          Novo na 0.18.2:
+          Novo na 0.19.0:
           - DRUMS: o painel à direita mostra as últimas notas que o plugin recebeu (IN C1 D#1 ...), com (K) para notas guardadas durante a troca de kit e tocadas depois dela e (P) para cliques nos pads. Serve para descobrir de onde vem uma segunda nota inesperada: se aparecer na lista sem (K) nem (P), o DAW ou o teclado a mandou.
 
           Da 0.18.1:
@@ -222,18 +223,18 @@ jobs:
 
           Da 0.16.0: RELICÁRIO com o ADSR de cada máquina e seus ajustes protegidos; ENKI com as gravações funcionando; SAMPLER com região START/END na onda; DRUMS com volumes iguais; FURNACE removido.
 
-          - **INVERSO_ABISMO_Setup_0.18.2_x64.exe**: instala os dezesseis plugins e as IRs (Documentos\INVERSO\INVERSO CABS, pastas Guitar e Bass). Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
-          - **INVERSO_ABISMO_PORTABLE_VST3_0.18.2.zip**: os dezesseis plugins sem instalador (copie as pastas .vst3 para C:\Program Files\Common Files\VST3) e a pasta INVERSO CABS.
+          - **INVERSO_ABISMO_Setup_0.19.0_x64.exe**: instala os dezessete plugins e as IRs (Documentos\INVERSO\INVERSO CABS, pastas Guitar e Bass). Feche a DAW antes. Não é assinado digitalmente: se o Windows avisar, clique em "Mais informações" e "Executar assim mesmo".
+          - **INVERSO_ABISMO_PORTABLE_VST3_0.19.0.zip**: os dezessete plugins sem instalador (copie as pastas .vst3 para C:\Program Files\Common Files\VST3) e a pasta INVERSO CABS.
           - **INVERSO_CABS_IRs.zip**: só as IRs, pastas Guitar e Bass.
           - **Gravações do DRUMS em WAV** (CC0, para qualquer sampler): https://github.com/SchizoDellamore/INVERSO/releases/download/abismo-v0.7.0/ABISMO_DRUMS_WAV_0.7.0.zip
           '@ | Set-Content -LiteralPath $notes -Encoding utf8
           # The WAV workflow may create the release first; either way it ends up existing once.
           gh release view $tag 2>$null | Out-Null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target $env:GITHUB_SHA --title 'INVERSO ABISMO 0.18.2' --notes-file $notes --latest
+            gh release create $tag --target $env:GITHUB_SHA --title 'INVERSO ABISMO 0.19.0' --notes-file $notes --latest
             if ($LASTEXITCODE -ne 0) { gh release view $tag | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'release create failed' } }
           }
-          gh release edit $tag --notes-file $notes --title 'INVERSO ABISMO 0.18.2' --latest
+          gh release edit $tag --notes-file $notes --title 'INVERSO ABISMO 0.19.0' --latest
           if ($LASTEXITCODE -ne 0) { throw 'release edit failed' }
-          gh release upload $tag (Join-Path $dist 'INVERSO_ABISMO_Setup_0.18.2_x64.exe') $portableZip $cabsZip --clobber
+          gh release upload $tag (Join-Path $dist 'INVERSO_ABISMO_Setup_0.19.0_x64.exe') $portableZip $cabsZip --clobber
           if ($LASTEXITCODE -ne 0) { throw 'release upload failed' }

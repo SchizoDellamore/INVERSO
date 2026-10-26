@@ -38,7 +38,7 @@ step() { # name, command...
  else results+=("  FAIL  $name ($((SECONDS-t0)) s) - see $log"); failed=1
   echo "---- $name failed; last lines of $log:"; tail -25 "$log"; fi
 }
-plugins=(InversoAbismo InversoAbismoSampler InversoAbismoDrums InversoRelicario InversoEnki InversoClear InversoTide InversoNeon InversoHalo InversoMaster InversoKick InversoSnare InversoToms InversoHats InversoCymbals InversoOverheads)
+plugins=(InversoAbismo InversoAbismoSampler InversoAbismoDrums InversoRelicario InversoEnki InversoClear InversoTide InversoNeon InversoHalo InversoMaster InversoKick InversoSnare InversoToms InversoHats InversoCymbals InversoOverheads InversoCapture)
 vst3_targets() { for p in "${plugins[@]}"; do printf '%s_VST3 ' "$p"; done; }
 
 # 0. nothing temporary left in the sources
