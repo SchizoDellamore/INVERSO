@@ -185,6 +185,8 @@ jobs:
           Novo na 0.17.1 (correções):
           - DRUMS: escolher um kit traz de volta os sons do próprio kit (um sample carregado num pad não fica mais); a troca de kit é suave e não perde notas tocadas durante ela.
           - SAMPLER: no modo granular, LOOP funciona (Off percorre a região, Forward dá a volta no loop, Ping-pong vai e volta); os marcadores na onda têm nome (START, END, LOOP IN, LOOP OUT, POSITION) e uma linha explica o que fazem; com REVERSE a onda aparece invertida, como soa.
+          - DRUMS: 10 dos sons agudos (pratos, chocalhos, ripas) viraram objetos experimentais e deteriorados, graves e médios, feitos das próprias gravações reais rebaixadas, cortadas e degradadas (Motor Morto, Gongo Podre, Mola Morta, Engrenagem, Lata Amassada, Porta de Ferro, Pilha Afundada, Prato Derretido, Chimbal Afundado, Cascalho). Só 5 dos 48 sons ficaram acima de 3 kHz (eram 14).
+          - RELICÁRIO: a forma de onda "Static" dos loops da fita agora se chama "Static (noise)": é ruído de propósito.
           - Todos os plugins: ao reabrir uma sessão, cada controle volta exatamente onde estava.
           - Telas grandes (4K): a janela cresce até onde a tela permitir (antes parava em 1,5x), abre num tamanho adequado à tela, lembra o tamanho que você escolher e tem um botão SIZE no canto (100 / 150 / 200 / 300 %).
           - RELICÁRIO: o chiado da fita segue só o botão WEAR (a roda de modulação deixada para cima aumentava o chiado); a pressão (aftertouch) volta a zero sem tecla pressionada; a roda e a pressão aparecem no mostrador enquanto o teclado as envia.

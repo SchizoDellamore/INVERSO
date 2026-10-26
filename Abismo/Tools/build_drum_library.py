@@ -113,6 +113,32 @@ def crack(x, amount, rng):
     return x * (1.0 + amount * 0.6 * (gate - 0.35)) + amount * buzz
 
 
+def degrade(x, rate, bits):
+    """Sample-and-hold at `rate` Hz, quantised to `bits`: a worn converter."""
+    step = max(1, int(round(SR / rate)))
+    y = np.repeat(x[::step], step)[: len(x)]
+    peak = np.max(np.abs(y)) + 1e-12
+    q = 2 ** (bits - 1)
+    return np.round(y / peak * q) / q * peak
+
+
+def worn(name, paths, cap, semis=0, lp=None, hp=None, drive=1.0, hold=None, rate=None, bits=8, limit=12, rng_=None):
+    """A recording taken down, choked and degraded: the same real sound, ruined."""
+    out = []
+    for p in paths[:limit]:
+        x = pitch(load(p), semis)
+        if hold:
+            x = choke(x, hold)
+        if hp:
+            x = highpass(x, hp)
+        if rate:
+            x = degrade(x, rate, bits)
+        if lp:
+            x = lowpass(x, lp)
+        out.append(trim(saturate(x, drive), cap))
+    return (name, out)
+
+
 def mix(a, b, gain_db):
     n = max(len(a), len(b))
     y = np.zeros(n)
@@ -187,7 +213,7 @@ def build(vcsl, body, rusty):
         out.append(trim(saturate(lowpass(mix(load(k), metal, -10), 6000), 1.8), 1.2))
     objects.append(("Tambor de Oleo", out))
     # 1 Bones / claves, darker and lower.
-    plain("Ossos", files(I, "Claves/Claves*_Hit*.wav") + files(I, "Claves/Legacy/claves_*.wav"), 0.3, lp=7000, semis=-3)
+    objects.append(worn("Motor Morto", files(I, "Ratchet/Ratchet*.wav"), 1.8, semis=-24, lp=1800, drive=2.2, hold=1400))
     # 2 Parade snare: the rope-tension snare with its snares on.
     plain("Caixa de Fanfarra", files(M, "Snare Drum, Rope Tension/Low/RopeSnare_low_sn_*.wav")
           + files(M, "Snare Drum, Rope Tension/Hi/RopeSnare_hi_sn_*.wav"), 1.0, lp=9000)
@@ -219,18 +245,15 @@ def build(vcsl, body, rusty):
     # 13 Cracked cymbal: suspended cymbal hits with the crack buzzing.
     cym = [p for p in files(I, "Suspended Cymbal 1/susCymb1_hit_*.wav") if "bell" not in p]
     cym += [p for p in files(I, "Suspended Cymbal 2/susCymb2_hit_*.wav") if "bell" not in p]
-    out = []
-    for p in cym[:10]:
-        out.append(trim(lowpass(crack(load(p), 0.6, rng), 8000), 2.5))
-    objects.append(("Prato Rachado", out))
+    objects.append(worn("Gongo Podre", cym, 2.5, semis=-17, lp=2400, drive=2.0, hold=1500, limit=10))
     plain("Bigorna", files(I, "Anvil/Anvil_*.wav"), 1.2, lp=6000)
-    plain("Mola", files(I, "Flexatone/flexatone_slap*.wav") + files(I, "Flexatone/flexatone[12].wav"), 1.2)
+    objects.append(worn("Mola Morta", files(I, "Flexatone/flexatone_slap*.wav") + files(I, "Flexatone/flexatone[12].wav"), 1.6, semis=-19, lp=1300, drive=1.8))
     plain("Raspador", files(I, "Guiro/Guiro_Hit*.wav") + files(I, "Guiro/Legacy/guiro_short*.wav") + files(I, "Guiro/Guiro_Fast*.wav"), 0.8)
-    plain("Chocalho de Mola", files(I, "Vibraslap/Legacy/vibraslap_*.wav"), 1.2)
+    objects.append(worn("Engrenagem", files(I, "Vibraslap/Legacy/vibraslap_*.wav"), 1.4, semis=-14, lp=2200, drive=2.6, hold=600, rate=9000, bits=9))
     plain("Sino Enferrujado", files(I, "Cowbells/Cowbell*_Muted_*.wav") + files(I, "Cowbells/Cowbell*_Hit_*.wav"),
           0.6, lp=4000, semis=-7, drive=2.0)
-    plain("Pandeiro de Lata", files(I, "Tambourine 1/Tamb1_Hit*.wav"), 0.5, lp=8000)
-    plain("Tabua Batendo", files(I, "Slapstick/slapstick*.wav"), 0.5, lp=7000)
+    objects.append(worn("Lata Amassada", files(I, "Tambourine 1/Tamb1_Hit*.wav"), 0.8, semis=-12, lp=2600, drive=2.0, hold=300, rate=11000, bits=8))
+    objects.append(worn("Porta de Ferro", [p for p in files(I, "Gong 1/gong_*.wav") if "scrape" not in p], 1.0, semis=-12, lp=1900, drive=2.4, hold=450))
     plain("Peito", files(B, "chestthump_*.wav") + files(B, "bellycenter_*.wav"), 0.4)
     plain("Estalo", files(B, "snap_*.wav") + files(B, "fingerclap_*.wav"), 0.3)
     plain("Calcanhar", files(B, "heel_*.wav"), 0.3)
@@ -246,12 +269,12 @@ def build(vcsl, body, rusty):
     plain("Aro", spread(rus("snare_14/rc"), 6) + spread(rus("snare_14/sidestick"), 6), 0.5)
     plain("Casco", spread(rus("snare_14/sc"), 4) + spread(rus("kick_24/sc"), 4) + spread(rus("kick_24/rc"), 4), 0.5)
     plain("Esteira Solta", rus("snare_14/bflutter") + rus("snare_14/brelease"), 1.2)
-    plain("Pilha de Pratos", spread(rus("stack_3_layer/ed"), 6) + spread(rus("stack_3_layer/mid"), 6), 1.6, lp=9000)
+    objects.append(worn("Pilha Afundada", spread(rus("stack_3_layer/ed"), 6) + spread(rus("stack_3_layer/mid"), 6), 1.2, semis=-12, lp=2600, drive=2.0, hold=700))
     plain("China Velho", spread(rus("china_18/cn"), 8) + spread(rus("china_18/choke"), 2), 2.5, lp=9000)
-    plain("Prato de Rebites", spread(rus("crash_sizzle_17/cr"), 10), 3.0, lp=9000)
+    objects.append(worn("Prato Derretido", spread(rus("crash_sizzle_17/cr"), 10), 2.5, semis=-19, lp=2200, drive=1.8, rate=8000, bits=9, limit=10))
     plain("Conducao Rebitada", spread(rus("crash_sizzle_17/rd"), 8) + spread(rus("ride_sizzle_19/bl"), 4), 1.8, lp=9000)
-    plain("Chimbal Enferrujado", spread(rus("hihat_14/tc"), 6) + spread(rus("hihat_14/chik"), 4)
-          + spread(rus("hihat_14/footspl"), 2), 0.6, lp=9000)
+    objects.append(worn("Chimbal Afundado", spread(rus("hihat_14/tc"), 6) + spread(rus("hihat_14/chik"), 4)
+          + spread(rus("hihat_14/footspl"), 2), 0.7, semis=-10, lp=1700, drive=2.2, hold=400))
     plain("Pedal Rangendo", rus("kick_24/phit") + rus("kick_24/preturn") + rus("hihat_14/phit"), 0.9)
     plain("Surdo Velho", spread(rus("tom_22/center"), 8) + spread(rus("tom_22/mallet"), 4), 1.8)
 
@@ -281,7 +304,7 @@ def build(vcsl, body, rusty):
     objects.append(("Corrente", out))
     plain("Agogo Torto", files(I, "Agogo Bells/Agogo_*.wav"), 0.6, lp=5000, semis=-4, drive=1.8)
     plain("Bilha de Barro", spread(files(M, "Darbuka/Darbuka_*_hit_*.wav"), 12), 0.6, lp=8000, semis=-3)
-    plain("Chocalho de Lata", files(I, "Shaker, Small/*.wav") + files(I, "Cabasa/Cabasa1_Hit*.wav"), 0.5, lp=7000, semis=-3)
+    objects.append(worn("Cascalho", files(I, "Shaker, Small/*.wav") + files(I, "Cabasa/Cabasa1_Hit*.wav"), 0.9, semis=-14, lp=2300, drive=1.6, rate=12000, bits=10))
     # Sand: a handful thrown on a drum head, cut from the ocean drum's loudest moments.
     out = []
     for p in files(M, "../Other Membranophones/Ocean Drum/*.wav"):

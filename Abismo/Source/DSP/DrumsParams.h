@@ -69,13 +69,13 @@ constexpr int numSampleObjects = 48;
 constexpr int numObjects = numSampleObjects + 16;
 inline const char* sampleObjectName(int i) {
  static const char* names[numSampleObjects] = {
-  "Oil Drum", "Bones", "Marching Snare", "Clap", "Trash Can Lid", "Crate", "Old Hi-Hat",
-  "Trash Can", "Stomp", "Log", "Ratchet", "Brake Drum", "Metal Sheet", "Cracked Cymbal", "Anvil",
-  "Spring", "Scraper", "Spring Rattle", "Rusty Bell", "Tin Tambourine", "Slapping Board", "Chest",
+  "Oil Drum", "Dead Motor", "Marching Snare", "Clap", "Trash Can Lid", "Crate", "Old Hi-Hat",
+  "Trash Can", "Stomp", "Log", "Ratchet", "Brake Drum", "Metal Sheet", "Rotten Gong", "Anvil",
+  "Dead Spring", "Scraper", "Gearbox", "Rusty Bell", "Crushed Can", "Iron Door", "Chest",
   "Snap", "Heel",
-  "Rusty Kick", "Hollow Kick", "Rusty Snare", "Rim", "Shell", "Loose Snares", "Cymbal Stack",
-  "Old China", "Rivet Cymbal", "Riveted Ride", "Rusty Hi-Hat", "Squeaky Pedal", "Old Floor Tom",
-  "Tank", "Iron Pipe", "Cutlery", "Chain", "Bent Agogo", "Clay Jug", "Tin Shaker", "Sand",
+  "Rusty Kick", "Hollow Kick", "Rusty Snare", "Rim", "Shell", "Loose Snares", "Sunken Stack",
+  "Old China", "Melted Cymbal", "Riveted Ride", "Sunk Hat", "Squeaky Pedal", "Old Floor Tom",
+  "Tank", "Iron Pipe", "Cutlery", "Chain", "Bent Agogo", "Clay Jug", "Gravel", "Sand",
   "Moaning Glass", "Scraped Gong", "Hand Bell"};
  return names[std::clamp(i, 0, numSampleObjects - 1)];
 }
@@ -83,13 +83,13 @@ inline const char* sampleObjectName(int i) {
 // stays byte-identical); used only to check that the file matches this list.
 inline const char* libraryObjectName(int i) {
  static const char* names[numSampleObjects] = {
-  "Tambor de Oleo", "Ossos", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
-  "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Prato Rachado", "Bigorna",
-  "Mola", "Raspador", "Chocalho de Mola", "Sino Enferrujado", "Pandeiro de Lata", "Tabua Batendo", "Peito",
+  "Tambor de Oleo", "Motor Morto", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
+  "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Gongo Podre", "Bigorna",
+  "Mola Morta", "Raspador", "Engrenagem", "Sino Enferrujado", "Lata Amassada", "Porta de Ferro", "Peito",
   "Estalo", "Calcanhar",
-  "Bumbo Enferrujado", "Bumbo Oco", "Caixa Enferrujada", "Aro", "Casco", "Esteira Solta", "Pilha de Pratos",
-  "China Velho", "Prato de Rebites", "Conducao Rebitada", "Chimbal Enferrujado", "Pedal Rangendo", "Surdo Velho",
-  "Tanque", "Cano de Ferro", "Talheres", "Corrente", "Agogo Torto", "Bilha de Barro", "Chocalho de Lata", "Areia",
+  "Bumbo Enferrujado", "Bumbo Oco", "Caixa Enferrujada", "Aro", "Casco", "Esteira Solta", "Pilha Afundada",
+  "China Velho", "Prato Derretido", "Conducao Rebitada", "Chimbal Afundado", "Pedal Rangendo", "Surdo Velho",
+  "Tanque", "Cano de Ferro", "Talheres", "Corrente", "Agogo Torto", "Bilha de Barro", "Cascalho", "Areia",
   "Vidro Gemendo", "Gongo Raspado", "Sino de Mao"};
  return names[std::clamp(i, 0, numSampleObjects - 1)];
 }
