@@ -111,8 +111,11 @@ void InversoCaptureProcessor::processBlock(juce::AudioBuffer<float>& audio,juce:
   playerClip=want; playerGen=gen; playerOriginal=original;
  }
  switch (command.exchange(0)) {
-  case 1: if (want!=nullptr) player.play(want,e,rate); else command.store(1); break;   // not rendered yet: it starts as soon as it is
-  case 2: player.stop(); break;
+  case 1:
+   if (want!=nullptr) { player.play(want,e,rate); waitingBlocks=0; }
+   else if (++waitingBlocks<static_cast<int>(rate*6.0/n)) { int none=0; command.compare_exchange_strong(none,1); }   // not rendered yet: it starts as soon as it is, for a few seconds; a STOP in between wins
+   break;
+  case 2: player.stop(); waitingBlocks=0; break;
   default: break;
  }
  if (player.active()) {
@@ -151,16 +154,15 @@ void InversoCaptureProcessor::setClip(std::shared_ptr<Clip> c,bool resetRegion) 
   source=std::move(c);
   audioSource.store(source.get());
   audioGen.fetch_add(1);
-  if (!source) { // nothing to edit: nothing rendered either
-   if (renderedClip) retired.push_back(std::move(renderedClip));
-   renderedClip=nullptr; audioRendered.store(nullptr);
-   renderedSerial.store(requestSerial.load());
-   renderedVer.fetch_add(1);
-  }
+  // the edit of the old clip is not the edit of this one: it must not be heard, or shown, while the new one is made
+  if (renderedClip) retired.push_back(std::move(renderedClip));
+  renderedClip=nullptr; audioRendered.store(nullptr);
+  renderedVer.fetch_add(1);
   if (!blockActive.load()) retired.clear();
  }
  lastRequestMs.store(0);              // render at once: it is a new clip, not a knob being turned
  requestSerial.fetch_add(1);
+ if (!source) renderedSerial.store(requestSerial.load()); // nothing to edit: nothing to wait for
  version.fetch_add(1);
  if (resetRegion) {
   for (int p : {P::Start,P::End}) if (auto* param=apvts.getParameter(specs()[static_cast<std::size_t>(p)].id)) {
@@ -203,6 +205,8 @@ void InversoCaptureProcessor::run() {
 }
 
 std::shared_ptr<const Clip> InversoCaptureProcessor::renderedNow() {
+ // the background renderer may be on exactly this edit: wait for it instead of making it twice
+ for (int i=0;i<1200 && renderedSerial.load()!=requestSerial.load() && rendering.load();++i) juce::Thread::sleep(25);
  if (renderedSerial.load()!=requestSerial.load()) {
   const unsigned want=requestSerial.load();
   std::shared_ptr<Clip> src;

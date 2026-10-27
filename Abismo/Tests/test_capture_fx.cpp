@@ -105,6 +105,15 @@ static void effectsTest() {
  // tape stop: shorter pitch falling, ends quiet
  { const Clip in = sine(1000, 2.0, .5); const Clip o = tapeWarp(in, 100, 0); verify(o.frames() > in.frames() && peakFreq(o, 2000, 8192) > peakFreq(o, o.frames() - 30000, 8192) * 1.3, "tape stop: the pitch falls"); verify(std::abs(o.l[o.frames() - 1]) < .01f, "tape stop: ends in silence"); 
    const Clip st = tapeWarp(in, 100, 1); verify(peakFreq(st, 2000, 8192) < peakFreq(st, st.frames() - 20000, 8192), "tape start: the pitch rises"); }
+
+ // a starting tape begins in silence and ends at full level; a stopping one is the other way round
+ { const Clip in = sine(1000, 2.0, .5); const Clip st = tapeWarp(in, 100, 1); verify(std::abs(st.l[2]) < .01f && peakOf(Clip{{st.l.end() - 2000, st.l.end()}, {st.l.end() - 2000, st.l.end()}, SR}) > .3, "tape start: in from silence, out at full level"); }
+ // pitching up does not fold the highs back: 15 kHz one octave up has nothing left to fold
+ { Clip hi = sine(15000, .5, .5); const Clip up = resample(hi, 2.0); verify(rms(up, 2000, 8000) < .02, "resample: no aliasing when reading faster"); const Clip same = resample(sine(500, .5, .5), 2.0); verify(rms(same, 2000, 8000) > .3, "resample: the low stays"); }
+ // a big reverb rings for seconds and dies away before it is cut
+ { Clip a = sine(300, .3, .5); reverb(a, 100, 30, 40); trimSilence(a); const double seconds = static_cast<double>(a.frames()) / SR; verify(seconds > 6.0, "reverb: a big room rings for seconds"); verify(rms(a, a.frames() - 4000, a.frames()) < .003, "reverb: and it has died away at the end"); }
+ // chop with no depth leaves the clip alone
+ { const Clip a = sine(400, 1.0, .5); Clip b = a, c2 = a; chop(b, 1, 125, 0); chop(c2, 0, 125, 0); double worst = 0; for (std::size_t i = 0; i < a.frames(); ++i) worst = std::max({worst, static_cast<double>(std::abs(a.l[i] - b.l[i])), static_cast<double>(std::abs(a.l[i] - c2.l[i]))}); verify(worst == 0.0, "chop: no depth, no change"); }
  std::puts("effects: ok");
 }
 
@@ -119,6 +128,10 @@ static void pipelineTest() {
    const Clip o = render(in, p); verify(!o.empty() && clean(o) && peakOf(o) <= 8.01, "pipeline: everything at once stays finite"); }
  // odd regions
  { RenderParams p; p.start = .9; p.end = .1; verify(!render(in, p).empty(), "pipeline: a reversed region is swapped"); p.start = p.end = .5; verify(render(in, p).frames() >= 64, "pipeline: an empty region still gives a little"); Clip e; verify(render(e, RenderParams{}).empty(), "pipeline: an empty clip"); }
+ // tape and pitch together: the pitch counts
+ { RenderParams p; p.fadeInMs = 0; p.fadeOutMs = 0; p.tape = true; p.pitchSt = 12; const Clip o = render(in, p); verify(std::abs(peakFreq(o, 20000) / peakFreq(in, 20000) - 2.0) < .02, "tape: pitch adds to the speed"); }
+ // a stretch that would not fit is held at the limit
+ { Clip small = sine(300, 10.0); small.sampleRate = 8000.0; small.l.resize(80000); small.r.resize(80000); RenderParams p; p.stretchPct = 1600; p.stretchMode = 0; const Clip o = render(small, p); verify(!o.empty() && static_cast<double>(o.frames()) <= 121.0 * 8000.0, "pipeline: the result is at most about two minutes"); }
  // cancel
  { RenderParams p; p.stretchPct = 300; p.stretchMode = 1; int n = 0; verify(render(in, p, [&] { return ++n > 2; }).empty(), "pipeline: cancelled"); }
  // limits of the knobs

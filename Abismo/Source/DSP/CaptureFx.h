@@ -12,6 +12,7 @@
 namespace inverso_abismo::capture {
 
 using Cancel = std::function<bool()>;
+constexpr double maxResultSeconds = 120.0;   // the longest result of a stretch (effect tails come on top)
 using inverso_abismo::chain::Biquad;
 using inverso_abismo::chain::Saturator;
 using inverso_abismo::chain::SatControls;
@@ -79,9 +80,25 @@ inline double sampleAtClamped(const std::vector<float>& x, long i) { return i < 
 
 // ---------------------------------------------------------------- resampling
 // factor 2: twice as fast, an octave up, half as long.
-inline Clip resample(const Clip& in, double factor, const Cancel& cancel = {}) {
- Clip out; out.sampleRate = in.sampleRate;
- if (in.empty() || factor <= 1e-4) return out;
+inline Clip resample(const Clip& in0, double factor, const Cancel& cancel = {}) {
+ Clip out; out.sampleRate = in0.sampleRate;
+ if (in0.empty() || factor <= 1e-4) return out;
+ Clip filtered;
+ const Clip* src = &in0;
+ if (factor > 1.001) {   // reading faster than the clip was made folds what is above half the new rate back down: take it away first
+  filtered = in0;
+  const double fc = .42 * in0.sampleRate / factor;
+  static const double qs[4] = {.5098, .6013, .9000, 2.5629};   // eighth-order Butterworth
+  Biquad fl[4], fr[4];
+  for (int k = 0; k < 4; ++k) { fl[k].set(inverso_abismo::chain::lowpass(fc, qs[k], in0.sampleRate)); fr[k].set(inverso_abismo::chain::lowpass(fc, qs[k], in0.sampleRate)); }
+  for (std::size_t i = 0; i < filtered.frames(); ++i) {
+   double l = filtered.l[i], r = filtered.r[i];
+   for (int k = 0; k < 4; ++k) { l = fl[k].process(l); r = fr[k].process(r); }
+   filtered.l[i] = static_cast<float>(l); filtered.r[i] = static_cast<float>(r);
+  }
+  src = &filtered;
+ }
+ const Clip& in = *src;
  const auto n = static_cast<std::size_t>(std::ceil(static_cast<double>(in.frames()) / factor));
  out.l.resize(n); out.r.resize(n);
  for (std::size_t i = 0; i < n; ++i) {
@@ -255,9 +272,13 @@ inline Clip tapeWarp(const Clip& in, float amount, int direction, const Cancel& 
   out.l.push_back(static_cast<float>(cubic(in.l, pos))); out.r.push_back(static_cast<float>(cubic(in.r, pos)));
   pos += std::max(.002, v);
  }
- // a stopping tape ends in silence: the last tenth fades
+ // a stopping tape ends in silence, a starting one comes out of it
  const std::size_t f = std::min<std::size_t>(out.l.size() / 10, 4096);
- for (std::size_t i = 0; i < f; ++i) { const float g = static_cast<float>(i) / static_cast<float>(f); const std::size_t j = out.l.size() - 1 - i; out.l[j] *= g; out.r[j] *= g; }
+ for (std::size_t i = 0; i < f; ++i) {
+  const float g = static_cast<float>(i) / static_cast<float>(f);
+  const std::size_t j = direction == 0 ? out.l.size() - 1 - i : i;
+  out.l[j] *= g; out.r[j] *= g;
+ }
  return out;
 }
 
@@ -311,10 +332,11 @@ inline void ring(Clip& c, float freq, float mix) {
 
 // mode 0: the end of each slice is cut away; mode 1: the start of each slice repeats to fill it
 inline void chop(Clip& c, int mode, float sliceMs, float depth) {
- const std::size_t slice = std::max<std::size_t>(64, static_cast<std::size_t>(sliceMs * .001 * c.sampleRate));
  const double d = std::clamp(static_cast<double>(depth), 0.0, 100.0) * .01;
+ if (d < .005) return;   // no depth, no chop
+ const std::size_t slice = std::max<std::size_t>(64, static_cast<std::size_t>(sliceMs * .001 * c.sampleRate));
  const std::size_t ramp = std::min<std::size_t>(slice / 4, static_cast<std::size_t>(.002 * c.sampleRate) + 1);
- const Clip src = c;
+ std::vector<float> tl, tr;
  for (std::size_t s = 0; s < c.frames(); s += slice) {
   const std::size_t len = std::min(slice, c.frames() - s);
   if (mode == 0) {
@@ -325,10 +347,13 @@ inline void chop(Clip& c, int mode, float sliceMs, float depth) {
    }
   } else {
    const std::size_t piece = std::max<std::size_t>(32, static_cast<std::size_t>(static_cast<double>(len) / (1.0 + 7.0 * d)));
+   if (piece >= len) continue;   // nothing repeats in this slice
+   tl.assign(c.l.begin() + static_cast<long>(s), c.l.begin() + static_cast<long>(s + piece)); tr.assign(c.r.begin() + static_cast<long>(s), c.r.begin() + static_cast<long>(s + piece));
+   const std::size_t edge = std::min(ramp, piece / 2) + 1;
    for (std::size_t i = 0; i < len; ++i) {
     const std::size_t j = i % piece;
-    const double g = std::min({1.0, static_cast<double>(j + 1) / static_cast<double>(std::min(ramp, piece / 2) + 1), static_cast<double>(piece - j) / static_cast<double>(std::min(ramp, piece / 2) + 1)});
-    c.l[s + i] = static_cast<float>(src.l[s + j] * g); c.r[s + i] = static_cast<float>(src.r[s + j] * g);
+    const double g = std::min({1.0, static_cast<double>(j + 1) / static_cast<double>(edge), static_cast<double>(piece - j) / static_cast<double>(edge)});
+    c.l[s + i] = static_cast<float>(tl[j] * g); c.r[s + i] = static_cast<float>(tr[j] * g);
    }
   }
  }
@@ -364,7 +389,8 @@ inline void reverb(Clip& c, float size, float damp, float mix) {
  const double room = .7 + .28 * std::clamp(static_cast<double>(size), 0.0, 100.0) * .01;
  const double dp = std::clamp(static_cast<double>(damp), 0.0, 100.0) * .01 * .8;
  const double m = std::clamp(static_cast<double>(mix), 0.0, 100.0) * .01;
- const std::size_t tailFrames = static_cast<std::size_t>((.4 + 5.0 * std::clamp(static_cast<double>(size), 0.0, 100.0) * .01) * c.sampleRate);
+ const double rt60 = 3.0 * .0366 / -std::log10(room);   // the combs' average delay and their feedback give the decay time
+ const std::size_t tailFrames = static_cast<std::size_t>(std::clamp(rt60, .4, 14.0) * c.sampleRate);
  const std::size_t total = c.frames() + tailFrames;
  c.l.resize(total, 0.f); c.r.resize(total, 0.f);
  struct Comb { std::vector<double> b; std::size_t i = 0; double store = 0; };
@@ -406,9 +432,10 @@ inline Clip render(const Clip& source, const RenderParams& p, const Cancel& canc
  if (c.frames() < 64) return c;
 
  // time and pitch
- const double T = std::clamp(static_cast<double>(p.stretchPct) * .01, .05, 20.0);
+ double T = std::clamp(static_cast<double>(p.stretchPct) * .01, .05, 20.0);
+ T = std::min(T, maxResultSeconds * c.sampleRate / static_cast<double>(c.frames()));   // a long clip cannot be stretched past what fits in memory
  const double f = std::exp2(static_cast<double>(p.pitchSt) / 12.0);
- if (p.tape) { if (std::abs(T - 1.0) > 1e-4) c = resample(c, 1.0 / T, cancel); }
+ if (p.tape) { const double speed = f / T; if (std::abs(speed - 1.0) > 1e-4) c = resample(c, speed, cancel); }   // pitch and speed together; PITCH adds on top
  else {
   if (std::abs(f - 1.0) > 1e-4) c = resample(c, f, cancel);          // the pitch moves, the length with it...
   if (!c.empty()) c = timeStretch(c, T * f, p.stretchMode, cancel);   // ...and the stretch gives the length back

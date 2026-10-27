@@ -204,7 +204,7 @@ Pega um pedaço de uma faixa da DAW, edita no próprio plugin e manda para outra
 
 **Editor (0.20).** A edição é calculada em segundo plano a cada ajuste, e a onda *What you get* mostra o resultado: é o que PLAY toca e o que o arquivo contém. *Hear original* compara com a parte escolhida, sem edição.
 
-- **Time & Pitch.** *Stretch* de 10% a 1600% sem mudar o tom, em três modos: *Beats* (ritmo e transientes), *Tones* (sons sustentados, com phase vocoder travado em fase) e *Texture* (fases aleatórias: qualquer som vira textura, por mais que se estique). *Pitch* muda o tom sem mudar a duração. *Tape* liga o tom à velocidade, como numa fita. *Tape stop* (para ou parte). *Reverse*, fades e gain.
+- **Time & Pitch.** *Stretch* de 10% a 1600% sem mudar o tom, em três modos: *Beats* (ritmo e transientes), *Tones* (sons sustentados, com phase vocoder travado em fase) e *Texture* (fases aleatórias: qualquer som vira textura, por mais que se estique). *Pitch* muda o tom sem mudar a duração. *Tape* liga o tom à velocidade, como numa fita (*Pitch* soma por cima). Um esticamento fica limitado a cerca de 2 minutos de resultado. *Tape stop* (para ou parte). *Reverse*, fades e gain.
 - **Tone.** Filtro (passa-baixas, passa-altas, passa-faixa) com varredura de *From* a *To*; drive (tape, tube, transformer); crush (bits e taxa); ring.
 - **Space & Rhythm.** Eco (tempo, feedback, escuridão), reverb (tamanho, escuridão) e chop (gate ou stutter por fatias).
 - **Abrir arquivos.** *Open* ou soltar um WAV, AIFF, FLAC ou MP3 no plugin: edita áudio que não veio da faixa (até 60 s).

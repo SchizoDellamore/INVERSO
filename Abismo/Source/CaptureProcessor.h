@@ -89,6 +89,7 @@ private:
  const inverso_abismo::capture::Clip* playerClip=nullptr;
  unsigned playerGen=0;
  bool playerOriginal=false;
+ int waitingBlocks=0;
  std::atomic<unsigned> version{0}, renderedVer{0};
  std::atomic<unsigned> requestSerial{1}, renderedSerial{0};   // a control moved / what the rendered clip was made for
  std::atomic<juce::int64> lastRequestMs{0};
