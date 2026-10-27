@@ -84,16 +84,22 @@ inline double cubic(const std::vector<float>& x, double pos) {
 class Player {
 public:
  void play(const Clip* c, const Edit& e, double hostRate) {
-  clip = c; edit = e; host = hostRate; playing = c != nullptr && !c->empty();
+  clip = c; edit = e; host = hostRate; playing = c != nullptr && !c->empty(); frames = c ? static_cast<double>(c->frames()) : 0.0;
   played = 0; stopping = false; stopGain = 1.0;
   begin();
  }
  void stop() { if (playing) stopping = true; }
  void setEdit(const Edit& e) { edit = e; }   // live: knobs move while it plays
- void setClip(const Clip* c) { clip = c; if (!c || c->empty()) playing = false; }
+ void setClip(const Clip* c) { clip = c; frames = c ? static_cast<double>(c->frames()) : 0.0; if (!c || c->empty()) playing = false; }
+ // Another clip under the same playhead (the same fraction of the way through it): the edit changed while it plays.
+ void swapClip(const Clip* c) {
+  if (!c || c->empty()) { clip = nullptr; playing = false; return; }
+  const double frac = position();   // (no look at the old clip: it may be gone)
+  clip = c; frames = static_cast<double>(c->frames()); pos = frac * frames;
+ }
  bool active() const { return playing; }
  // 0..1 within the clip, for the playhead
- double position() const { return clip && !clip->empty() ? std::clamp(pos / static_cast<double>(clip->frames()), 0.0, 1.0) : 0.0; }
+ double position() const { return frames > 0.0 ? std::clamp(pos / frames, 0.0, 1.0) : 0.0; }
  // True when the pass reached its end (and was not looping).
  bool render(float* outL, float* outR, int n) {
   if (!playing || !clip) return false;
@@ -130,7 +136,7 @@ private:
  }
  const Clip* clip = nullptr;
  Edit edit;
- double host = 48000.0, pos = 0.0, stopGain = 1.0;
+ double host = 48000.0, pos = 0.0, stopGain = 1.0, frames = 0.0;
  std::uint64_t played = 0;
  bool playing = false, stopping = false;
 };

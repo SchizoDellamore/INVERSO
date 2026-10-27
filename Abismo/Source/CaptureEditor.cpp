@@ -8,7 +8,17 @@ namespace c = soft::colour;
 namespace {
 const juce::Colour accent{0xff3ccfe0}, hot{0xffef5350};
 const char* const* shortNames() {
- static const char* names[] = {"START", "END", "GAIN", "PITCH", "REVERSE", "LOOP", "FADE IN", "FADE OUT", "TRACK THROUGH", "CLIP LEVEL", "CAPTURE THE LAST"};
+ static const char* names[] = {
+  "START", "END", "GAIN", "PITCH", "REVERSE", "LOOP", "FADE IN", "FADE OUT", "TRACK", "CLIP", "LENGTH",
+  "STRETCH", "MODE", "TAPE", "TAPE STOP", "DIRECTION",
+  "FILTER", "TYPE", "FROM", "TO", "RESONANCE",
+  "DRIVE", "TYPE", "AMOUNT", "MIX",
+  "CRUSH", "BITS", "RATE", "MIX",
+  "RING", "FREQUENCY", "MIX",
+  "CHOP", "MODE", "SLICE", "DEPTH",
+  "ECHO", "TIME", "FEEDBACK", "DARK", "MIX",
+  "REVERB", "SIZE", "DARK", "MIX",
+  "ORIGINAL"};
  static_assert(sizeof(names) / sizeof(names[0]) == P::Count, "one short name per parameter");
  return names;
 }
@@ -16,7 +26,7 @@ juce::String timeText(double seconds) { return juce::String(seconds, seconds < 1
 } // namespace
 
 // ---------------------------------------------------------------- waveform
-CaptureWave::CaptureWave(InversoCaptureProcessor& p) : processor(p) { setMouseCursor(juce::MouseCursor::PointingHandCursor); }
+CaptureWave::CaptureWave(InversoCaptureProcessor& p, bool resultView) : processor(p), result(resultView) { if (!result) setMouseCursor(juce::MouseCursor::PointingHandCursor); }
 
 float CaptureWave::percentOf(int p) const { return processor.apvts.getRawParameterValue(specs()[static_cast<std::size_t>(p)].id)->load(); }
 void CaptureWave::setParam(int p, float percent) {
@@ -24,12 +34,12 @@ void CaptureWave::setParam(int p, float percent) {
 }
 
 void CaptureWave::refresh() {
- const unsigned v = processor.clipVersion();
- const unsigned key = v * 4096u + static_cast<unsigned>(getWidth());
+ const unsigned key = (result ? processor.renderedVersion() : processor.clipVersion()) * 4096u + static_cast<unsigned>(getWidth());
  if (key != peaksFor) {
-  peaksFor = key; shownVersion = v;
+  peaksFor = key;
   peaks.clear();
-  if (const auto clip = processor.clip(); clip && !clip->empty() && getWidth() > 4) {
+  const auto clip = result ? processor.rendered() : processor.clip();
+  if (clip && !clip->empty() && getWidth() > 4) {
    const int w = getWidth() - 8;
    peaks.resize(static_cast<std::size_t>(w));
    const double per = static_cast<double>(clip->frames()) / w;
@@ -49,56 +59,62 @@ void CaptureWave::paint(juce::Graphics& g) {
  auto r = getLocalBounds().toFloat();
  g.setGradientFill(juce::ColourGradient(c::screenTop, 0.f, r.getY(), c::screenBottom, 0.f, r.getBottom(), false));
  g.fillRoundedRectangle(r, 10.f);
- auto a = r.reduced(4.f, 8.f);
+ auto a = r.reduced(4.f, result ? 6.f : 10.f);
  g.setColour(c::screenMuted.withAlpha(.25f));
  g.drawHorizontalLine(juce::roundToInt(a.getCentreY()), a.getX(), a.getRight());
  g.setFont(soft::monoFont(11.f));
- if (processor.isRecording()) {
+ if (!result && processor.isRecording()) {
   g.setColour(hot);
-  g.drawText("RECORDING  -  press REC again to keep what passed", a, juce::Justification::centredTop);
+  g.drawText("RECORDING  -  press STOP REC to keep what passed", a, juce::Justification::centredTop);
   const float lvl = juce::jlimit(0.f, 1.f, processor.inputLevel());
   g.fillRoundedRectangle(a.getX(), a.getCentreY() - lvl * a.getHeight() * .4f, a.getWidth() * (static_cast<float>(std::fmod(juce::Time::getMillisecondCounter() / 4000.0, 1.0))), lvl * a.getHeight() * .8f, 3.f);
   return;
  }
  if (peaks.empty()) {
   g.setColour(c::screenMuted);
-  g.drawText("PLAY THE TRACK, THEN PRESS CAPTURE  -  or REC / REC to take exactly what you play", a, juce::Justification::centred);
-  g.setFont(soft::monoFont(10.f));
-  g.drawText("the last " + timeText(processor.ringSeconds()) + " of the track are kept while the DAW plays", a.withTrimmedTop(a.getHeight() * .6f), juce::Justification::centredTop);
+  if (!result) {
+   g.drawText("PLAY THE TRACK, THEN CAPTURE   -   or REC and STOP REC   -   or OPEN / drop an audio file here", a, juce::Justification::centred);
+   g.setFont(soft::monoFont(10.f));
+   g.drawText("the last " + timeText(processor.ringSeconds()) + " of the track are kept while the DAW plays", a.withTrimmedTop(a.getHeight() * .62f), juce::Justification::centredTop);
+  } else g.drawText(processor.clip() ? "..." : "", a, juce::Justification::centred);
   return;
  }
- const float x0 = a.getX() + 0.f, w = static_cast<float>(peaks.size());
- const float sx = percentOf(P::Start), ex = percentOf(P::End);
- const float lo = std::min(sx, ex) * .01f, hi = std::max(sx, ex) * .01f;
+ const float x0 = a.getX(), w = static_cast<float>(peaks.size());
+ float lo = 0.f, hi = 1.f;
+ if (!result) { const float sx = percentOf(P::Start), ex = percentOf(P::End); lo = std::min(sx, ex) * .01f; hi = std::max(sx, ex) * .01f; }
  for (std::size_t i = 0; i < peaks.size(); ++i) {
   const float t = static_cast<float>(i) / w;
   const bool inside = t >= lo && t <= hi;
-  g.setColour((inside ? accent : c::screenMuted).withAlpha(inside ? .95f : .4f));
+  g.setColour((inside ? (result ? c::orange : accent) : c::screenMuted).withAlpha(inside ? .95f : .4f));
   const float h = a.getHeight() * .5f;
   g.drawVerticalLine(juce::roundToInt(x0 + static_cast<float>(i) + 4.f), a.getCentreY() - peaks[i].second * h, a.getCentreY() - peaks[i].first * h + 1.f);
  }
- for (float p : {lo, hi}) {
+ if (!result) for (float p : {lo, hi}) {
   const float x = x0 + 4.f + p * w;
   g.setColour(juce::Colours::white.withAlpha(.9f));
   g.drawVerticalLine(juce::roundToInt(x), a.getY(), a.getBottom());
   g.fillRoundedRectangle(x - 5.f, a.getY(), 10.f, 14.f, 3.f);
  }
- if (processor.isPlaying()) {
-  const float x = x0 + 4.f + static_cast<float>(processor.playPosition()) * w;
-  g.setColour(c::orange);
+ // the playhead: on the result while the edit is heard, on the source while the original is
+ const bool original = percentOf(P::Original) > .5f;
+ if (processor.isPlaying() && original != result) {
+  const float pos = static_cast<float>(processor.playPosition());
+  const float x = x0 + 4.f + pos * w;
+  g.setColour(result ? c::orange : juce::Colours::white);
   g.drawVerticalLine(juce::roundToInt(x), a.getY(), a.getBottom());
  }
- if (const auto clip = processor.clip()) {
+ g.setFont(soft::monoFont(10.f));
+ g.setColour(c::screenMuted);
+ if (const auto clip = result ? processor.rendered() : processor.clip()) {
   const double total = static_cast<double>(clip->frames()) / clip->sampleRate;
-  g.setColour(c::screenMuted);
-  g.setFont(soft::monoFont(10.f));
-  g.drawText("CLIP " + timeText(total) + "    REGION " + timeText(total * (hi - lo)), a.withTrimmedTop(a.getHeight() - 14.f), juce::Justification::bottomLeft);
+  g.drawText(result ? "RESULT " + timeText(total) + (processor.isRendering() ? "   ... RENDERING" : juce::String()) : "CLIP " + timeText(total) + "    REGION " + timeText(total * (hi - lo)),
+             a.withTrimmedTop(a.getHeight() - 14.f), juce::Justification::bottomLeft);
  }
 }
 
 void CaptureWave::mouseDown(const juce::MouseEvent& e) {
  dragging = -1;
- if (peaks.empty()) return;
+ if (result || peaks.empty()) return;
  const float w = static_cast<float>(peaks.size());
  const float xs = 4.f + percentOf(P::Start) * .01f * w, xe = 4.f + percentOf(P::End) * .01f * w;
  const float ds = std::abs(e.position.x - xs), de = std::abs(e.position.x - xe);
@@ -139,37 +155,56 @@ void CaptureDragZone::mouseDrag(const juce::MouseEvent& e) {
 }
 
 // ---------------------------------------------------------------- editor
-InversoCaptureEditor::InversoCaptureEditor(InversoCaptureProcessor& p) : AudioProcessorEditor(&p), processor(p), wave(p), drag(p) {
+InversoCaptureEditor::InversoCaptureEditor(InversoCaptureProcessor& p) : AudioProcessorEditor(&p), processor(p), source(p, false), result(p, true), drag(p) {
  setLookAndFeel(&look);
  body.title = "CAPTURE";
- body.subtitle = juce::String::fromUTF8("TAKE A PIECE OF THIS TRACK   \xc2\xb7   EDIT IT HERE   \xc2\xb7   DRAG IT TO ANOTHER TRACK");
+ body.subtitle = juce::String::fromUTF8("TAKE A PIECE OF A TRACK   \xc2\xb7   STRETCH, BEND, TWIST IT   \xc2\xb7   DRAG IT TO ANOTHER TRACK");
  addAndMakeVisible(body);
- body.addAndMakeVisible(wave);
+ body.addAndMakeVisible(source);
+ body.addAndMakeVisible(result);
  body.addAndMakeVisible(drag);
- for (auto* b : {&captureButton, &recButton, &playButton, &undoButton, &bakeButton, &normalizeButton, &saveButton}) body.addAndMakeVisible(*b);
- captureButton.setTooltip("Keep the last seconds of the track (set below). The DAW has to have been playing it");
+ for (auto* b : {&openButton, &captureButton, &recButton, &playButton, &originalButton, &undoButton, &bakeButton, &normalizeButton, &saveButton}) body.addAndMakeVisible(*b);
+ for (auto* l : {&sourceTitle, &resultTitle}) { l->setFont(soft::monoFont(10.f)); l->setColour(juce::Label::textColourId, c::muted); body.addAndMakeVisible(*l); }
+ sourceTitle.setText("THE CLIP  -  drag the two ends to choose the part", juce::dontSendNotification);
+ resultTitle.setText("WHAT YOU GET  -  this is what PLAY and the file hold", juce::dontSendNotification);
+ openButton.setTooltip("Open an audio file (WAV, AIFF, FLAC, MP3) - or drop one on the plugin");
+ captureButton.setTooltip("Keep the last seconds of the track (set under MIX). The DAW has to have been playing it");
  recButton.setTooltip("Press, play the part you want, press again: that is the clip");
- playButton.setTooltip("Play the clip as edited, on top of the track");
- bakeButton.setTooltip("Make the clip what you hear now (region, pitch, reverse, fades, gain) and start editing from there");
+ playButton.setTooltip("Play the edited clip on top of the track");
+ originalButton.setTooltip("Hear the part you chose, as it was, to compare with the edit");
+ originalButton.setClickingTogglesState(true);
+ originalAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.apvts, specs()[P::Original].id, originalButton);
+ bakeButton.setTooltip("Make the clip what you hear now, and keep editing from there");
  undoButton.setTooltip("Back to the clip and settings before the last BAKE or NORMALIZE");
  normalizeButton.setTooltip("Raise the clip so its highest peak is at -1 dB");
  saveButton.setTooltip("Save the edited clip as a WAV file anywhere");
- captureButton.onClick = [this] { if (!processor.capture()) status.setText("Nothing to capture yet: play the track in the DAW first", juce::dontSendNotification); else status.setText({}, juce::dontSendNotification); wave.refresh(); };
+ captureButton.onClick = [this] { if (!processor.capture()) say("Nothing to capture yet: play the track in the DAW first", true); else say({}); source.refresh(); };
  recButton.onClick = [this] {
-  if (processor.isRecording()) { if (!processor.stopRecording()) status.setText("Nothing was recorded: the DAW has to play the track", juce::dontSendNotification); else status.setText({}, juce::dontSendNotification); }
+  if (processor.isRecording()) { if (!processor.stopRecording()) say("Nothing was recorded: the DAW has to play the track", true); else say({}); }
   else processor.startRecording();
-  wave.refresh();
+  source.refresh();
+ };
+ openButton.onClick = [this] {
+  chooser = std::make_unique<juce::FileChooser>("Open an audio file", juce::File::getSpecialLocation(juce::File::userMusicDirectory), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+  chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {
+   const auto f = fc.getResult();
+   if (f == juce::File()) return;
+   juce::String message; const bool ok = processor.loadFile(f, message);
+   say(ok ? (message.isNotEmpty() ? message : "Opened " + f.getFileName()) : message, !ok);
+  });
  };
  playButton.onClick = [this] { if (processor.isPlaying()) processor.stopPlaying(); else processor.play(); };
- bakeButton.onClick = [this] { processor.bake(); wave.refresh(); };
- undoButton.onClick = [this] { processor.undo(); wave.refresh(); };
- normalizeButton.onClick = [this] { processor.normalizeClip(); wave.refresh(); };
+ bakeButton.onClick = [this] { processor.bake(); source.refresh(); };
+ undoButton.onClick = [this] { processor.undo(); source.refresh(); };
+ normalizeButton.onClick = [this] { processor.normalizeClip(); source.refresh(); };
  saveButton.onClick = [this] {
-  if (processor.clip() == nullptr) { status.setText("Nothing to save yet", juce::dontSendNotification); return; }
+  if (processor.clip() == nullptr) { say("Nothing to save yet", true); return; }
   chooser = std::make_unique<juce::FileChooser>("Save the clip as", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("INVERSO capture.wav"), "*.wav");
   chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {
    const auto f = fc.getResult();
-   if (f != juce::File()) status.setText(processor.exportWav(f.hasFileExtension("wav") ? f : f.withFileExtension(f.getFileExtension() + ".wav")) ? "Saved " + f.getFileName() : juce::String("Could not save the file"), juce::dontSendNotification);
+   if (f == juce::File()) return;
+   const auto target = f.hasFileExtension("wav") ? f : f.withFileExtension(f.getFileExtension() + ".wav");
+   if (processor.exportWav(target)) say("Saved " + target.getFileName()); else say("Could not save the file", true);
   });
  };
  status.setFont(soft::monoFont(11.f));
@@ -179,12 +214,16 @@ InversoCaptureEditor::InversoCaptureEditor(InversoCaptureProcessor& p) : AudioPr
  std::vector<const char*> names;
  for (int i = 0; i < P::Count; ++i) names.push_back(shortNames()[i]);
  using Page = soft::Module::Page;
- edit = std::make_unique<soft::Module>(processor.apvts, specs().data(), names.data(), "EDIT", accent,
-                                       std::vector<Page>{{"Edit", {P::Gain, P::Pitch, P::FadeIn, P::FadeOut, P::Reverse, P::Loop}}}, 0, std::vector<int>{});
- mix = std::make_unique<soft::Module>(processor.apvts, specs().data(), names.data(), "MIX", c::orange,
-                                      std::vector<Page>{{"Mix", {P::Dry, P::Sample, P::CapLen}}}, 0, std::vector<int>{});
- body.addAndMakeVisible(*edit);
- body.addAndMakeVisible(*mix);
+ auto card = [&](const char* title, juce::Colour col, std::vector<Page> pages) {
+  modules.push_back(std::make_unique<soft::Module>(processor.apvts, specs().data(), names.data(), title, col, std::move(pages), 0, std::vector<int>{}));
+  body.addAndMakeVisible(*modules.back());
+ };
+ card("TIME & PITCH", accent, {{"Time", {P::Stretch, P::Pitch, P::Mode, P::Tape}}, {"Shape", {P::Reverse, P::Warp, P::WarpDir, P::Gain, P::FadeIn, P::FadeOut}}});
+ card("TONE", c::violet, {{"Filter", {P::FilterOn, P::FilterType, P::FilterFrom, P::FilterTo, P::FilterReso}}, {"Drive", {P::DriveOn, P::DriveType, P::DriveAmount, P::DriveMix}},
+                          {"Crush", {P::CrushOn, P::CrushBits, P::CrushRate, P::CrushMix}}, {"Ring", {P::RingOn, P::RingFreq, P::RingMix}}});
+ card("SPACE & RHYTHM", c::pink, {{"Echo", {P::EchoOn, P::EchoTime, P::EchoFeedback, P::EchoDark, P::EchoMix}}, {"Reverb", {P::ReverbOn, P::ReverbSize, P::ReverbDamp, P::ReverbMix}},
+                                  {"Chop", {P::ChopOn, P::ChopMode, P::ChopSlice, P::ChopDepth}}});
+ card("MIX", c::orange, {{"Mix", {P::Dry, P::Sample, P::Loop, P::CapLen}}});
  setResizable(true, true);
  soft::sizeWindow(*this, "CAPTURE", designW, designH, 0.6f);
  startTimerHz(30);
@@ -192,16 +231,33 @@ InversoCaptureEditor::InversoCaptureEditor(InversoCaptureProcessor& p) : AudioPr
 
 InversoCaptureEditor::~InversoCaptureEditor() { setLookAndFeel(nullptr); }
 
+bool InversoCaptureEditor::isInterestedInFileDrag(const juce::StringArray& files) {
+ for (const auto& f : files) { const auto ext = juce::File(f).getFileExtension().toLowerCase(); if (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".mp3" || ext == ".ogg") return true; }
+ return false;
+}
+void InversoCaptureEditor::filesDropped(const juce::StringArray& files, int, int) {
+ if (files.isEmpty()) return;
+ juce::String message; const bool ok = processor.loadFile(juce::File(files[0]), message);
+ say(ok ? (message.isNotEmpty() ? message : "Opened " + juce::File(files[0]).getFileName()) : message, !ok);
+}
+void InversoCaptureEditor::say(const juce::String& text, bool problem) {
+ status.setColour(juce::Label::textColourId, problem ? hot : c::muted);
+ status.setText(text, juce::dontSendNotification);
+}
+
 void InversoCaptureEditor::timerCallback() {
  processor.housekeeping();
- wave.refresh();
+ source.refresh();
+ result.refresh();
  const bool has = processor.clip() != nullptr;
  recButton.setButtonText(processor.isRecording() ? "STOP REC" : "REC");
  recButton.setColour(juce::TextButton::buttonColourId, processor.isRecording() ? hot : c::card);
  playButton.setButtonText(processor.isPlaying() ? "STOP" : "PLAY");
- for (auto* b : {&playButton, &bakeButton, &normalizeButton, &saveButton}) b->setEnabled(has && !processor.isRecording());
+ originalButton.setColour(juce::TextButton::buttonOnColourId, accent.withAlpha(.5f));
+ for (auto* b : {&playButton, &originalButton, &bakeButton, &normalizeButton, &saveButton}) b->setEnabled(has && !processor.isRecording());
  undoButton.setEnabled(processor.canUndo());
  captureButton.setEnabled(!processor.isRecording());
+ openButton.setEnabled(!processor.isRecording());
  drag.repaint();
 }
 
@@ -210,14 +266,24 @@ void InversoCaptureEditor::resized() {
  body.setTransform(juce::AffineTransform::scale(static_cast<float>(getWidth()) / designW));
  soft::rememberWindow(*this, "CAPTURE", designW);
  const int x0 = 14, w = designW - 28;
- wave.setBounds(x0, 92, w, 220);
+ sourceTitle.setBounds(x0, 88, w, 14);
+ source.setBounds(x0, 104, w, 150);
+ resultTitle.setBounds(x0, 260, w, 14);
+ result.setBounds(x0, 276, w, 92);
  int x = x0;
- const int y = 322, h = 34;
- for (auto* b : {&captureButton, &recButton, &playButton}) { b->setBounds(x, y, 100, h); x += 106; }
- x += 8;
- for (auto* b : {&undoButton, &bakeButton, &normalizeButton, &saveButton}) { b->setBounds(x, y, 104, h); x += 110; }
+ const int y = 380, h = 34;
+ auto put = [&](juce::Component& b, int width) { b.setBounds(x, y, width, h); x += width + 6; };
+ put(openButton, 74); put(captureButton, 92); put(recButton, 84);
+ x += 10;
+ put(playButton, 84); put(originalButton, 124);
+ x += 10;
+ put(undoButton, 76); put(bakeButton, 76); put(normalizeButton, 106);
+ x += 10;
+ put(saveButton, 92);
  drag.setBounds(designW - 14 - 190, y, 190, h);
  status.setBounds(x0, y + h + 4, w, 18);
- edit->setBounds(x0 - 4, 388, 640, designH - 388 - 10);
- mix->setBounds(x0 - 4 + 640, 388, w - 640 + 8, designH - 388 - 10);
+ const int top = 438, hgt = designH - top - 10;
+ const int widths[4] = {350, 330, 320, 170};
+ int cx = x0 - 4;
+ for (std::size_t i = 0; i < modules.size(); ++i) { modules[i]->setBounds(cx, top, widths[i] + 4, hgt); cx += widths[i] + 4; }
 }

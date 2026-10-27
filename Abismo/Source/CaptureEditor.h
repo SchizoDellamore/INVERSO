@@ -3,22 +3,24 @@
 #include "SoftUI.h"
 #include "CaptureProcessor.h"
 
-// The clip's waveform with the region (drag the two ends), the playhead and the live level while REC is on.
+// A clip's waveform. The source one carries the region (drag the two ends) and, while the original is heard,
+// the playhead; the result one shows what the edit makes of it and the playhead while that plays.
 class CaptureWave final : public juce::Component {
 public:
- explicit CaptureWave(InversoCaptureProcessor&);
+ CaptureWave(InversoCaptureProcessor&, bool resultView);
  void refresh();
  void paint(juce::Graphics&) override;
  void mouseDown(const juce::MouseEvent&) override;
  void mouseDrag(const juce::MouseEvent&) override;
  void mouseUp(const juce::MouseEvent&) override;
- void resized() override { peaksFor=0; refresh(); }
+ void resized() override { peaksFor=~0u; refresh(); }
 private:
  void setParam(int p,float percent);
  float percentOf(int p) const;
  InversoCaptureProcessor& processor;
+ const bool result;
  std::vector<std::pair<float,float>> peaks;
- unsigned peaksFor=0, shownVersion=~0u;
+ unsigned peaksFor=~0u;
  int dragging=-1; // P::Start or P::End
 };
 
@@ -35,24 +37,28 @@ private:
  bool dragged=false;
 };
 
-class InversoCaptureEditor final : public juce::AudioProcessorEditor, private juce::Timer {
+class InversoCaptureEditor final : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, private juce::Timer {
 public:
  explicit InversoCaptureEditor(InversoCaptureProcessor&);
  ~InversoCaptureEditor() override;
  void resized() override;
+ bool isInterestedInFileDrag(const juce::StringArray&) override;
+ void filesDropped(const juce::StringArray&,int,int) override;
  void refresh() { timerCallback(); } // what the timer does, on demand (tests, snapshots)
 private:
  void timerCallback() override;
+ void say(const juce::String&, bool problem=false);
  InversoCaptureProcessor& processor;
  soft::Look look;
  soft::Body body;
- CaptureWave wave;
+ CaptureWave source, result;
  CaptureDragZone drag;
- juce::TextButton captureButton{"CAPTURE"}, recButton{"REC"}, playButton{"PLAY"}, undoButton{"UNDO"}, bakeButton{"BAKE"}, normalizeButton{"NORMALIZE"}, saveButton{"SAVE WAV"};
- juce::Label status;
- std::unique_ptr<soft::Module> edit, mix;
+ juce::TextButton openButton{"OPEN"}, captureButton{"CAPTURE"}, recButton{"REC"}, playButton{"PLAY"}, originalButton{"HEAR ORIGINAL"}, undoButton{"UNDO"}, bakeButton{"BAKE"}, normalizeButton{"NORMALIZE"}, saveButton{"SAVE WAV"};
+ juce::Label status, sourceTitle, resultTitle;
+ std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> originalAttachment;
+ std::vector<std::unique_ptr<soft::Module>> modules;
  std::unique_ptr<juce::FileChooser> chooser;
- int designW=1000, designH=600;
+ int designW=1180, designH=800;
  juce::TooltipWindow tooltips{this, 600};
  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InversoCaptureEditor)
 };

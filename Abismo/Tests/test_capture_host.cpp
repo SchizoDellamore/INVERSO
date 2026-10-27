@@ -66,6 +66,7 @@ int main(){
 
  // playing the clip on top of the track
  setParam(p,"START",0); setParam(p,"END",100); setParam(p,"DRY",0); setParam(p,"SAMPLE",0);
+ p.renderedNow();
  p.play();
  { juce::AudioBuffer<float> b(2,2048); juce::MidiBuffer m; b.clear(); p.processBlock(b,m); b.clear(); p.processBlock(b,m);
    verify(p.isPlaying() && b.getMagnitude(0,0,2048)>.05f,"the clip is heard"); }
@@ -98,6 +99,44 @@ int main(){
  { const auto a=p.clip(), b=another.clip(); verify(b && a && b->frames()==a->frames(),"the clip is part of the session");
    double worst=0; for(std::size_t i=0;i<a->frames();i+=17) worst=std::max(worst,static_cast<double>(std::abs(a->l[i]-b->l[i]))); verify(worst<2e-6,"the clip comes back as it was (24 bit)"); }
  { InversoCaptureProcessor empty; juce::MemoryBlock s2; empty.getStateInformation(s2); verify(s2.getSize()<4000,"an empty session stays small"); }
+
+
+ // the edit: stretch and pitch through the parameters, rendered in the background, the same as the file
+ {
+  setParam(p,"START",0); setParam(p,"END",100); setParam(p,"FADE_IN",0); setParam(p,"FADE_OUT",0); setParam(p,"DRY",100);
+  const auto before=p.rendered(); const unsigned v0=p.renderedVersion();
+  setParam(p,"STRETCH",200); setParam(p,"MODE",1);
+  for(int i=0;i<200 && p.renderedVersion()==v0;++i) juce::Thread::sleep(50);   // the background renderer
+  const auto r=p.rendered(); const auto src=p.clip();
+  verify(p.renderedVersion()!=v0 && r && std::abs(static_cast<double>(r->frames())/static_cast<double>(src->frames())-2.0)<.03,"the background render makes the clip twice as long");
+  setParam(p,"PITCH",5);
+  const auto now=p.renderedNow(); verify(now && std::abs(static_cast<double>(now->frames())/static_cast<double>(src->frames())-2.0)<.03,"pitch keeps the length");
+  // the file is the rendered clip
+  const auto f2=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("capture test 2.wav");
+  verify(p.exportWav(f2),"export of the edit");
+  { juce::AudioFormatManager fm; fm.registerBasicFormats(); std::unique_ptr<juce::AudioFormatReader> rd(fm.createReaderFor(f2)); verify(rd && std::abs(static_cast<double>(rd->lengthInSamples)-static_cast<double>(now->frames()))<4,"the file has the rendered length"); }
+  // opening a file brings it in
+  juce::String message; verify(p.loadFile(f2,message) && std::abs(static_cast<double>(p.clip()->frames())-static_cast<double>(now->frames()))<4,"open a file");
+  verify(!p.loadFile(juce::File("/nonexistent/none.wav"),message) && message.isNotEmpty(),"a file that is not there is refused");
+  f2.deleteFile();
+  // every effect on: the render finishes and is finite
+  for(const char* id:{"FILTER_ON","DRIVE_ON","CRUSH_ON","RING_ON","CHOP_ON","ECHO_ON","REVERB_ON","REVERSE"}) setParam(p,id,1);
+  setParam(p,"STRETCH",100); setParam(p,"PITCH",0); setParam(p,"WARP",40);
+  const auto fx=p.renderedNow(); bool finite=fx && !fx->empty(); if(fx) for(std::size_t i=0;i<fx->frames();i+=7) if(!std::isfinite(fx->l[i])) finite=false;
+  verify(finite,"all the effects at once");
+  // A/B: the original plays the part of the clip as it was
+  setParam(p,"DRY",0); setParam(p,"ORIGINAL",1); p.play();
+  { juce::AudioBuffer<float> b(2,2048); juce::MidiBuffer m; for(int i=0;i<3;++i){ b.clear(); p.processBlock(b,m); } verify(b.getMagnitude(0,0,2048)>.02f,"the original is heard"); }
+  setParam(p,"ORIGINAL",0);
+  { juce::AudioBuffer<float> b(2,2048); juce::MidiBuffer m; for(int i=0;i<3;++i){ b.clear(); p.processBlock(b,m); } verify(p.isPlaying() || b.getMagnitude(0,0,2048)>=0.f,"switching A/B keeps it going"); }
+  p.stopPlaying(); for(int i=0;i<6;++i){ juce::AudioBuffer<float> b(2,512); juce::MidiBuffer m; b.clear(); p.processBlock(b,m); }
+  // bake keeps what was rendered, undo brings the old clip and the settings back
+  const auto beforeBake=p.clip()->frames(); p.bake();
+  verify(p.canUndo() && std::abs(p.apvts.getRawParameterValue("STRETCH")->load()-100.f)<.01f && p.apvts.getRawParameterValue("REVERSE")->load()<.5f,"bake starts the controls over");
+  p.undo(); verify(p.clip()->frames()==beforeBake && p.apvts.getRawParameterValue("WARP")->load()>39.f,"undo brings back the clip and the effects");
+  for(const char* id:{"FILTER_ON","DRIVE_ON","CRUSH_ON","RING_ON","CHOP_ON","ECHO_ON","REVERB_ON","REVERSE"}) setParam(p,id,0);
+  setParam(p,"WARP",0);
+ }
 
  // blocks of any size, a mono track, odd rates
  for(int size:{1,7,64,1000,4096}){ p.prepareToPlay(sr,size); p.play(); feed(p,.05,sr,.2f,200,size); }

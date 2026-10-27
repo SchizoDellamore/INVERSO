@@ -144,6 +144,7 @@ juce::String formatValue(const ParamSpec& s,double v){
  if(unit=="q") return "Q "+juce::String(v,v<10.?2:1);
  if(unit=="oct") return (v>0?"+":"")+juce::String(juce::roundToInt(v))+" oct";
  if(unit=="n") return juce::String(juce::roundToInt(v));
+ if(unit=="bit") return juce::String(juce::roundToInt(v))+" bit";
  if(unit==":1") return juce::String(v,v<10.?1:0)+":1";
  if(unit=="hpf") return v<=10.5?juce::String("OFF"):formatValue(ParamSpec{"","",0,0,0,0,0,Kind::Float,nullptr,"Hz"},v);
  if(unit=="lpf") return v>=21900.?juce::String("OFF"):formatValue(ParamSpec{"","",0,0,0,0,0,Kind::Float,nullptr,"Hz"},v);
