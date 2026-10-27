@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 project(InversoAbismo VERSION 0.20.0 LANGUAGES C CXX)
+# MSVC has no M_PI without this
+if(MSVC)
+ add_compile_definitions(_USE_MATH_DEFINES)
+endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(INVERSO_DSP_TESTS_ONLY "Build portable DSP tests without JUCE" OFF)

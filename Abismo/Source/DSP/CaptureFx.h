@@ -49,7 +49,7 @@ struct Fft {
  explicit Fft(std::size_t size) : n(size), rev(size), tw(size / 2) {
   std::size_t bits = 0; while ((std::size_t{1} << bits) < n) ++bits;
   for (std::size_t i = 0; i < n; ++i) { std::size_t r = 0; for (std::size_t b = 0; b < bits; ++b) if (i & (std::size_t{1} << b)) r |= std::size_t{1} << (bits - 1 - b); rev[i] = r; }
-  for (std::size_t i = 0; i < n / 2; ++i) tw[i] = std::polar(1.0, -2.0 * M_PI * static_cast<double>(i) / static_cast<double>(n));
+  for (std::size_t i = 0; i < n / 2; ++i) tw[i] = std::polar(1.0, -2.0 * inverso_abismo::chain::pi * static_cast<double>(i) / static_cast<double>(n));
  }
  void run(std::vector<std::complex<double>>& x, bool inverse) const {
   for (std::size_t i = 0; i < n; ++i) if (rev[i] > i) std::swap(x[i], x[rev[i]]);
@@ -71,7 +71,7 @@ struct Fft {
 
 inline std::vector<double> hann(std::size_t n) {
  std::vector<double> w(n);
- for (std::size_t i = 0; i < n; ++i) w[i] = .5 - .5 * std::cos(2.0 * M_PI * static_cast<double>(i) / static_cast<double>(n));
+ for (std::size_t i = 0; i < n; ++i) w[i] = .5 - .5 * std::cos(2.0 * inverso_abismo::chain::pi * static_cast<double>(i) / static_cast<double>(n));
  return w;
 }
 inline std::size_t pow2AtLeast(double v) { std::size_t p = 256; while (static_cast<double>(p) < v) p <<= 1; return p; }
@@ -186,9 +186,9 @@ inline std::vector<float> stretchChannelVocoder(const std::vector<float>& x, dou
   (void)lastPeak;
   for (std::size_t pi = 0, b = 0; b <= H; ++b) { while (pi + 1 < peaks.size() && b > (peaks[pi] + peaks[pi + 1]) / 2) ++pi; peakOf[b] = peaks[pi]; }
   for (std::size_t b : peaks) {
-   const double omega = 2.0 * M_PI * static_cast<double>(b) / static_cast<double>(N);
+   const double omega = 2.0 * inverso_abismo::chain::pi * static_cast<double>(b) / static_cast<double>(N);
    double delta = phs[b] - prevPhase[b] - omega * ha;
-   delta -= 2.0 * M_PI * std::round(delta / (2.0 * M_PI));
+   delta -= 2.0 * inverso_abismo::chain::pi * std::round(delta / (2.0 * inverso_abismo::chain::pi));
    const double trueFreq = omega + delta / ha;
    newOut[b] = k == 0 ? phs[b] : outPhase[b] + trueFreq * static_cast<double>(Hs);
   }
@@ -222,7 +222,7 @@ inline std::vector<float> stretchChannelTexture(const std::vector<float>& x, dou
  std::vector<double> out(outLen + 2 * N, 0.0), norm(outLen + 2 * N, 0.0);
  std::vector<std::complex<double>> buf(N);
  std::mt19937 rng(seed);
- std::uniform_real_distribution<double> phase(0.0, 2.0 * M_PI);
+ std::uniform_real_distribution<double> phase(0.0, 2.0 * inverso_abismo::chain::pi);
  const std::size_t frames = outLen / Hs + 2;
  for (std::size_t k = 0; k < frames; ++k) {
   if ((k & 7) == 0 && detail::stopped(cancel)) return {};
@@ -323,7 +323,7 @@ inline void crush(Clip& c, float bits, float rate, float mix) {
 }
 
 inline void ring(Clip& c, float freq, float mix) {
- const double m = std::clamp(static_cast<double>(mix), 0.0, 100.0) * .01, w = 2.0 * M_PI * static_cast<double>(freq) / c.sampleRate;
+ const double m = std::clamp(static_cast<double>(mix), 0.0, 100.0) * .01, w = 2.0 * inverso_abismo::chain::pi * static_cast<double>(freq) / c.sampleRate;
  for (std::size_t i = 0; i < c.frames(); ++i) {
   const double s = std::sin(w * static_cast<double>(i));
   c.l[i] = static_cast<float>(c.l[i] * (1.0 - m + m * s)); c.r[i] = static_cast<float>(c.r[i] * (1.0 - m + m * s));
