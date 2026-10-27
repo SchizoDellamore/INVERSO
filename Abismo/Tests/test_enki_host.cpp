@@ -43,7 +43,9 @@ int main(){
  layout.outputBuses.add(juce::AudioChannelSet::stereo());
  verify(p.setBusesLayout(layout),"stereo instrument layout rejected");
  verify(p.acceptsMidi(),"instrument must accept MIDI");
- p.drawFolder="-"; // recordings only: the test must not depend on the user's library
+ p.drawFolder="-";
+ p.reseed(std::getenv("ENKI_SEED")?static_cast<std::uint32_t>(std::atoi(std::getenv("ENKI_SEED"))):12345u); // the same sounds on every run, any seed on request
+ // recordings only: the test must not depend on the user's library
  for(int sr:{44100,48000,96000}){
   p.prepareToPlay(sr,64);
   verify(play(p,sr,256)>1e-4f,"the initial sound produced no audio");
@@ -55,7 +57,7 @@ int main(){
    }
   }
   p.mutate();
-  verify(play(p,sr,512)>1e-5f,"a mutated sound produced no audio");
+  { const float lv=play(p,sr,512); if(lv<=1e-5f) std::fprintf(stderr,"silent mutation: sr %d level %g: %s\n",sr,lv,p.recipe().toRawUTF8()); verify(lv>1e-5f,"a mutated sound produced no audio"); }
   juce::MidiBuffer midi;
   midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
   param(p,"REV_MIX",0.f); param(p,"ECHO_MIX",0.f);

@@ -85,6 +85,9 @@ private:
  inverso_abismo::enki::Generator generator;
  juce::AudioFormatManager formats;
  juce::Random random;
+ public:
+ void reseed(std::uint32_t seed) { generator.reseed(seed); }   // the draws follow the seed (tests, repeatable sounds)
+ private:
  std::vector<Sample> librarySamples;
  // retired: replaced recordings, freed later on the message thread (never on the audio thread);
  // room for many, so a quick run of loads never waits for the clean-up.
