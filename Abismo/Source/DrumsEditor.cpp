@@ -249,7 +249,7 @@ void InversoAbismoDrumsEditor::drawPadScreen(juce::Graphics& g,juce::Rectangle<f
  const auto own=processor.getPadDisplay(pad);
  const auto& lib=InversoAbismoDrumsProcessor::library();
  const SampleSet* set=own.get();
- if(!set && isSampleObject(object) && static_cast<std::size_t>(object)<lib.objects.size()) set=&lib.objects[static_cast<std::size_t>(object)];
+ if(!set && isSampleObject(object) && static_cast<std::size_t>(libraryIndex(object))<lib.objects.size()) set=&lib.objects[static_cast<std::size_t>(libraryIndex(object))];
  const auto lost=processor.getPadMissing(pad);
  juce::String left,right;
  if(loadError.isNotEmpty()) left=loadError;

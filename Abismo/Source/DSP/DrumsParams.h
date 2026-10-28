@@ -3,6 +3,7 @@
 // 16 pads (MIDI 36-51) x 9 parameters, then the global and saw parameters.
 // IDs are saved in sessions: never rename; only append.
 #include "AbismoParams.h"
+#include "DrumsObjects.h"   // generated with the library: names of the objects after the first 48
 #include "DrumsTrim.h"
 #include <algorithm>
 #include <cstdio>
@@ -63,12 +64,17 @@ inline const std::array<ObjectModel, 16>& objects() {
  return table;
 }
 
-// Recorded objects in the embedded library (Library/drums.bin, CC0 sources),
-// in the library's order. OBJECT indices 0-47 play these recordings; indices
-// 48-63 play the synthesised models above, labelled "(synth)".
+// Recorded objects in the embedded library (Library/drums.bin, CC0 sources).
+// OBJECT 0-47 play the library's first 48 recordings (the junk and the rusty kit);
+// 48-63 play the synthesised models above, labelled "(synth)"; 64 and up play the
+// library's later recordings (DrumsObjects.h, generated together with the file).
+// Saved sessions store these numbers, so they never move.
 constexpr int numSampleObjects = 48;
-constexpr int numObjects = numSampleObjects + 16;
-inline const char* sampleObjectName(int i) {
+constexpr int firstExtraObject = numSampleObjects + 16;
+constexpr int numObjects = firstExtraObject + numExtraObjects;
+inline bool isFirstSampleObject(int object) { return object >= 0 && object < numSampleObjects; }
+inline const char* sampleObjectName(int object) {
+ if (object >= firstExtraObject) return extraObjectName(object - firstExtraObject);
  static const char* names[numSampleObjects] = {
   "Oil Drum", "Dead Motor", "Marching Snare", "Clap", "Trash Can Lid", "Crate", "Old Hi-Hat",
   "Trash Can", "Stomp", "Log", "Ratchet", "Brake Drum", "Metal Sheet", "Rotten Gong", "Anvil",
@@ -78,11 +84,12 @@ inline const char* sampleObjectName(int i) {
   "Old China", "Melted Cymbal", "Riveted Ride", "Sunk Hat", "Squeaky Pedal", "Old Floor Tom",
   "Tank", "Iron Pipe", "Cutlery", "Chain", "Bent Agogo", "Clay Jug", "Gravel", "Sand",
   "Moaning Glass", "Scraped Gong", "Hand Bell"};
- return names[std::clamp(i, 0, numSampleObjects - 1)];
+ return names[std::clamp(object, 0, numSampleObjects - 1)];
 }
-// The names stored inside drums.bin (the library predates the English UI and
-// stays byte-identical); used only to check that the file matches this list.
+// The names stored inside drums.bin, by position in the file (the first 48 predate
+// the English UI and stay byte-identical); used only to check the file matches this list.
 inline const char* libraryObjectName(int i) {
+ if (i >= numSampleObjects) return extraObjectName(i - numSampleObjects);
  static const char* names[numSampleObjects] = {
   "Tambor de Oleo", "Motor Morto", "Caixa de Fanfarra", "Palma", "Tampa de Lixo", "Caixote", "Chimbal Velho",
   "Lata de Lixo", "Pisao", "Tronco", "Matraca", "Freio de Carro", "Chapa de Metal", "Gongo Podre", "Bigorna",
@@ -94,9 +101,13 @@ inline const char* libraryObjectName(int i) {
   "Vidro Gemendo", "Gongo Raspado", "Sino de Mao"};
  return names[std::clamp(i, 0, numSampleObjects - 1)];
 }
-inline bool isSampleObject(int object) { return object >= 0 && object < numSampleObjects; }
+inline bool isSampleObject(int object) { return isFirstSampleObject(object) || (object >= firstExtraObject && object < numObjects); }
+// Position of a recorded object inside the library file.
+inline int libraryIndex(int object) { return object < numSampleObjects ? object : object - (firstExtraObject - numSampleObjects); }
+constexpr int numLibraryObjects = numSampleObjects + numExtraObjects;
 // The closest synthesised model for each recording, played if the library file is missing.
 inline int synthStandIn(int sampleObject) {
+ if (sampleObject >= firstExtraObject) return extraObjectStandIn(sampleObject - firstExtraObject);
  static const int map[numSampleObjects] = {0, 1, 2, 5, 4, 5, 6, 11, 5, 5, 1, 7, 12, 13, 14, 10, 1, 10, 9, 6, 5, 0, 1, 5,
                                            0, 0, 2, 1, 5, 2, 4, 13, 13, 13, 6, 10, 11, 3, 9, 6, 8, 9, 15, 6, 2, 15, 12, 9};
  return map[std::clamp(sampleObject, 0, numSampleObjects - 1)];
@@ -191,11 +202,13 @@ static_assert(numSampleObjects == 48, "kits below name objects by number");
 // Kits: per-pad overrides written as {pad, offset, value}; globals use pad -1.
 struct KitValue { int pad, param; float value; };
 struct Kit { const char* name; KitValue values[64]; };
+#include "DrumsKitsGenerated.h"   // kits built by Tools/build_drum_library.py from the library's objects
 
-inline const std::array<Kit, 11>& kits() {
+constexpr int numHandmadeKits = 11;
+inline const std::array<Kit, numHandmadeKits>& handmadeKits() {
  using namespace P;
  constexpr int sint = numSampleObjects; // first synthesised object
- static const std::array<Kit, 11> table{{
+ static const std::array<Kit, numHandmadeKits> table{{
   {"Scrapyard", {{0,Decay,55},{-1, -1, 0}}},
   {"Abandoned Warehouse", {{-1,RoomMix,45},{-1,RoomSize,85},{-1,RoomDecay,3.5f},{-1,RoomDamp,65},{-1,Stumble,20},
    {0,Tune,-3},{-1,Output,-3},{-1,-1,0}}},
@@ -232,7 +245,18 @@ inline const std::array<Kit, 11>& kits() {
  return table;
 }
 
-static_assert(numObjects == 64 && numPads == 16, "DrumsTrim.h is sized for 64 objects and 16 pads");
+// The handmade kits first, then the generated ones: the order is the program number saved in sessions.
+inline const std::vector<Kit>& kits() {
+ static const std::vector<Kit> all = [] {
+  std::vector<Kit> k(handmadeKits().begin(), handmadeKits().end());
+  k.insert(k.end(), generatedKits(), generatedKits() + numGeneratedKits);
+  return k;
+ }();
+ return all;
+}
+
+static_assert(numObjects == trimObjects && numPads == 16 && numHandmadeKits + numGeneratedKits == trimKits,
+              "DrumsTrim.h is generated for these objects, pads and kits: regenerate it (Tools/measure_drum_levels)");
 
 inline Values kitValues(std::size_t index) {
  Values v = defaults();

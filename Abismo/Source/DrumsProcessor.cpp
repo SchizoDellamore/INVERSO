@@ -34,7 +34,7 @@ const SampleLibrary& InversoAbismoDrumsProcessor::library() {
   const auto file=libraryFile();
   if (file==juce::File() || !file.loadFileAsData(bytes)
       || !SampleLibrary::parse(static_cast<const unsigned char*>(bytes.getData()),bytes.getSize(),l)
-      || static_cast<int>(l.objects.size())!=numSampleObjects)
+      || static_cast<int>(l.objects.size())!=numLibraryObjects)
    l.objects.clear();
   l.equaliseLoudness(); // every recording at the same perceived level
   return l;

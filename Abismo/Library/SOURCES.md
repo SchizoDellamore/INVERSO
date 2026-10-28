@@ -7,7 +7,7 @@ All recordings are CC0 1.0 (public domain dedication):
 - Karoryfer Big Rusty Drums, https://github.com/sfzinstruments/karoryfer.big-rusty-drums
 
 Built by `Tools/build_drum_library.py` (trim, mono, level; some objects layered, pitched,
-choked, saturated or cracked). 48 objects, 451 samples, 416.8 s of audio at 44100 Hz.
+choked, saturated or cracked). 195 objects, 1225 samples, 780.0 s of audio at 44100 Hz.
 
 - Tambor de Oleo: 8 samples
 - Motor Morto: 8 samples
@@ -57,3 +57,150 @@ choked, saturated or cracked). 48 objects, 451 samples, 416.8 s of audio at 4410
 - Vidro Gemendo: 8 samples
 - Gongo Raspado: 2 samples
 - Sino de Mao: 3 samples
+- Kick: Beater Close: 6 samples
+- Kick: Room Bleed: 6 samples
+- Kick: Open Close-Mic: 5 samples
+- Kick: Shell Knock: 5 samples
+- Kick: Hoop Click: 5 samples
+- Kick: Pedal Thump: 6 samples
+- Kick: Concert Bass Drum: 6 samples
+- Kick: Legacy Bass Drum: 6 samples
+- Kick: Muted Bass Drum: 6 samples
+- Kick: Timpani Thud: 6 samples
+- Kick: Frame Drum Boom: 4 samples
+- Kick: Tumba Boom: 6 samples
+- Kick: Floor Tom Thud: 6 samples
+- Kick: Cajon Sub: 6 samples
+- Kick: Bitten Bass Drum: 6 samples
+- Snare: Top Mic: 7 samples
+- Snare: Wires Mic: 6 samples
+- Snare: Edge: 6 samples
+- Snare: Rimshot: 6 samples
+- Snare: Rimshot Wires: 6 samples
+- Snare: Side Stick: 6 samples
+- Snare: Brush: 5 samples
+- Snare: Mallet: 5 samples
+- Snare: Tom On Top: 6 samples
+- Snare: Tom On Top Rimshot: 6 samples
+- Snare: Tambourine On Top: 6 samples
+- Snare: Tambourine Rimshot: 6 samples
+- Snare: Brush Dig: 5 samples
+- Snare: Brush Release: 4 samples
+- Snare: Old Snare: 7 samples
+- Snare: Legacy Drum One: 7 samples
+- Snare: Legacy Drum Two: 7 samples
+- Snare: Marching Legacy: 7 samples
+- Snare: Modern One: 7 samples
+- Snare: Modern Two: 7 samples
+- Snare: Modern Three: 6 samples
+- Snare: Modern Rimshot: 4 samples
+- Snare: Cross Stick: 4 samples
+- Snare: Stick Taps: 4 samples
+- Tom: Fourteen: 6 samples
+- Tom: Fourteen Mallet: 5 samples
+- Tom: Fifteen: 6 samples
+- Tom: Fifteen Brush: 5 samples
+- Tom: Eighteen: 6 samples
+- Tom: Eighteen Mallet: 5 samples
+- Tom: Twenty-Two: 6 samples
+- Tom: Twenty-Two Brush: 5 samples
+- Tom: Concert High: 6 samples
+- Tom: Concert High Mallet: 6 samples
+- Tom: Concert Low: 6 samples
+- Tom: Concert Low Mallet: 6 samples
+- Tom: Concert Rim: 5 samples
+- Tom: Tenor High: 7 samples
+- Tom: Tenor Low: 7 samples
+- Tom: Timpani: 6 samples
+- Hat: Closed: 6 samples
+- Hat: Tight: 6 samples
+- Hat: Loose: 6 samples
+- Hat: Quarter Open: 6 samples
+- Hat: Half Open: 6 samples
+- Hat: Open: 5 samples
+- Hat: Foot Chick: 5 samples
+- Hat: Foot Splash: 5 samples
+- Hat: Brush Closed: 5 samples
+- Hat: Brush Open: 5 samples
+- Hat: Pedal Noise: 5 samples
+- Cymbal: Crash Mallet: 5 samples
+- Cymbal: Crash Brush: 4 samples
+- Cymbal: Crash Choke: 4 samples
+- Cymbal: Ride Mallet: 5 samples
+- Cymbal: Ride Brush: 4 samples
+- Cymbal: Ride Bell: 5 samples
+- Cymbal: Ride Choke: 4 samples
+- Cymbal: Clash Dull: 5 samples
+- Perc: Bongo High: 6 samples
+- Perc: Bongo High Muted: 5 samples
+- Perc: Bongo Low: 6 samples
+- Perc: Bongo Low Muted: 5 samples
+- Perc: Conga Open: 6 samples
+- Perc: Conga Slap: 4 samples
+- Perc: Quinto: 6 samples
+- Perc: Quinto Slap: 4 samples
+- Perc: Tumba: 6 samples
+- Perc: Tumba Slap: 5 samples
+- Perc: Frame Drum Large: 4 samples
+- Perc: Frame Drum Muted: 5 samples
+- Perc: Frame Drum Small: 4 samples
+- Perc: Hand Clap Group: 5 samples
+- Perc: Hand Clap Solo: 4 samples
+- Perc: Darbuka One: 4 samples
+- Perc: Darbuka Two: 4 samples
+- Perc: Cowbell: 4 samples
+- Perc: Cowbell Muted: 4 samples
+- Perc: Large Shaker: 6 samples
+- Perc: Small Shaker: 6 samples
+- Perc: Tambourine Down: 2 samples
+- Perc: Tambourine Up: 2 samples
+- Perc: Cabasa: 2 samples
+- Wood: Woodblock: 6 samples
+- Wood: Claves: 6 samples
+- Wood: Slapstick: 5 samples
+- Wood: Cajon Slap: 5 samples
+- Wood: Log Drum Low: 6 samples
+- Metal: Tubular Clang: 6 samples
+- Metal: Bell Tree Fall: 4 samples
+- Metal: Dull Anvil: 6 samples
+- Metal: Brake Drum Low: 6 samples
+- Metal: Gong Low: 4 samples
+- Metal: Clash Choked: 6 samples
+- Body: Cheek Pop: 6 samples
+- Body: Head Knock: 6 samples
+- Body: Belly Slap: 6 samples
+- Body: Shoulder: 6 samples
+- Body: Chest Slap: 6 samples
+- Body: Pinky Snap: 6 samples
+- Tonal: Kalimba Kenya: 4 samples
+- Tonal: Kalimba Tanzania: 4 samples
+- Tonal: Mbira Gandanga: 4 samples
+- Tonal: Mbira Nyamaropa: 4 samples
+- Tonal: Nyunga Nyunga: 4 samples
+- Tonal: Balafon Soft: 5 samples
+- Tonal: Balafon Hard: 5 samples
+- Tonal: Marimba: 5 samples
+- Tonal: Xylophone: 4 samples
+- Tonal: Vibraphone: 4 samples
+- Tonal: Hand Chimes: 4 samples
+- Tonal: Harp Pluck: 4 samples
+- Tonal: Dan Tranh Pluck: 5 samples
+- Tonal: Harpsichord Pluck: 4 samples
+- Ruin: Cardboard Snare: 6 samples
+- Ruin: Tin Bongo: 6 samples
+- Ruin: Drowned Tom: 6 samples
+- Ruin: Melted Conga: 6 samples
+- Ruin: Radio Snare: 6 samples
+- Ruin: Gutted Kick: 6 samples
+- Ruin: Wet Clap: 5 samples
+- Ruin: Broken Cowbell: 4 samples
+- Ruin: Slowed Kalimba: 4 samples
+- Ruin: Bitten Hat: 6 samples
+- Ruin: Choked Timpani: 6 samples
+- Ruin: Crushed Rimshot: 6 samples
+- Ruin: Splintered Wood: 6 samples
+- Ruin: Sunk Tambourine: 4 samples
+- Ruin: Dead Frame Drum: 4 samples
+- Ruin: Rotten Harp: 4 samples
+- Ruin: Scorched Floor Tom: 6 samples
+- Ruin: Dust Brush: 4 samples

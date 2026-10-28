@@ -65,12 +65,35 @@ fetch sgossner/VCSL c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e "$dest/vcsl" /LICEN
  "/Membranophones/Struck Membranophones/Legacy Toms/" \
  "/Membranophones/Struck Membranophones/Snare Drum, Rope Tension/" \
  "/Membranophones/Struck Membranophones/Timpani 1/" \
- "/Membranophones/Struck Membranophones/Tom 1/"
+ "/Membranophones/Struck Membranophones/Tom 1/" \
+ "/Idiophones/Plucked Idiophones/Kalimba, Kenya/" \
+ "/Idiophones/Plucked Idiophones/Mbira Mavembe (Gandanga), Zimbabwe, Low G/" \
+ "/Idiophones/Plucked Idiophones/Mbira dzaVadzimu Nyamaropa, Zimbabwe, Low B/" \
+ "/Idiophones/Plucked Idiophones/Nyunga Nyunga, Mozambique, Low F/" \
+ "/Idiophones/Struck Idiophones/Claps/" \
+ "/Idiophones/Struck Idiophones/Balafon/" \
+ "/Idiophones/Struck Idiophones/Hand Chimes/" \
+ "/Idiophones/Struck Idiophones/Marimba/" \
+ "/Idiophones/Struck Idiophones/Xylophone/" \
+ "/Idiophones/Struck Idiophones/Vibraphone/" \
+ "/Idiophones/Struck Idiophones/Tambourine 3 - Legacy/" \
+ "/Idiophones/Struck Idiophones/Tambourine 4 - Legacy/" \
+ "/Idiophones/Struck Idiophones/Tambourine 5 - Legacy/" \
+ "/Membranophones/Struck Membranophones/Bongos/" \
+ "/Membranophones/Struck Membranophones/Conga/" \
+ "/Membranophones/Struck Membranophones/Legacy Snares/" \
+ "/Membranophones/Struck Membranophones/Snare Drum, Modern 1/" \
+ "/Membranophones/Struck Membranophones/Snare Drum, Modern 2/" \
+ "/Membranophones/Struck Membranophones/Snare Drum, Modern 3/" \
+ "/Membranophones/Struck Membranophones/Tom 2/" \
+ "/Chordophones/Composite Chordophones/Folk Harp/" \
+ "/Chordophones/Zithers/Dan Tranh/" \
+ "/Chordophones/Zithers/Harpsichord, English/"
 
 fetch sfzinstruments/body_percussion 4ac9d8966679c648b62fa10a188179e186b97f24 "$dest/body_percussion" /LICENSE* /Samples/
 
 fetch sfzinstruments/karoryfer.big-rusty-drums f07ce00df34a46b6b08375be56fe116cf15782bc "$dest/big-rusty-drums" /LICENSE* \
  "/Samples/stack_3_layer/*/oh/" "/Samples/china_18/*/oh/" "/Samples/crash_sizzle_17/*/oh/" "/Samples/ride_sizzle_19/*/oh/" \
- "/Samples/hihat_14/*/oh/" "/Samples/kick_24/*/oh/" "/Samples/kick_24_nodamp/kick/oh/" "/Samples/snare_14/*/oh/" \
- "/Samples/tom_22/*/oh/"
+ "/Samples/kick_24/" "/Samples/kick_24_nodamp/" "/Samples/snare_14/" "/Samples/hihat_14/" "/Samples/crash_17/" "/Samples/ride_22/" \
+ "/Samples/tom_14/" "/Samples/tom_15/" "/Samples/tom_18/" "/Samples/tom_22/"
 echo "sources ready in $dest"

@@ -492,7 +492,23 @@ void ScreenChoice::mouseUp(const juce::MouseEvent& e) {
  if (e.x < 20) { step(-1); return; }
  if (e.x > getWidth() - 20) { step(1); return; }
  juce::PopupMenu menu;
- for (int i = 0; i < items.size(); ++i) menu.addItem(i + 1, items[i], true, i == index);
+ if (items.size() > 40) {
+  // A long list (the drum objects) goes into one submenu per prefix: "Kick: Beater Close" is under Kick, "(synth) ..." under Synth.
+  std::vector<std::pair<juce::String, juce::PopupMenu>> groups;
+  auto group = [&](const juce::String& name) -> juce::PopupMenu& {
+   for (auto& g : groups) if (g.first == name) return g.second;
+   groups.emplace_back(name, juce::PopupMenu());
+   return groups.back().second;
+  };
+  for (int i = 0; i < items.size(); ++i) {
+   const auto colon = items[i].indexOf(": ");
+   const juce::String name = colon > 0 ? items[i].substring(0, colon) : items[i].startsWith("(synth)") ? juce::String("Synth") : juce::String("Junk");
+   group(name).addItem(i + 1, colon > 0 ? items[i].substring(colon + 2) : items[i], true, i == index);
+  }
+  for (auto& g : groups) menu.addSubMenu(g.first, g.second);
+ } else {
+  for (int i = 0; i < items.size(); ++i) menu.addItem(i + 1, items[i], true, i == index);
+ }
  juce::Component::SafePointer<ScreenChoice> safe(this);
  menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [safe](int chosen) {
   if (safe != nullptr && chosen > 0) safe->attachment.setValueAsCompleteGesture(static_cast<float>(chosen - 1));

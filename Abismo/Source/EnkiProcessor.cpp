@@ -33,7 +33,7 @@ const inverso_abismo::drums::SampleLibrary& InversoEnkiProcessor::library() {
   juce::MemoryBlock bytes;
   const auto file=drumLibraryFile();
   if (file==juce::File() || !file.loadFileAsData(bytes)
-      || !inverso_abismo::drums::SampleLibrary::parse(static_cast<const unsigned char*>(bytes.getData()),bytes.getSize(),l))
+      || !inverso_abismo::drums::SampleLibrary::parse(static_cast<const unsigned char*>(bytes.getData()),bytes.getSize(),l,static_cast<std::uint32_t>(numLibrarySamples)))
    l.objects.clear();
   return l;
  }();

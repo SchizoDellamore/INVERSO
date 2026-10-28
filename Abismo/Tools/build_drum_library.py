@@ -54,6 +54,9 @@ def load(path):
 
 
 def trim(x, cap, floor_db=-60.0):
+    # Many close-mic recordings carry rumble and offset below 25 Hz: inaudible, but it eats the peak headroom and
+    # the level of everything that can be heard, so it goes.
+    x = highpass(x, 28.0, 4)
     peak = np.max(np.abs(x)) + 1e-12
     above = np.nonzero(np.abs(x) > peak * 10 ** (-45 / 20))[0]
     start = max(0, above[0] - 32) if len(above) else 0
@@ -182,6 +185,9 @@ def train(grains, rng, count, gap_ms, decay):
 def files(root, pattern):
     found = sorted(glob.glob(os.path.join(root, pattern)))
     if not found:
+        if os.environ.get("DRUMLIB_LIST_MISSING"):
+            print("MISSING", root, pattern)
+            return []
         raise SystemExit("no files for " + pattern)
     return found
 
@@ -328,13 +334,428 @@ def build(vcsl, body, rusty):
     plain("Gongo Raspado", [p for p in files(I, "Gong 1/*.wav") if "scrape" in p] + files(I, "Gong 2/scrape*.mp3"),
           3.0, lp=6000, semis=-5)
     plain("Sino de Mao", files(I, "Hand Bells, Nepalese/*.wav"), 1.5, lp=6000, semis=-5, drive=1.3)
+    assert len(objects) == 48, len(objects)   # ENKI and saved sessions rely on these 48 staying as they are
+    objects += more_objects(vcsl, body, rusty)
     return objects
+
+
+
+def one_note(paths, which=0):
+    """The files of the lowest pitch (and the next ones, if it has too few takes)."""
+    import re
+    groups = {}
+    for p in paths:
+        m = re.search(r"(?:^|_)([A-G]#?)(\d)_", os.path.basename(p))
+        if m:
+            groups.setdefault((int(m.group(2)), "CDEFGAB".index(m.group(1)[0]), len(m.group(1))), []).append(p)
+    keys = sorted(groups)[which:]
+    taken = []
+    for k in keys:   # the lowest pitch, plus the next ones until there are enough takes
+        taken += groups[k]
+        if len(taken) >= 4:
+            break
+    return taken
+
+
+# Stand-in synthesised model for each category, used only if the library file is missing.
+STAND_IN = {"Kick": 0, "Snare": 2, "Tom": 11, "Hat": 6, "Cymbal": 13, "Perc": 5, "Metal": 14, "Wood": 5, "Body": 15,
+            "Tonal": 15, "Ruin": 12}
+
+
+def more_objects(vcsl, body, rusty):
+    """Objects 48 and on of the library: each is a different real source or articulation."""
+    I = os.path.join(vcsl, "Idiophones", "Struck Idiophones")
+    PI = os.path.join(vcsl, "Idiophones", "Plucked Idiophones")
+    M = os.path.join(vcsl, "Membranophones", "Struck Membranophones")
+    CH = os.path.join(vcsl, "Chordophones")
+    B = os.path.join(body, "Samples", "body")
+    R = os.path.join(rusty, "Samples")
+    out = []
+
+    def rus(art, mic):
+        return by_layer(files(R, "%s/%s/*" % (art, mic)))
+
+    def add(cat, name, paths, cap, n=5, **kw):
+        kw.setdefault("limit", n)
+        label, takes = worn("%s: %s" % (cat, name), spread(paths, n), max(0.3, cap * 0.55), **kw)   # tails kept short: the library ships inside the plugin
+        if not os.environ.get("DRUMLIB_LIST_MISSING"):
+            assert len(takes) >= 2, label
+        out.append((label, takes))
+
+    # ---- KICK: the rusty kit's mics and pedal, concert and legacy bass drums, and low drums pitched down.
+    add("Kick", "Beater Close", rus("kick_24/kick", "kick"), 0.9, 6)
+    add("Kick", "Room Bleed", rus("kick_24/kick", "sn"), 0.7, 6)
+    add("Kick", "Open Close-Mic", rus("kick_24_nodamp/kick", "kick"), 1.3, 5)
+    add("Kick", "Shell Knock", rus("kick_24/sc", "cl"), 0.5, 5)
+    add("Kick", "Hoop Click", rus("kick_24/rc", "cl"), 0.4, 5)
+    add("Kick", "Pedal Thump", rus("kick_24/phit", "cl") + rus("kick_24/preturn", "cl"), 0.6, 6)
+    add("Kick", "Concert Bass Drum", files(M, "Bass Drum 1/*.wav"), 1.6, 6, lp=6000)
+    add("Kick", "Legacy Bass Drum", [p for p in files(M, "Bass Drum 3 - Legacy/bdrum*.wav") if "muted" not in p], 1.5, 6, lp=6000)
+    add("Kick", "Muted Bass Drum", files(M, "Bass Drum 3 - Legacy/bdrum_muted_*.wav"), 0.9, 6, lp=6000)
+    add("Kick", "Timpani Thud", files(M, "Timpani 1/Hit/Timpani*_Hit_*.wav"), 0.9, 6, semis=-14, lp=2500, drive=1.5, hold=350)
+    add("Kick", "Frame Drum Boom", files(M, "Frame Drum/HDrumL_Hit_*.wav"), 1.0, 4, semis=-9, lp=3000)
+    add("Kick", "Tumba Boom", files(M, "Conga/Tumba_HitN_*.wav"), 0.9, 6, semis=-14, lp=2500)
+    add("Kick", "Floor Tom Thud", files(M, "Legacy Toms/tenor_lower/*.wav"), 0.8, 6, semis=-9, lp=2500, hold=500)
+    add("Kick", "Cajon Sub", files(I, "Cajon/Cajon_*.wav"), 0.7, 6, semis=-10, lp=1800, drive=1.6)
+    add("Kick", "Bitten Bass Drum", files(M, "Bass Drum 3 - Legacy/bdrum_*.wav"), 0.9, 6, lp=4000, drive=2.0, rate=9000, bits=8)
+
+    # ---- SNARE: one wooden snare in many ways, then four other snares.
+    add("Snare", "Top Mic", rus("snare_14/center", "top"), 0.8, 7)
+    add("Snare", "Wires Mic", rus("snare_14/center", "btm"), 0.9, 6)
+    add("Snare", "Edge", rus("snare_14/edge", "top"), 0.8, 6)
+    add("Snare", "Rimshot", rus("snare_14/rimshot", "top"), 0.8, 6)
+    add("Snare", "Rimshot Wires", rus("snare_14/rimshot", "btm"), 0.8, 6)
+    add("Snare", "Side Stick", rus("snare_14/sidestick", "top"), 0.5, 6)
+    add("Snare", "Brush", rus("snare_14/brush", "top"), 0.8, 5)
+    add("Snare", "Mallet", rus("snare_14/mallet", "top"), 0.9, 5)
+    add("Snare", "Tom On Top", rus("snare_14/pcenter", "top"), 0.9, 6)
+    add("Snare", "Tom On Top Rimshot", rus("snare_14/primshot", "top"), 0.9, 6)
+    add("Snare", "Tambourine On Top", rus("snare_14/tcenter", "top"), 0.9, 6)
+    add("Snare", "Tambourine Rimshot", rus("snare_14/trimshot", "top"), 0.9, 6)
+    add("Snare", "Brush Dig", rus("snare_14/bdig", "top"), 0.7, 5)
+    add("Snare", "Brush Release", rus("snare_14/brelease", "btm"), 0.8, 5)
+    add("Snare", "Old Snare", files(M, "Legacy Snares/OldSnare/snare_*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Legacy Drum One", files(M, "Legacy Snares/drum1/*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Legacy Drum Two", files(M, "Legacy Snares/drum2/*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Marching Legacy", files(M, "Legacy Snares/drum3_marching/*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Modern One", files(M, "Snare Drum, Modern 1/Snare*_Hit*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Modern Two", files(M, "Snare Drum, Modern 2/Snare*_Hit*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Modern Three", files(M, "Snare Drum, Modern 3/Snare*_HitSN*.wav"), 0.9, 7, lp=9000)
+    add("Snare", "Modern Rimshot", files(M, "Snare Drum, Modern 3/Snare*_rimshot*.wav"), 0.8, 4, lp=9000)
+    add("Snare", "Cross Stick", files(M, "Snare Drum, Modern 2/Snare*_Xstick*.wav") + files(M, "Snare Drum, Modern 3/Snare*_Xstick*.wav"), 0.5, 4)
+    add("Snare", "Stick Taps", files(M, "Snare Drum, Modern 1/Snare*_taps*.wav") + files(M, "Snare Drum, Modern 2/Snare*_taps*.wav"), 0.5, 4)
+
+    # ---- TOM: four rusty toms, two modern toms, legacy tenor toms.
+    add("Tom", "Fourteen", rus("tom_14/center", "cl"), 1.0, 6)
+    add("Tom", "Fourteen Mallet", rus("tom_14/mallet", "cl"), 1.0, 5)
+    add("Tom", "Fifteen", rus("tom_15/center", "cl"), 1.1, 6)
+    add("Tom", "Fifteen Brush", rus("tom_15/brush", "cl"), 1.0, 5)
+    add("Tom", "Eighteen", rus("tom_18/center", "cl"), 1.4, 6)
+    add("Tom", "Eighteen Mallet", rus("tom_18/mallet", "cl"), 1.4, 5)
+    add("Tom", "Twenty-Two", rus("tom_22/center", "cl"), 1.6, 6)
+    add("Tom", "Twenty-Two Brush", rus("tom_22/brush", "cl"), 1.4, 5)
+    add("Tom", "Concert High", files(M, "Tom 1/Stick/TomH_HitS_*.wav"), 1.0, 6)
+    add("Tom", "Concert High Mallet", files(M, "Tom 1/Mallet/TomH_HitM_*.wav"), 1.1, 6)
+    add("Tom", "Concert Low", files(M, "Tom 2/Stick/TomL_HitS_*.wav"), 1.2, 6)
+    add("Tom", "Concert Low Mallet", files(M, "Tom 2/Mallet/TomL_HitM_*.wav"), 1.3, 6)
+    add("Tom", "Concert Rim", files(M, "Tom 1/TomH_rimS_*.wav") + files(M, "Tom 2/TomL_rimS_*.wav"), 0.6, 5)
+    add("Tom", "Tenor High", files(M, "Legacy Toms/tenor_higher/*.wav"), 1.0, 7, lp=9000)
+    add("Tom", "Tenor Low", files(M, "Legacy Toms/tenor_lower/*.wav"), 1.1, 7, lp=9000)
+    add("Tom", "Timpani", files(M, "Timpani 1/Hit/Timpani*_Hit_*.wav"), 1.5, 6, semis=-3, lp=7000)
+
+    # ---- HAT: the rusty hi-hat by articulation, kept dark.
+    add("Hat", "Closed", rus("hihat_14/cl", "cl"), 0.35, 6, lp=9000)
+    add("Hat", "Tight", rus("hihat_14/tc", "cl"), 0.3, 6, lp=9000)
+    add("Hat", "Loose", rus("hihat_14/lc", "cl"), 0.5, 6, lp=9000)
+    add("Hat", "Quarter Open", rus("hihat_14/qo", "cl"), 0.8, 6, lp=9000)
+    add("Hat", "Half Open", rus("hihat_14/ho", "cl"), 1.0, 6, lp=9000)
+    add("Hat", "Open", rus("hihat_14/open", "cl"), 1.6, 5, lp=9000)
+    add("Hat", "Foot Chick", rus("hihat_14/chik", "cl"), 0.25, 5)
+    add("Hat", "Foot Splash", rus("hihat_14/footspl", "cl"), 0.8, 5, lp=9000)
+    add("Hat", "Brush Closed", rus("hihat_14/cl_brush", "cl"), 0.4, 5, lp=9000)
+    add("Hat", "Brush Open", rus("hihat_14/open_brush", "cl"), 1.0, 5, lp=9000)
+    add("Hat", "Pedal Noise", rus("hihat_14/perc", "cl") + rus("hihat_14/return", "cl"), 0.3, 5)
+
+    # ---- CYMBAL: few, soft and dark.
+    add("Cymbal", "Crash Mallet", rus("crash_17/mallet", "oh"), 2.2, 5, lp=8000)
+    add("Cymbal", "Crash Brush", rus("crash_17/brush", "oh"), 2.0, 4, lp=8000)
+    add("Cymbal", "Crash Choke", rus("crash_17/choke", "oh"), 0.7, 5, lp=8000)
+    add("Cymbal", "Ride Mallet", rus("ride_22/mallet", "oh"), 2.2, 5, lp=8000)
+    add("Cymbal", "Ride Brush", rus("ride_22/brush", "oh"), 2.0, 4, lp=8000)
+    add("Cymbal", "Ride Bell", rus("ride_22/bl", "oh"), 1.8, 5, lp=6500)
+    add("Cymbal", "Ride Choke", rus("ride_22/choke", "oh"), 0.7, 5, lp=8000)
+    add("Cymbal", "Clash Dull", files(I, "Clash Cymbals 2/cymbal_crash2_*.wav"), 1.6, 5, semis=-3, lp=5000)
+
+    # ---- PERC: hand drums and small instruments.
+    add("Perc", "Bongo High", files(M, "Bongos/BongoH_Hit[0-9]*.wav"), 0.5, 6)
+    add("Perc", "Bongo High Muted", files(M, "Bongos/BongoH_HitMuted*.wav"), 0.3, 5)
+    add("Perc", "Bongo Low", files(M, "Bongos/BongoL_Hit[0-9]*.wav"), 0.6, 6)
+    add("Perc", "Bongo Low Muted", files(M, "Bongos/BongoL_HitMuted*.wav"), 0.3, 5)
+    add("Perc", "Conga Open", files(M, "Conga/Conga_HitN_*.wav"), 0.9, 6)
+    add("Perc", "Conga Slap", files(M, "Conga/Conga_HitFM*.wav"), 0.5, 5)
+    add("Perc", "Quinto", files(M, "Conga/Quinto_HitN_*.wav"), 0.7, 6)
+    add("Perc", "Quinto Slap", files(M, "Conga/Quinto_HitFM*.wav"), 0.5, 5)
+    add("Perc", "Tumba", files(M, "Conga/Tumba_HitN_*.wav"), 1.0, 6)
+    add("Perc", "Tumba Slap", files(M, "Conga/Tumba_HitFM*.wav"), 0.6, 5)
+    add("Perc", "Frame Drum Large", files(M, "Frame Drum/HDrumL_Hit_*.wav"), 1.0, 4)
+    add("Perc", "Frame Drum Muted", files(M, "Frame Drum/HDrumL_HitMuted*.wav") + files(M, "Frame Drum/HDrumS_HitMuted*.wav"), 0.4, 5)
+    add("Perc", "Frame Drum Small", files(M, "Frame Drum/HDrumS_Hit_*.wav"), 0.7, 4)
+    add("Perc", "Hand Clap Group", files(I, "Claps/Clap_rr*.wav"), 0.8, 5)
+    add("Perc", "Hand Clap Solo", files(I, "Claps/SoloClap_vl*.wav"), 0.5, 4)
+    add("Perc", "Darbuka One", files(M, "Darbuka/Darbuka_1_hit_*.wav") + files(M, "Darbuka/Darbuka_2_hit_*.wav"), 0.6, 4)
+    add("Perc", "Darbuka Two", files(M, "Darbuka/Darbuka_4_hit_*.wav") + files(M, "Darbuka/Darbuka_5_hit_*.wav"), 0.6, 4)
+    add("Perc", "Cowbell", files(I, "Cowbells/Cowbell*_Normal_*.wav"), 0.8, 6, lp=6500)
+    add("Perc", "Cowbell Muted", files(I, "Cowbells/Cowbell*_Muted_*.wav"), 0.3, 6, lp=6500)
+    add("Perc", "Large Shaker", files(I, "Shaker, Large/LShaker_Hit*.wav") + files(I, "Shaker, Large/LShaker_Shake*.wav"), 0.9, 6, lp=8000)
+    add("Perc", "Small Shaker", files(I, "Shaker, Small/*.wav"), 0.8, 6, lp=8000)
+    add("Perc", "Tambourine Down", files(I, "Tambourine [345] - Legacy/tambourine_down*.wav"), 0.9, 6, lp=8000)
+    add("Perc", "Tambourine Up", files(I, "Tambourine [345] - Legacy/tambourine_up*.wav"), 0.9, 6, lp=8000)
+    add("Perc", "Cabasa", files(I, "Cabasa/Cabasa*_Hit*.wav"), 0.5, 4, lp=8000)
+
+    # ---- WOOD
+    add("Wood", "Woodblock", files(I, "Woodblock/wood_click*.wav"), 0.4, 6, lp=8000)
+    add("Wood", "Claves", files(I, "Claves/Claves*_Hit_*.wav"), 0.4, 6, lp=8000)
+    add("Wood", "Slapstick", files(I, "Slapstick/*.wav"), 0.5, 5, lp=9000)
+    add("Wood", "Cajon Slap", files(I, "Cajon/Cajon_hit*_fff_*.wav") + files(I, "Cajon/Cajon_hit*_f_*.wav"), 0.5, 5, lp=9000)
+    add("Wood", "Log Drum Low", files(I, "Slit Drum/LogDrum*.wav"), 0.9, 6, semis=-7, lp=5000)
+
+    # ---- METAL
+    add("Metal", "Tubular Clang", files(I, "Tubular Bells 1/chimes_*.wav") + files(I, "Tubular Bells 2/*.wav"), 0.7, 6, semis=-5, hold=500, lp=6000)
+    add("Metal", "Bell Tree Fall", files(I, "Bell Tree/Stroke/*.wav"), 1.0, 4, semis=-12, hold=700, lp=5000)
+    add("Metal", "Dull Anvil", files(I, "Anvil/Anvil_*.wav"), 0.6, 6, semis=-5, hold=300, lp=3500, drive=1.5)
+    add("Metal", "Brake Drum Low", files(I, "Brake Drum/BrakeDrum*_Hammer*.wav"), 1.0, 6, semis=-7, lp=4500)
+    add("Metal", "Gong Low", [p for p in files(I, "Gong 1/gong_*.wav") if "scrape" not in p], 2.0, 4, semis=-9, hold=1200, lp=3500)
+    add("Metal", "Clash Choked", files(I, "Clash Cymbals 1/cymbal_crash1_*.wav"), 0.4, 6, hold=200, lp=5000, semis=-2)
+
+    # ---- BODY (body_percussion has more than the earlier objects used)
+    add("Body", "Cheek Pop", files(B, "cheek_*.wav"), 0.3, 6)
+    add("Body", "Head Knock", files(B, "head_*.wav"), 0.4, 6)
+    add("Body", "Belly Slap", files(B, "bellyside_*.wav"), 0.4, 6)
+    add("Body", "Shoulder", files(B, "shoulderout_*.wav"), 0.4, 6)
+    add("Body", "Chest Slap", files(B, "chestside_*.wav"), 0.4, 6)
+    add("Body", "Pinky Snap", files(B, "pinkysnap_*.wav"), 0.3, 6)
+
+    # ---- TONAL: plucked and struck pitched sources, one pitch each, played as hits.
+    add("Tonal", "Kalimba Kenya", one_note(files(PI, "Kalimba, Kenya/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Kalimba Tanzania", one_note(files(PI, "Kalimba, Tanzania/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Mbira Gandanga", one_note(files(PI, "Mbira Mavembe*/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Mbira Nyamaropa", one_note(files(PI, "Mbira dzaVadzimu*/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Nyunga Nyunga", one_note(files(PI, "Nyunga Nyunga*/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Balafon Soft", one_note(files(I, "Balafon/Soft Mallet/*.wav")), 1.0, 5, semis=-12, lp=5000)
+    add("Tonal", "Balafon Hard", one_note(files(I, "Balafon/Hard Mallet/*.wav")), 1.0, 5, semis=-12, lp=5000)
+    add("Tonal", "Marimba", one_note(files(I, "Marimba/*.wav")), 1.2, 5, semis=-12, hold=800, lp=5000)
+    add("Tonal", "Xylophone", one_note(files(I, "Xylophone/Medium Mallets/*.wav")), 0.8, 5, semis=-12, lp=5000)
+    add("Tonal", "Vibraphone", one_note(files(I, "Vibraphone/Hard Mallets/*.wav")), 1.5, 5, semis=-12, hold=800, lp=5000)
+    add("Tonal", "Hand Chimes", one_note(files(I, "Hand Chimes/*.wav")), 1.5, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Harp Pluck", one_note(files(CH, "Composite Chordophones/Folk Harp/*.wav")), 1.2, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Dan Tranh Pluck", one_note(files(CH, "Zithers/Dan Tranh/Normal/*.wav")), 1.2, 5, semis=-12, hold=900, lp=5000)
+    add("Tonal", "Harpsichord Pluck", one_note(files(CH, "Zithers/Harpsichord, English/Sustains/Normal/*.wav")), 1.0, 5, semis=-12, hold=700, lp=5000)
+
+    # ---- RUIN: real recordings taken down, cut and crushed (the new sources, not the earlier ones).
+    add("Ruin", "Cardboard Snare", files(M, "Snare Drum, Modern 1/Snare*_Hit*.wav"), 0.4, 6, semis=-2, lp=3500, rate=9000, bits=6, drive=1.5, hold=220)
+    add("Ruin", "Tin Bongo", files(M, "Bongos/BongoH_Hit[0-9]*.wav"), 0.4, 6, semis=-5, hp=400, rate=8000, bits=7)
+    add("Ruin", "Drowned Tom", files(M, "Tom 1/Stick/TomH_HitS_*.wav"), 0.9, 6, semis=-7, lp=700, hold=600)
+    add("Ruin", "Melted Conga", files(M, "Conga/Conga_HitN_*.wav"), 0.8, 6, semis=-10, rate=7000, bits=6, drive=2.5)
+    add("Ruin", "Radio Snare", files(M, "Legacy Snares/drum1/*.wav"), 0.5, 6, hp=700, lp=3000, rate=6000, bits=5, drive=3.0)
+    add("Ruin", "Gutted Kick", rus("kick_24/kick", "oh"), 0.8, 6, semis=-5, rate=5500, bits=6, drive=3.0, hold=450)
+    add("Ruin", "Wet Clap", files(I, "Claps/Clap_rr*.wav"), 0.4, 5, semis=-4, lp=1500, hold=120, drive=2.0)
+    add("Ruin", "Broken Cowbell", files(I, "Cowbells/Cowbell*_Normal_*.wav"), 0.7, 6, semis=-15, rate=7000, bits=5, lp=3000)
+    add("Ruin", "Slowed Kalimba", one_note(files(PI, "Kalimba, Kenya/*.wav")), 0.9, 5, semis=-19, hold=350, lp=1200, drive=1.5)
+    add("Ruin", "Bitten Hat", rus("hihat_14/tc", "cl"), 0.3, 6, semis=-4, rate=5000, bits=4, hold=150, lp=3500)
+    add("Ruin", "Choked Timpani", files(M, "Timpani 1/Hit/Timpani*_Hit_*.wav"), 0.6, 6, semis=-4, hold=200, drive=2.0)
+    add("Ruin", "Crushed Rimshot", rus("snare_14/rimshot", "top"), 0.5, 6, rate=7000, bits=5, lp=4500)
+    add("Ruin", "Splintered Wood", files(I, "Claves/Claves*_Hit_*.wav") + files(I, "Woodblock/wood_click*.wav"), 0.4, 6, semis=-10, lp=2500, drive=2.0)
+    add("Ruin", "Sunk Tambourine", files(I, "Tambourine [345] - Legacy/tambourine_*.wav"), 0.5, 6, semis=-14, hold=250, lp=2500, drive=1.8, rate=9000, bits=7)
+    add("Ruin", "Dead Frame Drum", files(M, "Frame Drum/HDrumL_Hit_*.wav"), 0.5, 4, semis=-6, lp=1400, rate=8000, bits=6, drive=2.2)
+    add("Ruin", "Rotten Harp", one_note(files(CH, "Composite Chordophones/Folk Harp/*.wav")), 0.7, 5, semis=-24, hold=250, lp=1500, drive=2.5, rate=9000, bits=6)
+    add("Ruin", "Scorched Floor Tom", rus("tom_22/center", "cl"), 0.7, 6, semis=-3, hold=350, rate=10000, bits=7, drive=2.8)
+    add("Ruin", "Dust Brush", rus("snare_14/bstir", "top"), 1.0, 4, hp=500, lp=3000, rate=6000, bits=6, drive=2.0)
+    return out
+
+
+# ---- Kits: 16 pads in a General-MIDI-like layout (kick, rim, snare, clap, alt snare, low tom, closed hat, mid tom,
+# pedal hat, high tom, open hat, tom/perc, crash, perc, ride, perc), each kit built from its own sources.
+# Items are "Category: Name" of the new objects, or the name of one of the first 48 objects.
+KITS = [
+    ("Rusty Close Mics",
+     ["Kick: Beater Close", "Snare: Side Stick", "Snare: Top Mic", "Perc: Hand Clap Solo", "Snare: Edge", "Tom: Eighteen",
+      "Hat: Closed", "Tom: Fifteen", "Hat: Foot Chick", "Tom: Fourteen", "Hat: Quarter Open", "Tom: Twenty-Two",
+      "Cymbal: Crash Mallet", "Perc: Cowbell Muted", "Cymbal: Ride Brush", "Wood: Claves"],
+     {"Room": (22, 40)}),
+    ("Brush Session",
+     ["Kick: Muted Bass Drum", "Snare: Brush Dig", "Snare: Brush", "Body: Cheek Pop", "Snare: Brush Release", "Tom: Twenty-Two Brush",
+      "Hat: Brush Closed", "Tom: Fifteen Brush", "Hat: Foot Chick", "Tom: Eighteen Mallet", "Hat: Brush Open", "Perc: Frame Drum Muted",
+      "Cymbal: Crash Brush", "Perc: Small Shaker", "Cymbal: Ride Brush", "Wood: Woodblock"],
+     {"Room": (30, 50), "Stumble": 20}),
+    ("Concert Hall",
+     ["Kick: Concert Bass Drum", "Tom: Concert Rim", "Snare: Old Snare", "Perc: Hand Clap Group", "Snare: Marching Legacy", "Tom: Timpani",
+      "Perc: Cowbell Muted", "Tom: Concert Low Mallet", "Metal: Dull Anvil", "Tom: Concert High Mallet", "Metal: Bell Tree Fall", "Tom: Concert Low",
+      "Cymbal: Clash Dull", "Metal: Tubular Clang", "Metal: Gong Low", "Perc: Tambourine Down"],
+     {"Room": (50, 90), "Decay": 3.2}),
+    ("Conga Circle",
+     ["Kick: Tumba Boom", "Perc: Conga Slap", "Perc: Conga Open", "Body: Pinky Snap", "Perc: Quinto", "Perc: Tumba",
+      "Perc: Bongo Low", "Perc: Quinto Slap", "Perc: Bongo Low Muted", "Perc: Bongo High", "Perc: Bongo High Muted", "Perc: Tumba Slap",
+      "Perc: Large Shaker", "Perc: Cowbell", "Perc: Tambourine Up", "Perc: Darbuka One"],
+     {"Room": (18, 35)}),
+    ("Kalimba Keys", ["Tonal: Kalimba Kenya"] * 16, {"Scale": 1, "Room": (35, 60)}),
+    ("Balafon Keys", ["Tonal: Balafon Soft"] * 16, {"Scale": 2, "Room": (25, 45)}),
+    ("Harp Keys", ["Tonal: Harp Pluck"] * 16, {"Scale": 3, "Room": (45, 80), "Decay": 2.4}),
+    ("Body Beat",
+     ["Body: Head Knock", "Body: Pinky Snap", "Body: Chest Slap", "Perc: Hand Clap Solo", "Body: Belly Slap", "Stomp",
+      "Body: Cheek Pop", "Heel", "Snap", "Body: Shoulder", "Perc: Hand Clap Group", "Chest",
+      "Clap", "Body: Cheek Pop", "Stomp", "Snap"],
+     {"Room": (15, 30)}),
+    ("Wood Shop",
+     ["Wood: Log Drum Low", "Wood: Slapstick", "Wood: Cajon Slap", "Wood: Woodblock", "Kick: Cajon Sub", "Log",
+      "Wood: Claves", "Crate", "Wood: Woodblock", "Wood: Log Drum Low", "Wood: Claves", "Kick: Cajon Sub",
+      "Wood: Slapstick", "Wood: Cajon Slap", "Ratchet", "Wood: Claves"],
+     {"Room": (20, 35)}),
+    ("Ruin Machine",
+     ["Ruin: Gutted Kick", "Ruin: Crushed Rimshot", "Ruin: Radio Snare", "Ruin: Wet Clap", "Ruin: Cardboard Snare", "Ruin: Scorched Floor Tom",
+      "Ruin: Bitten Hat", "Ruin: Drowned Tom", "Ruin: Splintered Wood", "Ruin: Dead Frame Drum", "Ruin: Bitten Hat", "Ruin: Melted Conga",
+      "Ruin: Sunk Tambourine", "Ruin: Broken Cowbell", "Ruin: Dust Brush", "Ruin: Tin Bongo"],
+     {"Crush": 30, "Room": (15, 30)}),
+    ("Slowed Tape",
+     ["Ruin: Choked Timpani", "Ruin: Slowed Kalimba", "Ruin: Radio Snare", "Ruin: Wet Clap", "Ruin: Rotten Harp", "Ruin: Drowned Tom",
+      "Ruin: Bitten Hat", "Ruin: Scorched Floor Tom", "Ruin: Bitten Hat", "Ruin: Melted Conga", "Ruin: Splintered Wood", "Ruin: Dead Frame Drum",
+      "Ruin: Sunk Tambourine", "Ruin: Slowed Kalimba", "Ruin: Dust Brush", "Ruin: Rotten Harp"],
+     {"Gramophone": 55, "Room": (30, 60), "Stumble": 30}),
+    ("Legacy Drums",
+     ["Kick: Legacy Bass Drum", "Snare: Cross Stick", "Snare: Legacy Drum One", "Perc: Hand Clap Group", "Snare: Legacy Drum Two", "Tom: Tenor Low",
+      "Hat: Tight", "Tom: Tenor High", "Hat: Foot Chick", "Tom: Tenor High", "Hat: Half Open", "Tom: Tenor Low",
+      "Cymbal: Crash Choke", "Perc: Tambourine Down", "Cymbal: Ride Bell", "Perc: Cowbell"],
+     {"Room": (28, 50)}),
+    ("Snare Garden",
+     ["Snare: Top Mic", "Snare: Side Stick", "Snare: Rimshot", "Snare: Wires Mic", "Snare: Edge", "Snare: Mallet",
+      "Snare: Modern One", "Snare: Modern Two", "Snare: Modern Three", "Snare: Tom On Top", "Snare: Tambourine On Top", "Snare: Modern Rimshot",
+      "Snare: Rimshot Wires", "Snare: Stick Taps", "Snare: Tambourine Rimshot", "Snare: Tom On Top Rimshot"],
+     {"Room": (25, 45)}),
+    ("Tom Garden",
+     ["Tom: Twenty-Two", "Tom: Concert Rim", "Tom: Eighteen", "Tom: Fifteen", "Tom: Fourteen", "Tom: Twenty-Two Brush",
+      "Tom: Eighteen Mallet", "Tom: Fifteen Brush", "Tom: Concert Low", "Tom: Concert High", "Tom: Fourteen Mallet", "Tom: Tenor Low",
+      "Tom: Tenor High", "Tom: Timpani", "Tom: Concert Low Mallet", "Tom: Concert High Mallet"],
+     {"Room": (30, 55)}),
+    ("Hat Lab",
+     ["Hat: Pedal Noise", "Hat: Foot Chick", "Hat: Closed", "Hat: Tight", "Hat: Loose", "Hat: Foot Splash",
+      "Hat: Quarter Open", "Hat: Half Open", "Hat: Open", "Hat: Brush Closed", "Hat: Brush Open", "Ruin: Bitten Hat",
+      "Hat: Tight", "Hat: Loose", "Hat: Closed", "Hat: Quarter Open"],
+     {"Room": (15, 30)}),
+    ("Kick Lab",
+     ["Kick: Beater Close", "Kick: Room Bleed", "Kick: Open Close-Mic", "Kick: Shell Knock", "Kick: Hoop Click", "Kick: Pedal Thump",
+      "Kick: Concert Bass Drum", "Kick: Legacy Bass Drum", "Kick: Muted Bass Drum", "Kick: Timpani Thud", "Kick: Frame Drum Boom", "Kick: Tumba Boom",
+      "Kick: Floor Tom Thud", "Kick: Cajon Sub", "Kick: Bitten Bass Drum", "Ruin: Gutted Kick"],
+     {"Room": (20, 40)}),
+    ("Metal Shop",
+     ["Metal: Brake Drum Low", "Metal: Dull Anvil", "Metal: Tubular Clang", "Metal: Clash Choked", "Metal: Gong Low", "Brake Drum",
+      "Anvil", "Metal: Bell Tree Fall", "Trash Can Lid", "Metal: Dull Anvil", "Metal Sheet", "Metal: Brake Drum Low",
+      "Metal: Gong Low", "Metal: Tubular Clang", "Metal: Clash Choked", "Ruin: Broken Cowbell"],
+     {"Room": (35, 70), "StutterDiv": 3, "StutterDepth": 30}),
+    ("Desert Caravan",
+     ["Perc: Frame Drum Large", "Perc: Frame Drum Muted", "Perc: Darbuka Two", "Perc: Hand Clap Group", "Perc: Darbuka One", "Perc: Frame Drum Small",
+      "Perc: Tambourine Down", "Perc: Conga Open", "Perc: Small Shaker", "Perc: Tumba", "Perc: Tambourine Up", "Perc: Quinto",
+      "Perc: Large Shaker", "Perc: Cowbell Muted", "Perc: Cabasa", "Wood: Claves"],
+     {"Room": (30, 55), "Stumble": 25}),
+    ("Wire and Dust",
+     ["Kick: Pedal Thump", "Snare: Cross Stick", "Snare: Wires Mic", "Body: Pinky Snap", "Snare: Brush Release", "Kick: Hoop Click",
+      "Hat: Pedal Noise", "Snare: Stick Taps", "Hat: Foot Chick", "Snare: Brush Dig", "Hat: Tight", "Kick: Shell Knock",
+      "Ruin: Dust Brush", "Perc: Cabasa", "Metal: Clash Choked", "Perc: Small Shaker"],
+     {"Room": (20, 40), "Stumble": 15}),
+    ("Funeral March",
+     ["Kick: Concert Bass Drum", "Snare: Marching Legacy", "Snare: Legacy Drum One", "Metal: Gong Low", "Snare: Legacy Drum Two", "Tom: Timpani",
+      "Metal: Tubular Clang", "Tom: Tenor Low", "Metal: Bell Tree Fall", "Tom: Concert Low Mallet", "Metal: Dull Anvil", "Kick: Timpani Thud",
+      "Cymbal: Clash Dull", "Tonal: Hand Chimes", "Cymbal: Crash Mallet", "Tonal: Vibraphone"],
+     {"Room": (55, 95), "Decay": 4.5, "Stumble": 35}),
+    ("Radio Static",
+     ["Ruin: Gutted Kick", "Snare: Old Snare", "Ruin: Radio Snare", "Ruin: Wet Clap", "Snare: Cross Stick", "Ruin: Drowned Tom",
+      "Ruin: Bitten Hat", "Tom: Tenor High", "Hat: Foot Chick", "Ruin: Dead Frame Drum", "Ruin: Bitten Hat", "Ruin: Melted Conga",
+      "Ruin: Sunk Tambourine", "Ruin: Broken Cowbell", "Ruin: Dust Brush", "Ruin: Tin Bongo"],
+     {"Megaphone": 60, "Gramophone": 50, "Room": (12, 20)}),
+    ("Stutter Clinic",
+     ["Kick: Pedal Thump", "Snare: Side Stick", "Snare: Rimshot", "Perc: Hand Clap Solo", "Snare: Tambourine On Top", "Tom: Fifteen",
+      "Hat: Tight", "Tom: Fourteen", "Hat: Foot Chick", "Perc: Bongo Low", "Hat: Quarter Open", "Perc: Conga Slap",
+      "Cymbal: Crash Choke", "Wood: Woodblock", "Cymbal: Ride Choke", "Perc: Cowbell Muted"],
+     {"StutterDiv": 4, "StutterDepth": 55, "Chaos": 55, "Room": (20, 35)}),
+    ("Marimba Rain",
+     ["Tonal: Marimba", "Tonal: Xylophone", "Tonal: Vibraphone", "Tonal: Hand Chimes", "Tonal: Balafon Hard", "Tonal: Dan Tranh Pluck",
+      "Tonal: Mbira Gandanga", "Tonal: Mbira Nyamaropa", "Tonal: Nyunga Nyunga", "Tonal: Kalimba Tanzania", "Tonal: Harpsichord Pluck", "Tonal: Harp Pluck",
+      "Tonal: Balafon Soft", "Tonal: Kalimba Kenya", "Tonal: Marimba", "Tonal: Xylophone"],
+     {"Room": (40, 70), "Decay": 2.8}),
+    ("Cheap Orchestra",
+     ["Kick: Frame Drum Boom", "Perc: Frame Drum Muted", "Snare: Marching Legacy", "Perc: Hand Clap Group", "Snare: Legacy Drum One", "Tom: Timpani",
+      "Perc: Small Shaker", "Tom: Tenor Low", "Perc: Tambourine Down", "Tom: Concert High", "Metal: Bell Tree Fall", "Tom: Concert Low",
+      "Cymbal: Clash Dull", "Tonal: Hand Chimes", "Cymbal: Ride Mallet", "Wood: Slapstick"],
+     {"Room": (40, 75), "Stumble": 30, "Gramophone": 25}),
+    ("Drowned Kit",
+     ["Ruin: Drowned Tom", "Kick: Floor Tom Thud", "Ruin: Cardboard Snare", "Ruin: Wet Clap", "Ruin: Crushed Rimshot", "Ruin: Scorched Floor Tom",
+      "Hat: Closed", "Ruin: Choked Timpani", "Hat: Foot Chick", "Ruin: Melted Conga", "Hat: Open", "Ruin: Dead Frame Drum",
+      "Cymbal: Ride Mallet", "Ruin: Slowed Kalimba", "Cymbal: Crash Mallet", "Ruin: Rotten Harp"],
+     {"Room": (55, 90), "Decay": 5.0, "Megaphone": 0, "Gramophone": 30}),
+    ("Small Room Rock",
+     ["Kick: Open Close-Mic", "Snare: Rimshot", "Snare: Top Mic", "Perc: Hand Clap Group", "Snare: Rimshot Wires", "Tom: Twenty-Two",
+      "Hat: Tight", "Tom: Eighteen", "Hat: Foot Chick", "Tom: Fifteen", "Hat: Open", "Tom: Fourteen",
+      "Cymbal: Crash Choke", "Perc: Cowbell", "Cymbal: Ride Bell", "Perc: Tambourine Down"],
+     {"Room": (18, 25), "Output": -3}),
+    ("Street Band",
+     ["Kick: Legacy Bass Drum", "Snare: Cross Stick", "Snare: Marching Legacy", "Clap", "Snare: Modern Rimshot", "Tom: Tenor Low",
+      "Perc: Tambourine Down", "Tom: Tenor High", "Perc: Cabasa", "Tom: Tenor High", "Perc: Tambourine Up", "Tom: Tenor Low",
+      "Cymbal: Clash Dull", "Perc: Cowbell", "Cymbal: Crash Choke", "Wood: Slapstick"],
+     {"Room": (25, 40), "Stumble": 45}),
+]
+
+
+SCALES = {
+    1: [-12, -9, -7, -5, -2, 0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24],
+    2: [-12, -10, -7, -5, -3, 0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24],
+    3: [-12, -10, -9, -7, -5, -4, -1, 0, 2, 3, 5, 7, 8, 11, 12, 15],
+}
+FIRST_EXTRA = 64   # object numbers 48-63 are the synthesised models; the library's later objects start here
+
+
+def old_names(params_h):
+    import re
+    text = open(params_h, encoding="utf-8").read()
+    block = re.search(r"sampleObjectName\(int object\) \{.*?static const char\* names\[numSampleObjects\] = \{(.*?)\};", text, re.S).group(1)
+    return re.findall(r'"([^"]+)"', block)
+
+
+def write_headers(objects, folder, params_h):
+    """DrumsObjects.h (names of the objects after the first 48) and DrumsKitsGenerated.h, from the same list."""
+    old = old_names(params_h)
+    assert len(old) == 48
+    extra = [name for name, _ in objects[48:]]
+    index = {n: FIRST_EXTRA + k for k, n in enumerate(extra)}
+    index.update({n: i for i, n in enumerate(old)})
+    with open(os.path.join(folder, "DrumsObjects.h"), "w", encoding="utf-8") as f:
+        f.write("#pragma once\n// Generated by Tools/build_drum_library.py together with Library/drums.bin: do not edit.\n")
+        f.write("#include <algorithm>\nnamespace inverso_abismo::drums {\n")
+        f.write("constexpr int numExtraObjects = %d;   // library objects after the first 48; OBJECT numbers %d and up\n" % (len(extra), FIRST_EXTRA))
+        f.write("inline const char* extraObjectName(int i) {\n static const char* names[numExtraObjects] = {\n")
+        for n in extra:
+            f.write('  "%s",\n' % n)
+        f.write(" };\n return names[std::clamp(i, 0, numExtraObjects - 1)];\n}\n")
+        f.write("inline int extraObjectStandIn(int i) {\n static const int map[numExtraObjects] = {")
+        for k, n in enumerate(extra):
+            f.write("%s%d," % ("\n  " if k % 24 == 0 else "", STAND_IN[n.split(":")[0]]))
+        f.write("\n };\n return map[std::clamp(i, 0, numExtraObjects - 1)];\n}\n}\n")
+    glob_params = {"Stumble": "Stumble", "Crush": "Crush", "Gramophone": "Gramophone", "Megaphone": "Megaphone",
+                   "StutterDiv": "StutterDiv", "StutterDepth": "StutterDepth", "Chaos": "Chaos", "Output": "Output",
+                   "Decay": "RoomDecay"}
+    with open(os.path.join(folder, "DrumsKitsGenerated.h"), "w", encoding="utf-8") as f:
+        f.write("#pragma once\n// Generated by Tools/build_drum_library.py: do not edit. Included by DrumsParams.h after Kit.\n")
+        f.write("constexpr int numGeneratedKits = %d;\n" % len(KITS))
+        f.write("inline const Kit* generatedKits() {\n using namespace P;\n static const Kit table[numGeneratedKits] = {\n")
+        for name, items, extras in KITS:
+            assert len(items) == 16, name
+            rows = []
+            scale = SCALES.get(extras.get("Scale"))
+            for pad, item in enumerate(items):
+                assert item in index, (name, item)
+                rows.append("{%d,Object,%d}" % (pad, index[item]))
+                if scale:
+                    rows.append("{%d,Tune,%d}" % (pad, scale[pad]))
+            for key, val in extras.items():
+                if key == "Scale":
+                    continue
+                if key == "Room":
+                    rows.append("{-1,RoomMix,%d}" % val[0])
+                    rows.append("{-1,RoomSize,%d}" % val[1])
+                elif key == "Decay":
+                    rows.append("{-1,RoomDecay,%.2ff}" % val)
+                else:
+                    rows.append("{-1,%s,%d}" % (glob_params[key], val))
+            rows.append("{-1,-1,0}")
+            assert len(rows) <= 64, name
+            f.write('  {"%s", {%s}},\n' % (name, ",".join(rows)))
+        f.write(" };\n return table;\n}\n")
+    print("headers: %d extra objects, %d kits" % (len(extra), len(KITS)))
 
 
 def main():
     vcsl, body, rusty, out_bin, out_md = sys.argv[1:6]
     wav_dir = sys.argv[6] if len(sys.argv) > 6 else None
     objects = build(vcsl, body, rusty)
+    if os.environ.get("DRUMLIB_HEADERS"):
+        write_headers(objects, os.environ["DRUMLIB_HEADERS"], os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Source", "DSP", "DrumsParams.h"))
     with open(out_bin, "wb") as f:
         f.write(b"ABDL")
         f.write(struct.pack("<III", 1, SR, len(objects)))

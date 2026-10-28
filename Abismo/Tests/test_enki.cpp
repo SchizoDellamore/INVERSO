@@ -23,7 +23,7 @@ static void loadPool() {
  verify(f.good(), "cannot open Library/drums.bin");
  std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(f)), {});
  static D::SampleLibrary lib;
- verify(D::SampleLibrary::parse(bytes.data(), bytes.size(), lib), "library does not parse");
+ verify(D::SampleLibrary::parse(bytes.data(), bytes.size(), lib, static_cast<std::uint32_t>(E::numLibrarySamples)), "library does not parse");
  samples.resize(lib.objects.size());
  pool.fill(nullptr);
  for (std::size_t i = 0; i < lib.objects.size(); ++i) {

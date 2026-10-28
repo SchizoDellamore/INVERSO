@@ -310,7 +310,7 @@ int main(){
  verify(std::lround(restored.apvts.getRawParameterValue("P03_OBJECT")->load())==13,"pad object not restored");
  verify(std::abs(restored.apvts.getRawParameterValue("P03_TUNE")->load()+7.f)<.05f,"pad tune not restored");
  // The recordings are found (source tree in this build) and play by default.
- verify(static_cast<int>(InversoAbismoDrumsProcessor::library().objects.size())==inverso_abismo::drums::numSampleObjects,"drum library missing");
+ verify(static_cast<int>(InversoAbismoDrumsProcessor::library().objects.size())==inverso_abismo::drums::numLibraryObjects,"drum library missing");
  // A pad loaded with the user's own takes: several files become dynamics, survive a session
  // round trip, fall back to the OBJECT when the files are gone, and clear back to the OBJECT.
  {

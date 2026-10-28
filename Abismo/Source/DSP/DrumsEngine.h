@@ -67,7 +67,8 @@ struct SampleSet {
 // The embedded library (Library/drums.bin). Parsed once; never touched by the audio thread.
 struct SampleLibrary {
  std::vector<SampleSet> objects;
- static bool parse(const unsigned char* data, std::size_t size, SampleLibrary& out) {
+ // maxObjects: read only the first ones (ENKI uses the first 48 and does not need the rest in memory).
+ static bool parse(const unsigned char* data, std::size_t size, SampleLibrary& out, std::uint32_t maxObjects = 0xFFFFFFFFu) {
   std::size_t o = 0;
   auto need = [&](std::size_t n) { return o + n <= size; };
   auto u16 = [&] { const unsigned v = data[o] | (data[o + 1] << 8); o += 2; return v; };
@@ -81,7 +82,7 @@ struct SampleLibrary {
   o = 4;
   if (u32() != 1) return false;
   const double rate = u32();
-  const std::uint32_t count = u32();
+  const std::uint32_t count = std::min(u32(), maxObjects);
   out.objects.clear();
   for (std::uint32_t i = 0; i < count; ++i) {
    if (!need(2)) return false;
@@ -612,7 +613,7 @@ public:
  bool padUsesSample(int pad) const {
   const auto& p = pads[static_cast<std::size_t>(std::clamp(pad, 0, numPads - 1))];
   return padSample[static_cast<std::size_t>(std::clamp(pad, 0, numPads - 1))] ||
-         (library && isSampleObject(p.object) && static_cast<std::size_t>(p.object) < library->objects.size());
+         (library && isSampleObject(p.object) && static_cast<std::size_t>(libraryIndex(p.object)) < library->objects.size());
  }
  void setTransport(double bpm, double ppq, bool playing) { mutilator.setTransport(bpm, ppq, playing); }
  void setPitchBend(float normalised) { bend = std::clamp(normalised, -1.f, 1.f) * 2.f; }
@@ -691,8 +692,8 @@ private:
   const auto u = static_cast<std::size_t>(pad);
   const auto& settings = pads[u];
   if (padSample[u]) chosen->startSample(pad, settings, *padSample[u], lastLayer[u], velocity, velSens, sr);
-  else if (library && isSampleObject(settings.object) && static_cast<std::size_t>(settings.object) < library->objects.size())
-   chosen->startSample(pad, settings, library->objects[static_cast<std::size_t>(settings.object)], lastLayer[u], velocity, velSens, sr);
+  else if (library && isSampleObject(settings.object) && static_cast<std::size_t>(libraryIndex(settings.object)) < library->objects.size())
+   chosen->startSample(pad, settings, library->objects[static_cast<std::size_t>(libraryIndex(settings.object))], lastLayer[u], velocity, velSens, sr);
   else chosen->start(pad, settings, rust[u], velocity, velSens, sr);
   triggered |= 1u << pad;
  }
