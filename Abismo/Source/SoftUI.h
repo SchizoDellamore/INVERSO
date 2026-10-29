@@ -224,6 +224,11 @@ public:
  void mouseUp(const juce::MouseEvent&) override;
 private:
  int saveWidth() const { return userApvts != nullptr ? 58 : 0; }
+ int favWidth() const { return userApvts != nullptr ? 40 : 0; }   // the star: keep this sound in FAVORITES
+ int rightWidth() const { return saveWidth() + favWidth(); }
+ juce::String currentKey() const;   // "F|name" for a factory preset, "U|name" for one of yours
+ bool isFavorite() const;
+ void toggleFavorite();
  void saveDialog();
  int shown = -1, shownCount = -1;
  juce::AudioProcessorValueTreeState* userApvts = nullptr;

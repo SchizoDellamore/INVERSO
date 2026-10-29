@@ -920,6 +920,42 @@ void KnobLearn::paint(juce::Graphics& g) {
  g.drawText("AFTERTOUCH KNOB", getLocalBounds().removeFromTop(14), juce::Justification::centred);
 }
 
+namespace { juce::PropertiesFile& windowSettings(const juce::String& plugin); }
+
+// Favourites: the starred presets of one plugin (factory ones by name, yours by file name), one line each in the
+// plugin's settings file, shown on top of the preset menu.
+namespace {
+juce::StringArray favoritesOf(const juce::String& plugin) { return juce::StringArray::fromLines(windowSettings(plugin).getValue("favorites")); }
+void storeFavorites(const juce::String& plugin, const juce::StringArray& keys) {
+ auto& f = windowSettings(plugin);
+ f.setValue("favorites", keys.joinIntoString("\n"));
+ f.saveIfNeeded();
+}
+void drawStar(juce::Graphics& g, juce::Rectangle<float> area, bool filled, juce::Colour colour) {
+ juce::Path star;
+ const auto c = area.getCentre();
+ const float outer = std::min(area.getWidth(), area.getHeight()) * .36f;
+ star.addStar(c, 5, outer * .45f, outer, -1.5708f);
+ if (filled) { g.setColour(colour); g.fillPath(star); }
+ g.setColour(colour);
+ g.strokePath(star, juce::PathStrokeType(1.4f));
+}
+} // namespace
+
+juce::String PresetBar::currentKey() const {
+ if (userName.isNotEmpty()) return "U|" + userName;
+ return "F|" + (getName && getCurrent ? getName(getCurrent()) : juce::String());
+}
+bool PresetBar::isFavorite() const { return userApvts != nullptr && favoritesOf(userPlugin).contains(currentKey()); }
+void PresetBar::toggleFavorite() {
+ if (userApvts == nullptr) return;
+ auto keys = favoritesOf(userPlugin);
+ const auto key = currentKey();
+ if (keys.contains(key)) keys.removeString(key); else keys.add(key);
+ storeFavorites(userPlugin, keys);
+ repaint();
+}
+
 void PresetBar::enableUserPresets(juce::AudioProcessorValueTreeState& apvts, const juce::String& plugin) {
  userApvts = &apvts;
  userPlugin = plugin;
@@ -928,8 +964,9 @@ void PresetBar::enableUserPresets(juce::AudioProcessorValueTreeState& apvts, con
 
 void PresetBar::paint(juce::Graphics& g) {
  auto all = getLocalBounds().toFloat().reduced(8.f);
- juce::Rectangle<float> save;
+ juce::Rectangle<float> save, fav;
  if (saveWidth() > 0) { save = all.removeFromRight(static_cast<float>(saveWidth()) - 8.f); all.removeFromRight(8.f); }
+ if (favWidth() > 0) { fav = all.removeFromRight(static_cast<float>(favWidth()) - 8.f); all.removeFromRight(8.f); }
  const auto r = all;
  const int count = getCount ? getCount() : 0, current = getCurrent ? getCurrent() : 0;
  const juce::String full = userName.isNotEmpty() ? userName : getName ? getName(current) : juce::String();
@@ -970,6 +1007,13 @@ void PresetBar::paint(juce::Graphics& g) {
    g.setFont(titleFont(14.f));
    g.drawText("SAVE", save, juce::Justification::centred);
   }
+  if (!fav.isEmpty()) {
+   g.setGradientFill(juce::ColourGradient(juce::Colour(0xff2a231d), 0.f, fav.getY(), juce::Colour(0xff0f0c0a), 0.f, fav.getBottom(), false));
+   g.fillRoundedRectangle(fav, 5.f);
+   g.setColour(juce::Colour(0xff8f877a));
+   g.drawRoundedRectangle(fav.reduced(.5f), 5.f, 1.5f);
+   drawStar(g, fav, isFavorite(), colour::amber.brighter(.2f));
+  }
   return;
  }
  juce::Path p;
@@ -999,6 +1043,14 @@ void PresetBar::paint(juce::Graphics& g) {
   g.setFont(uiFont(11.f, true));
   g.drawText("SAVE", save, juce::Justification::centred);
  }
+ if (!fav.isEmpty()) {
+  juce::Path fp;
+  fp.addRoundedRectangle(fav, fav.getHeight() * .5f);
+  juce::DropShadow(colour::shadow.withAlpha(.4f), 10, {2, 3}).drawForPath(g, fp);
+  g.setGradientFill(juce::ColourGradient(juce::Colours::white, 0.f, fav.getY(), colour::card, 0.f, fav.getBottom(), false));
+  g.fillPath(fp);
+  drawStar(g, fav, isFavorite(), juce::Colour(0xffe0a020));
+ }
 }
 
 void PresetBar::saveDialog() {
@@ -1019,12 +1071,36 @@ void PresetBar::mouseUp(const juce::MouseEvent& e) {
  if (!getCount || !select) return;
  const int count = getCount(), current = getCurrent();
  if (count <= 0) return;
- const int width = getWidth() - saveWidth();
- if (saveWidth() > 0 && e.x >= width) { saveDialog(); return; }
+ const int width = getWidth() - rightWidth();
+ if (saveWidth() > 0 && e.x >= getWidth() - saveWidth()) { saveDialog(); return; }
+ if (favWidth() > 0 && e.x >= width) { toggleFavorite(); return; }
  if (e.x < 48) { userName = {}; select((current + count - 1) % count); repaint(); return; }
  if (e.x > width - 48 && e.x < width) { userName = {}; select((current + 1) % count); repaint(); return; }
  juce::PopupMenu menu;
- if (userApvts != nullptr) menu.addSectionHeader("FACTORY");
+ // FAVORITES first: the starred presets that still exist.
+ juce::Array<juce::File> userFiles;
+ if (userApvts != nullptr) userFiles = abismo_ui::userPresets(userPlugin);
+ std::vector<std::pair<int, int>> favoriteTargets;   // menu id -> (factory index | 10000 + user file index)
+ if (userApvts != nullptr) {
+  const auto keys = favoritesOf(userPlugin);
+  int shownFavorites = 0;
+  for (const auto& key : keys) {
+   int target = -1;
+   juce::String label;
+   if (key.startsWith("F|")) {
+    for (int i = 0; i < count; ++i) if (getName(i) == key.substring(2)) { target = i; label = getName(i).fromLastOccurrenceOf("/", false, false); break; }
+    if (target >= 0 && getName(target).containsChar('/')) label = getName(target).replace("/", ":  ");
+   } else if (key.startsWith("U|")) {
+    for (int i = 0; i < userFiles.size(); ++i) if (userFiles[i].getFileNameWithoutExtension() == key.substring(2)) { target = 10000 + i; label = key.substring(2) + "  (yours)"; break; }
+   }
+   if (target < 0) continue;
+   if (shownFavorites == 0) menu.addSectionHeader("FAVORITES");
+   favoriteTargets.emplace_back(30000 + shownFavorites, target);
+   menu.addItem(30000 + shownFavorites, label);
+   ++shownFavorites;
+  }
+  menu.addSectionHeader("FACTORY");
+ }
  // Factory names written "Category/Name" are grouped in one submenu per category.
  {
   juce::StringArray categories;
@@ -1044,20 +1120,33 @@ void PresetBar::mouseUp(const juce::MouseEvent& e) {
    menu.addSubMenu(categories[k].toUpperCase(), subs[static_cast<std::size_t>(k)], true, nullptr, holdsCurrent && userName.isEmpty());
   }
  }
- juce::Array<juce::File> files;
+ juce::Array<juce::File> files = userFiles;
  if (userApvts != nullptr) {
-  files = abismo_ui::userPresets(userPlugin);
   menu.addSectionHeader("YOURS");
   if (files.isEmpty()) menu.addItem(-1, "None yet: press SAVE to keep the current sound", false);
   for (int i = 0; i < files.size(); ++i) menu.addItem(10000 + i, files[i].getFileNameWithoutExtension(), true, files[i].getFileNameWithoutExtension() == userName);
   menu.addSeparator();
+  menu.addItem(20002, isFavorite() ? "Remove the current sound from FAVORITES" : "Add the current sound to FAVORITES");
   menu.addItem(20000, "Save the current sound...");
   menu.addItem(20001, "Open the presets folder");
  }
  juce::Component::SafePointer<PresetBar> safe(this);
- menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMaximumNumColumns(2), [safe, files](int chosen) {
+ menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMaximumNumColumns(2), [safe, files, favoriteTargets](int chosen) {
   if (safe == nullptr || chosen <= 0) return;
   if (chosen == 20000) { safe->saveDialog(); return; }
+  if (chosen == 20002) { safe->toggleFavorite(); return; }
+  if (chosen >= 30000) {
+   for (const auto& t : favoriteTargets) {
+    if (t.first != chosen) continue;
+    if (t.second >= 10000) {
+     const auto& file = files[t.second - 10000];
+     if (abismo_ui::loadUserPreset(*safe->userApvts, file)) safe->userName = file.getFileNameWithoutExtension();
+    } else { safe->userName = {}; safe->select(t.second); }
+    safe->repaint();
+    return;
+   }
+   return;
+  }
   if (chosen == 20001) { const auto f = abismo_ui::userPresetFolder(safe->userPlugin); f.createDirectory(); f.revealToUser(); return; }
   if (chosen >= 10000) {
    const auto& file = files[chosen - 10000];
