@@ -1,4 +1,4 @@
-# INVERSO ABISMO v0.21.0: instrumentos de tensão para trilha (VST3i)
+# INVERSO ABISMO v0.22.0: instrumentos de tensão para trilha (VST3i)
 
 Este pacote instala quatro instrumentos VST3 para Windows x64:
 - **INVERSO ABISMO**: sintetizador (descrito logo abaixo).

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(InversoAbismo VERSION 0.21.0 LANGUAGES C CXX)
+project(InversoAbismo VERSION 0.22.0 LANGUAGES C CXX)
 # MSVC has no M_PI without this
 if(MSVC)
  add_compile_definitions(_USE_MATH_DEFINES)
