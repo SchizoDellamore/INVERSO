@@ -1,11 +1,11 @@
 name: Build INVERSO ABISMO macOS VST3
-# Runs only when asked for: by hand, or by pushing a tag named build-mac-* (Claude does this: a workflow that is not on the
-# default branch cannot be started by hand through the API). Universal binaries (Apple Silicon and Intel), ad-hoc signed: not notarised,
-# so macOS asks the user to allow them once (the release notes say how).
+# Runs only when asked for: by hand, or when a push touches this very file (tags cannot be pushed from Claude's
+# session, and a workflow that is not on the default branch cannot be started through the API).
 on:
   workflow_dispatch:
   push:
-    tags: ['build-mac-*']
+    branches: ['claude/abismo-synth']
+    paths: ['.github/workflows/abismo-macos.yml']
 jobs:
   build:
     runs-on: macos-15
