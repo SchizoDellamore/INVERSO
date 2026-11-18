@@ -53,7 +53,10 @@ struct Sanity {
  }
 };
 
-constexpr float runaway = 1000.f; // +60 dBFS: past any setting a plugin allows, so only a blow-up gets here
+// +80 dBFS. A drum strip with every control at its limit (input +18 dB, output +18 dB, three EQ bands +12 dB with a wide Q)
+// reaches about +61 dBFS from a -6 dBFS signal and about +67 from a full-scale one, so random settings may come close to
+// +66 (the macOS run did): only a filter blowing up (growing without end, then inf) gets past this.
+constexpr float runaway = 10000.f;
 
 int channelsOf(juce::AudioPluginInstance& p) { return std::max(2, std::max(p.getTotalNumInputChannels(), p.getTotalNumOutputChannels())); }
 
@@ -242,7 +245,7 @@ void fuzzChecks(juce::AudioPluginInstance& p) {
    for (int k = 0; k < 4; ++k) if (params.size()) params[r.nextInt(params.size())]->setValue(r.nextFloat());
   });
   // any setting at all, so loud is allowed (TIDE alone reaches +32 dBFS with every band boosted);
-  // what is not: NaN/inf, denormals, or a runaway past +60 dBFS
+  // what is not: NaN/inf, denormals, or a runaway past +80 dBFS
   s.check("fuzz seed " + juce::String(seed), runaway);
   p.releaseResources();
  }
