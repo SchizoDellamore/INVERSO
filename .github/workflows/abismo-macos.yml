@@ -1,0 +1,126 @@
+name: Build INVERSO ABISMO macOS VST3
+# Runs only when asked for (by hand). Universal binaries (Apple Silicon and Intel), ad-hoc signed: not notarised,
+# so macOS asks the user to allow them once (the release notes say how).
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write # attaches the macOS files to the GitHub Release of the same version
+    env:
+      PLUGINS: >-
+        InversoAbismo:INVERSO_ABISMO InversoAbismoSampler:INVERSO_ABISMO_SAMPLER InversoAbismoDrums:INVERSO_ABISMO_DRUMS
+        InversoRelicario:INVERSO_RELICARIO InversoEnki:INVERSO_ENKI InversoClear:INVERSO_CLEAR InversoTide:INVERSO_TIDE
+        InversoNeon:INVERSO_NEON InversoHalo:INVERSO_HALO InversoMaster:INVERSO_MASTER InversoKick:INVERSO_KICK
+        InversoSnare:INVERSO_SNARE InversoToms:INVERSO_TOMS InversoHats:INVERSO_HATS InversoCymbals:INVERSO_CYMBALS
+        InversoOverheads:INVERSO_OVERHEADS InversoCapture:INVERSO_CAPTURE
+    steps:
+      - name: Checkout INVERSO repository
+        uses: actions/checkout@v4
+      - name: Checkout JUCE 8
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.16-security
+          path: JUCE
+      - name: Version
+        id: ver
+        run: |
+          v=$(grep -m1 -oE 'VERSION [0-9]+\.[0-9]+\.[0-9]+' Abismo/CMakeLists.txt | cut -d' ' -f2)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "INVERSO $v"
+      - name: Configure (universal arm64 + x86_64, macOS 11 and later)
+        run: |
+          cmake -S Abismo -B Abismo/build-mac -DJUCE_ROOT="$GITHUB_WORKSPACE/JUCE" -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DINVERSO_LTO=OFF
+      - name: Build the plugins, the tests and the VST3 conformance tool
+        run: |
+          targets=""
+          for p in $PLUGINS; do targets="$targets ${p%%:*}_VST3"; done
+          cmake --build Abismo/build-mac --config Release -j"$(sysctl -n hw.ncpu)" --target $targets InversoVst3Conformance \
+            abismo_engine abismo_presets abismo_stress abismo_sampler abismo_drums relicario_engine enki_engine furnace_engine \
+            clear_engine tide_engine neon_engine halo_engine chain_dsp chain_engine capture_dsp capture_fx
+      - name: "Sign every bundle (ad hoc, which Apple Silicon needs to load them)"
+        run: |
+          for p in $PLUGINS; do
+            t=${p%%:*}
+            for b in Abismo/build-mac/${t}_artefacts/Release/VST3/*.vst3; do
+              codesign --force --deep --sign - "$b"
+              codesign --verify --deep --strict "$b"
+              lipo -archs "$b/Contents/MacOS/$(basename "$b" .vst3)"
+            done
+          done
+      - name: DSP tests and VST3 conformance of every plugin
+        # (the JUCE host smokes open editors; they stay out of the first macOS run)
+        run: ctest --test-dir Abismo/build-mac -C Release --output-on-failure -j3 -E host_smoke
+      - name: "Validate every plugin with pluginval (a release is only published if all pass)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/pluginval" Abismo/dist/pluginval
+          curl -sSL -o "$RUNNER_TEMP/pluginval/pv.zip" https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q "$RUNNER_TEMP/pluginval/pv.zip" -d "$RUNNER_TEMP/pluginval"
+          pv="$RUNNER_TEMP/pluginval/pluginval.app/Contents/MacOS/pluginval"
+          failed=""
+          for p in $PLUGINS; do
+            t=${p%%:*}
+            for b in Abismo/build-mac/${t}_artefacts/Release/VST3/*.vst3; do
+              name=$(basename "$b" .vst3)
+              ok=1
+              for seed in 1 20261024 987654321; do
+                "$pv" --strictness-level 10 --validate-in-process --timeout-ms 900000 --random-seed $seed "$b" > "Abismo/dist/pluginval/$name seed $seed.txt" 2>&1 || { ok=0; tail -30 "Abismo/dist/pluginval/$name seed $seed.txt"; }
+              done
+              if [ $ok = 1 ]; then echo "passed: $name (3 seeds)"; else failed="$failed $name"; echo "FAILED: $name"; fi
+            done
+          done
+          if [ -n "$failed" ]; then echo "pluginval failed for:$failed"; exit 1; fi
+      - name: Keep the pluginval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluginval-reports-macos
+          path: Abismo/dist/pluginval/
+          if-no-files-found: ignore
+      - name: Package (installer .pkg and portable .zip)
+        run: |
+          v=${{ steps.ver.outputs.version }}
+          dist="$PWD/Abismo/dist"
+          stage="$dist/stage/Library/Audio/Plug-Ins/VST3"
+          portable="$dist/INVERSO_ABISMO_PORTABLE_VST3_macOS_$v"
+          mkdir -p "$stage" "$portable"
+          for p in $PLUGINS; do
+            t=${p%%:*}
+            for b in Abismo/build-mac/${t}_artefacts/Release/VST3/*.vst3; do
+              ditto "$b" "$stage/$(basename "$b")"
+              ditto "$b" "$portable/$(basename "$b")"
+            done
+          done
+          cat > "$portable/LEIA-ME.txt" <<'TXT'
+          INVERSO ABISMO para macOS (VST3, Apple Silicon e Intel)
+          1. Feche a DAW. Copie as pastas .vst3 para /Library/Audio/Plug-Ins/VST3 (ou ~/Library/Audio/Plug-Ins/VST3).
+          2. Estes arquivos não são notarizados pela Apple. Se o macOS disser que não pode verificar, abra o Terminal e rode:
+             xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/INVERSO*.vst3
+             (ou, em Ajustes do Sistema > Privacidade e Segurança, clique em "Abrir mesmo assim" no aviso do plugin).
+          3. Abra a DAW e reescaneie os plugins.
+          TXT
+          pkgbuild --root "$dist/stage" --identifier net.inversostudios.abismo --version "$v" --install-location / "$dist/INVERSO_ABISMO_macOS_${v}.pkg"
+          (cd "$dist" && ditto -c -k --keepParent "INVERSO_ABISMO_PORTABLE_VST3_macOS_$v" "INVERSO_ABISMO_PORTABLE_VST3_macOS_$v.zip")
+          ls -la "$dist"
+      - name: Keep the packages as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVERSO_ABISMO_macOS
+          path: |
+            Abismo/dist/*.pkg
+            Abismo/dist/*.zip
+          if-no-files-found: error
+      - name: Attach to the GitHub Release of this version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${{ steps.ver.outputs.version }}
+          tag="abismo-v$v"
+          dist="$PWD/Abismo/dist"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --title "INVERSO ABISMO $v" --notes "INVERSO ABISMO $v (macOS: veja o LEIA-ME dentro do zip; os arquivos não são notarizados, o macOS pede para liberar uma vez)." || gh release view "$tag" >/dev/null
+          fi
+          gh release upload "$tag" "$dist/INVERSO_ABISMO_macOS_${v}.pkg" "$dist/INVERSO_ABISMO_PORTABLE_VST3_macOS_${v}.zip" --clobber
